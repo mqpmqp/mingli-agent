@@ -18,6 +18,7 @@ LIFECYCLES = {
     "concepts": ("draft", "reviewed", "verified"),
     "rules": ("draft", "reviewed", "verified", "deprecated"),
     "evidence": ("raw", "reviewed", "verified"),
+    "cases": ("reviewed",),
     "benchmarks": ("draft", "approved"),
 }
 TOOL_VERSION = "0.2.0"
@@ -159,7 +160,7 @@ def validate_knowledge(root: Path) -> tuple[str, ...]:
 
     targets = [(registry, "source")]
     for kind, lifecycles in LIFECYCLES.items():
-        schema_kind = {"concepts": "concept", "rules": "knowledge_rule", "evidence": "evidence_record", "benchmarks": "benchmark_case"}[kind]
+        schema_kind = {"concepts": "concept", "rules": "knowledge_rule", "evidence": "evidence_record", "cases": "case_record", "benchmarks": "benchmark_case"}[kind]
         for path in sorted((root / kind).rglob("*.jsonl")):
             targets.append((path, schema_kind))
             relative = path.relative_to(root).parts
@@ -184,7 +185,7 @@ def validate_knowledge(root: Path) -> tuple[str, ...]:
                 if object_id in ids:
                     issues.append(f"重复 ID {object_id}: {ids[object_id]} 与 {path.relative_to(root)}")
                 ids[object_id] = path.relative_to(root).as_posix()
-            if schema_kind in {"concept", "knowledge_rule", "evidence_record", "benchmark_case"}:
+            if schema_kind in {"concept", "knowledge_rule", "evidence_record", "case_record", "benchmark_case"}:
                 refs = record.get("source_ids", [record.get("source_id")])
                 if any(ref not in source_ids for ref in refs):
                     issues.append(f"{path.relative_to(root)}:{line_no}: source_id 不存在")
