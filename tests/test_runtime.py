@@ -81,6 +81,18 @@ class SchemaLoaderTests(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertEqual(issues[0].path, "$.value")
 
+    def test_rejects_non_object_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "bad.schema.json").write_text("[]", encoding="utf-8")
+
+            issues = validate_spec(root)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].file, "bad.schema.json")
+        self.assertEqual(issues[0].path, "$")
+        self.assertIn("顶层必须是 object", issues[0].message)
+
 
 class ModelTests(unittest.TestCase):
     def test_models_are_strict_and_frozen(self) -> None:
@@ -130,15 +142,18 @@ class RuleLoaderTests(unittest.TestCase):
 
 
 class EvidenceAndConfidenceTests(unittest.TestCase):
-    def test_fuses_support_and_contradiction_with_reality_priority(self) -> None:
+    def test_verified_reality_is_a_hard_override(self) -> None:
         result = fuse_evidence(
             [
-                Evidence("chart", "盘面象意", "support", 5),
+                Evidence("chart", "盘面象意一", "support", 10),
+                Evidence("chart", "盘面象意二", "support", 10),
                 Evidence("reality", "现实硬事实", "contradict", 0, verified=True),
             ]
         )
-        self.assertTrue(result.has_conflict)
-        self.assertGreater(result.contradict_score, result.support_score)
+        self.assertFalse(result.has_conflict)
+        self.assertEqual(result.support_score, 0)
+        self.assertGreater(result.contradict_score, 0)
+        self.assertEqual(result.hard_override_direction, "contradict")
 
     def test_confidence_gate_handles_image_conflict_and_reality_facts(self) -> None:
         evidence = [
@@ -167,6 +182,56 @@ class RealityOverrideTests(unittest.TestCase):
             {"other_party_status": "married", "contact_status": "blocked", "no_contact_months": 24},
         )
         self.assertTrue({"other_party_married", "blocked", "long_no_contact"}.issubset(reunion))
+
+    def assert_reality_contract(
+        self,
+        intent: str,
+        facts: dict,
+        signals: tuple[str, ...],
+        override_code: str,
+        chart_claim: str,
+    ) -> None:
+        self.assertIn(override_code, self.codes(intent, facts, signals))
+        result = fuse_evidence(
+            [
+                Evidence("chart", chart_claim, "support", 10),
+                Evidence("rule", chart_claim, "support", 10),
+                Evidence("reality", override_code, "contradict", 0, verified=True),
+            ]
+        )
+        self.assertEqual(result.hard_override_direction, "contradict")
+        self.assertEqual(result.support_score, 0)
+        self.assertGreater(result.contradict_score, 0)
+
+    def test_reality_hard_override_contracts(self) -> None:
+        self.assert_reality_contract(
+            "relationship",
+            {"relationship_status": "married"},
+            ("桃花信号",),
+            "married_taohua",
+            "桃花等于出轨",
+        )
+        self.assert_reality_contract(
+            "career",
+            {"career_status": "unemployed"},
+            (),
+            "unemployed",
+            "事业象意等于升职",
+        )
+        self.assert_reality_contract(
+            "health",
+            {"symptoms": ["持续胸痛"]},
+            ("五行象意",),
+            "urgent_medical",
+            "五行象意替代医疗评估",
+        )
+        self.assert_reality_contract(
+            "investment",
+            {"contract_leverage": True},
+            ("偏财信号",),
+            "leverage_risk",
+            "偏财象意决定杠杆重仓",
+        )
 
     def test_career_exam_startup_health_and_investment_boundaries(self) -> None:
         self.assertIn("unemployed", self.codes("career", {"career_status": "unemployed"}))
