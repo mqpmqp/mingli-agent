@@ -1,0 +1,52 @@
+name: Core Runtime Verification
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - agent/finalize-core-runtime-v0.1-verification
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package and test dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Compile
+        run: python -m compileall src tests
+
+      - name: Run unittest
+        run: python -m unittest discover -v
+
+      - name: Run pytest
+        run: python -m pytest -q
+
+      - name: Validate spec
+        run: python -m mingli.cli validate-spec spec
+
+      - name: Validate rules
+        run: python -m mingli.cli validate-rules spec/rules
+
+      - name: Run static benchmark
+        run: python -m mingli.cli benchmark-static spec/evaluation/golden_cases_v0.2.jsonl
+
+      - name: Check patch whitespace
+        run: git diff --check
+
+      - name: Confirm spec is unchanged
+        run: git diff --exit-code origin/main...HEAD -- spec
