@@ -121,7 +121,8 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(manifest["object_counts"], {"concepts":30,"rules":14,"exclusions":8,"benchmarks":8})
             required = {"batch_id","created_at","tool_version","source_ids","input_checksums","files_created","files_modified","lifecycle_target","object_counts","validation_results","rollback_plan"}
             self.assertTrue(required.issubset(manifest))
-            self.assertEqual(inventory(knowledge)["concepts"], 30)
+            pilot_concepts = knowledge / "concepts/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl"
+            self.assertEqual(len(pilot_concepts.read_text(encoding="utf-8").splitlines()), 30)
             for kind in ("concepts", "rules", "evidence", "benchmarks"):
                 for path in (knowledge / kind).rglob("*.jsonl"):
                     for record in (json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line):
@@ -132,7 +133,28 @@ class BatchTests(unittest.TestCase):
             dry_run = rollback(manifest["batch_id"], knowledge, dry_run=True)
             self.assertEqual(dry_run["status"], "planned")
             rollback(manifest["batch_id"], knowledge)
-            self.assertEqual(inventory(knowledge)["concepts"], 0)
+            self.assertFalse(pilot_concepts.exists())
+
+    def test_rollback_preserves_sources_added_by_later_batches(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            shutil.copytree(ROOT / "knowledge", repo / "knowledge")
+            knowledge = repo / "knowledge"
+            manifest = next((knowledge / "batches/manifests").glob("*.json"))
+
+            rollback(manifest.stem, knowledge)
+
+            remaining = {
+                item["id"]
+                for item in (
+                    json.loads(line)
+                    for line in (knowledge / "sources/registry.jsonl").read_text(encoding="utf-8").splitlines()
+                )
+            }
+            self.assertEqual(
+                remaining,
+                {"src_sha256_1d4a97526c60", "src_sha256_c7ac90538958", "src_sha256_e3fa415da369"},
+            )
 
     def test_modified_file_refuses_rollback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -298,8 +298,23 @@ def rollback(batch_id: str, knowledge_root: Path, *, dry_run: bool = False) -> d
     conflicts = []
     for relative, expected in plan["expected_hashes"].items():
         path = repository_root / relative
-        if path.exists() and _sha256(path) != expected:
-            conflicts.append(relative)
+        if not path.exists() or _sha256(path) == expected:
+            continue
+        if relative == "knowledge/sources/registry.jsonl":
+            current = _json_lines(path)
+            batch_sources = [item for item in current if item.get("id") in manifest["source_ids"]]
+            previous = [
+                json.loads(line)
+                for line in plan["restore"][relative]["content"].splitlines()
+                if line.strip()
+            ]
+            reconstructed = "".join(
+                json.dumps(item, ensure_ascii=False, sort_keys=True) + "\n"
+                for item in sorted(previous + batch_sources, key=lambda item: item["id"])
+            )
+            if hashlib.sha256(reconstructed.encode()).hexdigest() == expected:
+                continue
+        conflicts.append(relative)
     if conflicts:
         raise ValueError("文件已被修改，拒绝自动回滚：" + ", ".join(conflicts))
     report = {"batch_id": batch_id, "dry_run": dry_run, "status": "planned" if dry_run else "rolled_back", "deleted": plan["delete"], "restored": sorted(plan["restore"]), "conflicts": []}
@@ -308,7 +323,13 @@ def rollback(batch_id: str, knowledge_root: Path, *, dry_run: bool = False) -> d
     for relative, snapshot in plan["restore"].items():
         path = repository_root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(snapshot["content"], encoding="utf-8")
+        if relative == "knowledge/sources/registry.jsonl":
+            remaining = [
+                item for item in _json_lines(path) if item.get("id") not in manifest["source_ids"]
+            ]
+            _write_jsonl(path, sorted(remaining, key=lambda item: item["id"]))
+        else:
+            path.write_text(snapshot["content"], encoding="utf-8")
     for relative in plan["delete"]:
         path = repository_root / relative
         if path.exists():
