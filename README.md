@@ -35,10 +35,40 @@ python -m mingli.cli benchmark-static spec/evaluation/golden_cases_v0.2.jsonl
 - 医疗与投资场景优先现实专业处置；命理不能决定诊断、就医、杠杆或仓位。
 - 固定免责声明只在答案末行出现一次，禁词在渲染完成前拦截。
 
+## 资料仓库
+
+`knowledge/` 保存经过整理、可检索的 Markdown 或结构化知识；`references/` 保存 PDF、扫描件、图片、课程档案和案例等原始来源。原始来源不得直接混入规则目录，未经复核的 PDF/OCR 转换结果不得当作规则真值。
+
+先对完整原始资料目录生成只读清单：
+
+```powershell
+python scripts/inventory_knowledge_assets.py `
+  "D:\待整理资料目录" `
+  --json-output reports/knowledge_inventory.json `
+  --markdown-output reports/knowledge_inventory.md
+```
+
+再生成不执行迁移的导入计划：
+
+```powershell
+python scripts/plan_knowledge_import.py `
+  reports/knowledge_inventory.json `
+  --json-output reports/knowledge_import_plan.json `
+  --markdown-output reports/knowledge_import_plan.md
+```
+
+原始资料总量小于 500 MiB 时采用单仓库并放入 `references/`；达到或超过 500 MiB 时，原始二进制资料建议进入独立的 `mqpmqp/mingli-knowledge`。本次没有提供外部原始资料路径，因此没有生成真实 inventory，也尚未作最终分仓决定。完整策略见 [`docs/knowledge_repository_strategy.md`](docs/knowledge_repository_strategy.md)。
+
+仓库已为 PDF、常见扫描图、图片和压缩档案配置 Git LFS。提交这些二进制文件前必须安装 Git LFS 并运行：
+
+```bash
+git lfs install
+```
+
 ## 测试
 
 ```bash
-python -m compileall src tests
+python -m compileall src tests scripts
 python -m unittest discover -v
 python -m pytest -q
 python -m mingli.cli validate-spec spec
