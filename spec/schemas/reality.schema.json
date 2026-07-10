@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RealityContext",
+  "type": "object",
+  "properties": {
+    "relationship_status": {
+      "type": "string",
+      "enum": [
+        "single",
+        "dating",
+        "married",
+        "divorced",
+        "unknown"
+      ]
+    },
+    "contact_status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "low_contact",
+        "no_contact",
+        "blocked",
+        "unknown"
+      ]
+    },
+    "career_status": {
+      "type": "string",
+      "enum": [
+        "employed",
+        "unemployed",
+        "student",
+        "entrepreneur",
+        "transition",
+        "unknown"
+      ]
+    },
+    "education": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "major": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "income_stability": {
+      "type": "string",
+      "enum": [
+        "stable",
+        "unstable",
+        "none",
+        "unknown"
+      ]
+    },
+    "capital_level": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "unknown"
+      ]
+    },
+    "major_events": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

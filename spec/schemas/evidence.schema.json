@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence",
+  "type": "object",
+  "required": [
+    "source_type",
+    "detail",
+    "direction",
+    "weight"
+  ],
+  "properties": {
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "chart",
+        "timing",
+        "rule",
+        "case",
+        "reality"
+      ]
+    },
+    "source_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "detail": {
+      "type": "string"
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "support",
+        "contradict"
+      ]
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "verified": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "additionalProperties": false
+}

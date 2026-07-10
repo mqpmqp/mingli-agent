@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BirthInput",
+  "type": "object",
+  "required": [
+    "gender",
+    "calendar",
+    "birth_date",
+    "birth_time",
+    "birth_location"
+  ],
+  "properties": {
+    "gender": {
+      "type": "string",
+      "enum": [
+        "male",
+        "female"
+      ]
+    },
+    "calendar": {
+      "type": "string",
+      "enum": [
+        "solar",
+        "lunar"
+      ]
+    },
+    "birth_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "birth_time": {
+      "type": "string",
+      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+    },
+    "birth_location": {
+      "type": "object",
+      "required": [
+        "country",
+        "city"
+      ],
+      "properties": {
+        "country": {
+          "type": "string"
+        },
+        "province": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        }
+      },
+      "additionalProperties": false
+    },
+    "timezone": {
+      "type": "string",
+      "default": "+08:00"
+    },
+    "solar_time_adjustment": {
+      "type": "boolean",
+      "default": false
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "user",
+        "image_confirmed",
+        "external_calculator"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

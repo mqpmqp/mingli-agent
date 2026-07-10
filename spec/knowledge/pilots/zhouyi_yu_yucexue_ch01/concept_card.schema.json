@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConceptCard",
+  "type": "object",
+  "required": [
+    "concept_id",
+    "term",
+    "category",
+    "summary",
+    "source_id",
+    "pdf_pages",
+    "printed_pages",
+    "evidence_type",
+    "review_status"
+  ],
+  "properties": {
+    "concept_id": {
+      "type": "string"
+    },
+    "term": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "pdf_pages": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "printed_pages": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "evidence_type": {
+      "type": "string"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "reviewed",
+        "accepted",
+        "rejected"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DecisionReport",
+  "type": "object",
+  "required": [
+    "decision",
+    "confidence",
+    "options",
+    "recommended_action"
+  ],
+  "properties": {
+    "decision": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "options": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "advantages",
+          "risks",
+          "reality_prerequisites"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "advantages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reality_prerequisites": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fit": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "recommended_action": {
+      "type": "string"
+    },
+    "minimum_reversible_step": {
+      "type": "string"
+    },
+    "professional_advice_required": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "additionalProperties": false
+}

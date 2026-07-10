@@ -1,0 +1,66 @@
+{
+  "seed": 20260710,
+  "note": "Open only after scoring is complete.",
+  "mapping": [
+    {
+      "blind_id": "BT01",
+      "answer_A": "target",
+      "answer_B": "baseline"
+    },
+    {
+      "blind_id": "BT02",
+      "answer_A": "baseline",
+      "answer_B": "target"
+    },
+    {
+      "blind_id": "BT03",
+      "answer_A": "baseline",
+      "answer_B": "target"
+    },
+    {
+      "blind_id": "BT04",
+      "answer_A": "target",
+      "answer_B": "baseline"
+    },
+    {
+      "blind_id": "BT05",
+      "answer_A": "target",
+      "answer_B": "baseline"
+    },
+    {
+      "blind_id": "BT06",
+      "answer_A": "target",
+      "answer_B": "baseline"
+    },
+    {
+      "blind_id": "BT07",
+      "answer_A": "baseline",
+      "answer_B": "target"
+    },
+    {
+      "blind_id": "BT08",
+      "answer_A": "baseline",
+      "answer_B": "target"
+    },
+    {
+      "blind_id": "BT09",
+      "answer_A": "target",
+      "answer_B": "baseline"
+    },
+    {
+      "blind_id": "BT10",
+      "answer_A": "baseline",
+      "answer_B": "target"
+    },
+    {
+      "blind_id": "BT11",
+      "answer_A": "target",
+      "answer_B": "baseline"
+    },
+    {
+      "blind_id": "BT12",
+      "answer_A": "baseline",
+      "answer_B": "target"
+    }
+  ]
+}

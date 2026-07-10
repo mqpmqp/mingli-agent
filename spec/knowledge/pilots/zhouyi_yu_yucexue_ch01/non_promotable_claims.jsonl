@@ -1,0 +1,8 @@
+{"claim_id": "zy_ch01_x001", "summary": "把八卦称为举世无双的科学理论或国宝", "source_pages_pdf": [16, 27], "classification": "rhetorical_or_normative", "action": "retain_as_source_context_only", "reason": "属于评价性表述，不能充当可验证规则。"}
+{"claim_id": "zy_ch01_x002", "summary": "用阳卦、阴卦直接区分君子与小人", "source_pages_pdf": [20], "classification": "historical_moral_commentary", "action": "exclude_from_personality_judgement", "reason": "容易造成道德标签和性别偏见。"}
+{"claim_id": "zy_ch01_x003", "summary": "把先天八卦内部五行生化直接当作现实因果", "source_pages_pdf": [17], "classification": "traditional_mapping", "action": "not_promotable_without_method_context", "reason": "需要限定为体系内部关系，不能单独预测现实事件。"}
+{"claim_id": "zy_ch01_x004", "summary": "把八门吉凶直接套入所有命理问题", "source_pages_pdf": [23], "classification": "scope_error", "action": "reject", "reason": "本章本身已限定八门和六神的适用方法。"}
+{"claim_id": "zy_ch01_x005", "summary": "断言八卦必然由河图洛书产生", "source_pages_pdf": [24, 26], "classification": "historically_disputed", "action": "reject_as_fact", "reason": "本章明确指出原文与历史材料不足以确证。"}
+{"claim_id": "zy_ch01_x006", "summary": "把连山、归藏、易经分别对应母系、地心、父系社会作为确定历史", "source_pages_pdf": [31, 32], "classification": "author_speculation", "action": "retain_as_author_view_only", "reason": "属于宏观历史解释，需要独立史料支持。"}
+{"claim_id": "zy_ch01_x007", "summary": "把《易传》评价为已揭示现代科学或唯物主义真理", "source_pages_pdf": [31], "classification": "ideological_evaluation", "action": "exclude_from_rule_base", "reason": "属于作者评价，不是命理推理条件。"}
+{"claim_id": "zy_ch01_x008", "summary": "从本章基础概念直接推断个人发财、婚姻、健康或灾祸", "source_pages_pdf": [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32], "classification": "unsupported_prediction", "action": "reject", "reason": "章节没有提供足够的个体事件证据链。"}

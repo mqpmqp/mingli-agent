@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "forbidden_phrases": [
+    "注定",
+    "百分百",
+    "一定会发财",
+    "一定能上岸",
+    "必离婚",
+    "必有第三者",
+    "命中无财",
+    "家人克你",
+    "六法速览",
+    "共同结论",
+    "分歧与置信度",
+    "我用了以下方法"
+  ],
+  "discouraged_phrases": [
+    "你的命格非凡",
+    "未来可期",
+    "只要努力就会成功",
+    "宇宙会给你答案",
+    "静待贵人"
+  ],
+  "required_patterns": {
+    "image_chart_unconfirmed": [
+      "请确认",
+      "低置信"
+    ],
+    "career_exam": [
+      "体制适配",
+      "上岸",
+      "岗位",
+      "备考"
+    ],
+    "relationship_reunion": [
+      "缘分牵引",
+      "复联",
+      "复合",
+      "稳定"
+    ],
+    "all_answers": [
+      "仅供文化研究与娱乐参考"
+    ]
+  },
+  "style_limits": {
+    "technical_term_density_max": 0.3,
+    "consecutive_hedges_max": 3,
+    "generic_encouragement_sentences_max": 1
+  }
+}

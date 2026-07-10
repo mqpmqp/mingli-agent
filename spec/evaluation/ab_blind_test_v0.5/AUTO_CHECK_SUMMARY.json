@@ -1,0 +1,15 @@
+{
+  "note": "Static checks only; not an independent quality score.",
+  "baseline": {
+    "answers": 12,
+    "disclaimer_count": 0,
+    "forbidden_hit_count": 0,
+    "mean_length_chars": 108.8
+  },
+  "target": {
+    "answers": 12,
+    "disclaimer_count": 12,
+    "forbidden_hit_count": 0,
+    "mean_length_chars": 257.5
+  }
+}

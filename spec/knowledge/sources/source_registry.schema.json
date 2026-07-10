@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KnowledgeSource",
+  "type": "object",
+  "required": [
+    "source_id",
+    "filename",
+    "sha256",
+    "domain",
+    "source_type",
+    "ingestion_decision",
+    "priority",
+    "status"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string"
+    },
+    "filename": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "size_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "page_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "sampled_extracted_characters": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "extraction_method": {
+      "type": "string"
+    },
+    "extraction_status": {
+      "type": "string"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "source_type": {
+      "type": "string"
+    },
+    "ingestion_decision": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "P0",
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ]
+    },
+    "quality_provisional": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "type": "string"
+    },
+    "duplicate_group": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

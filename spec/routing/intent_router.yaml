@@ -1,0 +1,104 @@
+version: 1
+
+intents:
+  full_bazi:
+    required:
+      - confirmed_chart
+    agents:
+      - diagnosis
+      - rule_retrieval
+      - evidence
+      - reality
+      - timing
+      - renderer
+
+  career_exam:
+    required:
+      - confirmed_chart
+      - education
+      - major
+      - preparation_status
+      - target_jobs
+    sections:
+      - 体制适配度
+      - 能否上岸
+      - 岗位方向
+      - 备考策略
+    agents:
+      - career_rule
+      - reality
+      - timing
+      - decision
+
+  relationship_reunion:
+    required:
+      - confirmed_chart
+      - breakup_reason
+      - contact_status
+      - no_contact_duration
+      - other_party_status
+    sections:
+      - 缘分牵引
+      - 复联可能
+      - 复合可能
+      - 稳定可能
+    agents:
+      - relationship_rule
+      - reality
+      - timing
+
+  startup:
+    required:
+      - confirmed_chart
+      - capital_level
+      - income_stability
+      - business_experience
+      - product_or_customer_validation
+    agents:
+      - career_rule
+      - wealth_rule
+      - reality
+      - decision
+
+  wealth:
+    required:
+      - confirmed_chart
+      - career_status
+      - income_structure
+      - capital_level
+    agents:
+      - wealth_rule
+      - reality
+      - timing
+
+  education:
+    required:
+      - confirmed_chart
+      - current_education
+      - target_program
+      - opportunity_cost
+    agents:
+      - education_rule
+      - reality
+      - decision
+
+  migration:
+    required:
+      - confirmed_chart
+      - target_city
+      - industry
+      - family_constraints
+    agents:
+      - migration_rule
+      - reality
+      - decision
+
+  fengshui:
+    required:
+      - floor_plan_or_clear_description
+      - orientation
+      - actual_usage
+    agents:
+      - fengshui_rule
+      - reality
+    note: "优先光照、通风、动线、安全与实际使用；传统方位只作辅助。"

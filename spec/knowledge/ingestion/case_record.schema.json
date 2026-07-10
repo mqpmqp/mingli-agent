@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MingLiCaseRecord",
+  "type": "object",
+  "required": [
+    "case_id",
+    "source_ids",
+    "data_quality",
+    "events",
+    "consent_or_public_basis"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string"
+    },
+    "source_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "birth_data": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "confirmed_chart": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "reality_context": {
+      "type": "object"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "event_type",
+          "description"
+        ],
+        "properties": {
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "age": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "verification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "user_confirmed",
+              "source_claim",
+              "unknown"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "expert_annotations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "data_quality": {
+      "type": "string",
+      "enum": [
+        "S",
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "consent_or_public_basis": {
+      "type": "string"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "reviewed",
+        "verified",
+        "rejected"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

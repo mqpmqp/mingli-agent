@@ -1,0 +1,20 @@
+{
+  "status": "internal_non_independent_calibration",
+  "reviewer_roles": [
+    "mingli_method_reviewer",
+    "reality_decision_reviewer",
+    "style_safety_reviewer"
+  ],
+  "case_count": 12,
+  "scoring_source": "manually specified rubric profiles authored in the same project workflow",
+  "not_claimed": [
+    "external human review",
+    "independent model comparison",
+    "empirical user preference study"
+  ],
+  "purpose": [
+    "exercise reveal and aggregation pipeline",
+    "check release gate logic",
+    "identify renderer weaknesses before external review"
+  ]
+}

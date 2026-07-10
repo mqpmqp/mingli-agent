@@ -1,0 +1,4 @@
+cases=24
+categories=17
+errors=0
+PRACTICAL_EVAL_VALIDATION_PASS

@@ -1,0 +1,50 @@
+{
+  "reviewer_row_count": 36,
+  "normalization": "role scores normalized to common dimension maxima",
+  "summary": {
+    "baseline": {
+      "mean_total": 37.57,
+      "median_total": 38.27,
+      "hard_fail_count": 15,
+      "preference_votes": 0,
+      "dimensions": {
+        "结论质量": 10.83,
+        "现实校正": 5.5,
+        "证据与反证": 5.83,
+        "置信度": 2.67,
+        "表达质量": 8.83,
+        "安全边界": 2.75
+      }
+    },
+    "target": {
+      "mean_total": 92.34,
+      "median_total": 92.72,
+      "hard_fail_count": 0,
+      "preference_votes": 36,
+      "dimensions": {
+        "结论质量": 23.67,
+        "现实校正": 24.75,
+        "证据与反证": 17.67,
+        "置信度": 9.0,
+        "表达质量": 12.25,
+        "安全边界": 5.0
+      }
+    }
+  },
+  "case_majorities": {
+    "target": 12,
+    "baseline": 0,
+    "tie": 0
+  },
+  "deltas": {
+    "mean_total": 54.77,
+    "reality": 19.25
+  },
+  "gate": {
+    "total_delta_at_least_10": true,
+    "target_majority_at_least_8_of_12": true,
+    "target_hard_fails_not_higher": true,
+    "reality_delta_at_least_4": true,
+    "overall_pass": true
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BaziChart",
+  "type": "object",
+  "required": [
+    "four_pillars",
+    "day_master",
+    "calculation_source"
+  ],
+  "properties": {
+    "four_pillars": {
+      "type": "object",
+      "required": [
+        "year",
+        "month",
+        "day",
+        "hour"
+      ],
+      "properties": {
+        "year": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 2
+        },
+        "month": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 2
+        },
+        "day": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 2
+        },
+        "hour": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 2
+        }
+      },
+      "additionalProperties": false
+    },
+    "day_master": {
+      "type": "object",
+      "required": [
+        "stem",
+        "element"
+      ],
+      "properties": {
+        "stem": {
+          "type": "string"
+        },
+        "element": {
+          "type": "string",
+          "enum": [
+            "wood",
+            "fire",
+            "earth",
+            "metal",
+            "water"
+          ]
+        },
+        "strength_class": {
+          "type": "string",
+          "enum": [
+            "strong",
+            "balanced",
+            "weak",
+            "unknown"
+          ]
+        },
+        "strength_score": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "five_elements": {
+      "type": "object",
+      "properties": {
+        "wood": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "fire": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "earth": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "metal": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "water": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "same_group_score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "different_group_score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ten_gods": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "luck_cycles": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "annual_cycles": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "calculation_source": {
+      "type": "string"
+    },
+    "confirmed_by_user": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "additionalProperties": false
+}

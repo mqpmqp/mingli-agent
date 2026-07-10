@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KnowledgeChunk",
+  "type": "object",
+  "required": [
+    "chunk_id",
+    "source_id",
+    "domain",
+    "content",
+    "location",
+    "review_status"
+  ],
+  "properties": {
+    "chunk_id": {
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "topic": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "page_start": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "page_end": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "chapter": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "content_kind": {
+      "type": "string",
+      "enum": [
+        "concept",
+        "method",
+        "rule_candidate",
+        "case",
+        "quotation",
+        "commentary"
+      ]
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "reviewed",
+        "accepted",
+        "rejected"
+      ]
+    },
+    "copyright_mode": {
+      "type": "string",
+      "enum": [
+        "paraphrase",
+        "short_quote",
+        "metadata_only"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

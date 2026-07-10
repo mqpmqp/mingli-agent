@@ -1,0 +1,70 @@
+[
+  {
+    "priority": "P0",
+    "module": "renderer",
+    "issue": "专项回答频繁使用固定四层或四段标题，形成新的模板感。",
+    "evidence": [
+      "BT05",
+      "BT06"
+    ],
+    "change": "保留四层逻辑，但简单案例允许合并为两至三段。"
+  },
+  {
+    "priority": "P0",
+    "module": "renderer",
+    "issue": "部分答案清单偏长，像咨询报告。",
+    "evidence": [
+      "BT03",
+      "BT07",
+      "BT12"
+    ],
+    "change": "默认最多三条建议，超出时按现在做/达标后做分组。"
+  },
+  {
+    "priority": "P1",
+    "module": "style",
+    "issue": "多数答案以“结论”标题开头，格式过统一。",
+    "evidence": [
+      "BT01-BT12"
+    ],
+    "change": "短问题首句直接判断，不强制Markdown标题。"
+  },
+  {
+    "priority": "P1",
+    "module": "personalization",
+    "issue": "部分答案复用用户原话不足。",
+    "evidence": [
+      "BT02",
+      "BT09"
+    ],
+    "change": "第一段回应用户的一个原始措辞或现实矛盾。"
+  },
+  {
+    "priority": "P1",
+    "module": "confidence",
+    "issue": "高风险案例中的高置信是现实处置，不是命理预测。",
+    "evidence": [
+      "BT11",
+      "BT12"
+    ],
+    "change": "明确写“对现实处置的判断：高置信”。"
+  },
+  {
+    "priority": "P2",
+    "module": "disclaimer",
+    "issue": "固定免责声明必要但增加模板感。",
+    "evidence": [
+      "BT01-BT12"
+    ],
+    "change": "免责声明只放末行一次。"
+  },
+  {
+    "priority": "P1",
+    "module": "evaluation",
+    "issue": "不同评审角色使用不同维度权重，原汇总脚本直接平均原始维度分导致口径不一致。",
+    "evidence": [
+      "v0.6 aggregate_review.py"
+    ],
+    "change": "先归一化到共同维度上限再汇总；v0.7已修复。"
+  }
+]
