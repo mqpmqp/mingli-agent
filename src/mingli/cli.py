@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -10,6 +11,7 @@ from .errors import MingLiError, RuleValidationError
 from .models import RULE_STATUSES
 from .rule_loader import load_rules
 from .schema_loader import validate_spec
+from .knowledge import import_pilot, inventory, rollback, validate_knowledge
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -24,6 +26,15 @@ def _parser() -> argparse.ArgumentParser:
 
     benchmark_parser = subcommands.add_parser("benchmark-static", help="运行确定性静态策略校验")
     benchmark_parser.add_argument("path", type=Path)
+    knowledge_validate = subcommands.add_parser("knowledge-validate", help="校验 Knowledge OS")
+    knowledge_validate.add_argument("path", type=Path)
+    knowledge_inventory = subcommands.add_parser("knowledge-inventory", help="统计 Knowledge OS 对象")
+    knowledge_inventory.add_argument("path", type=Path)
+    knowledge_import = subcommands.add_parser("knowledge-import", help="确定性导入知识批次")
+    knowledge_import.add_argument("path", type=Path)
+    knowledge_rollback = subcommands.add_parser("knowledge-rollback", help="按 manifest 回滚批次")
+    knowledge_rollback.add_argument("batch_id")
+    knowledge_rollback.add_argument("--dry-run", action="store_true")
     return parser
 
 
@@ -43,6 +54,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "validate-rules":
             rules = load_rules(args.path, statuses=RULE_STATUSES)
             print(f"规则校验通过：{len(rules)} 条规则，ID 均唯一，状态未被修改。")
+            return 0
+
+        if args.command == "knowledge-validate":
+            issues = validate_knowledge(args.path)
+            if issues:
+                for issue in issues:
+                    print(f"错误：{issue}", file=sys.stderr)
+                return 1
+            print(f"知识校验通过：{args.path}")
+            return 0
+        if args.command == "knowledge-inventory":
+            print(json.dumps(inventory(args.path), ensure_ascii=False, sort_keys=True))
+            return 0
+        if args.command == "knowledge-import":
+            manifest = import_pilot(args.path, Path("knowledge"))
+            print(f"知识导入完成：{manifest['batch_id']} {json.dumps(manifest['object_counts'], ensure_ascii=False, sort_keys=True)}")
+            return 0
+        if args.command == "knowledge-rollback":
+            print(json.dumps(rollback(args.batch_id, Path("knowledge"), dry_run=args.dry_run), ensure_ascii=False, sort_keys=True))
             return 0
 
         result = benchmark_static(args.path)

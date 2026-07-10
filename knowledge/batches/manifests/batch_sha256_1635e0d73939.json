@@ -1,0 +1,53 @@
+{
+  "batch_id": "batch_sha256_1635e0d73939",
+  "created_at": "2026-07-10T19:36:58+00:00",
+  "files_created": [
+    "knowledge/concepts/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl",
+    "knowledge/rules/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl",
+    "knowledge/evidence/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl",
+    "knowledge/benchmarks/draft/yijing/zhouyi_yu_yucexue_ch01.jsonl"
+  ],
+  "files_modified": [
+    "knowledge/sources/registry.jsonl"
+  ],
+  "input_checksums": {
+    "spec/knowledge/pilots/zhouyi_yu_yucexue_ch01/source_map.json": "494d51137e16679fb7bf5d81cab0584c24bfe41415fd86581abef9254ef2e8ab"
+  },
+  "lifecycle_target": "reviewed",
+  "object_counts": {
+    "benchmarks": 8,
+    "concepts": 30,
+    "exclusions": 8,
+    "rules": 14
+  },
+  "rollback_plan": {
+    "delete": [
+      "knowledge/concepts/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl",
+      "knowledge/rules/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl",
+      "knowledge/evidence/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl",
+      "knowledge/benchmarks/draft/yijing/zhouyi_yu_yucexue_ch01.jsonl",
+      "knowledge/batches/manifests/batch_sha256_1635e0d73939.json"
+    ],
+    "expected_hashes": {
+      "knowledge/benchmarks/draft/yijing/zhouyi_yu_yucexue_ch01.jsonl": "5472c7a84b753755bea6e2682b8b1dc4499096e0479b78b436e69a040e65bb87",
+      "knowledge/concepts/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl": "904686622c99674ff2a2aaee488dcd2953764138f2bf006bdafbfe33fc8144a5",
+      "knowledge/evidence/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl": "28f1e3650e008182eb2ab66073a52c9ef4046ca5a001331ea7b5a119ee67105e",
+      "knowledge/rules/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl": "ed3af8b26081576e38d6e35f2c34e966e535b058328080393841596f8d315238",
+      "knowledge/sources/registry.jsonl": "b5693e7bebe3b9ddb53ed48fe51b737d35b5ade84ce1af60197b29cdcd0ccd56"
+    },
+    "restore": {
+      "knowledge/sources/registry.jsonl": {
+        "content": "",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "source_ids": [
+    "src_sha256_c00449b2a1d5"
+  ],
+  "tool_version": "0.2.0",
+  "validation_results": {
+    "schema": "passed",
+    "traceability": "passed"
+  }
+}

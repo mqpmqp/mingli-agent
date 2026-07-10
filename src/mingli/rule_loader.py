@@ -48,7 +48,8 @@ def load_rules(
             if isinstance(rule_id, str):
                 locations.setdefault(rule_id, []).append(location)
             try:
-                loaded.append(RuleCard.from_mapping(value))
+                if value.get("production_allowed", True) is not False:
+                    loaded.append(RuleCard.from_mapping(value))
             except (ModelValidationError, TypeError) as exc:
                 issues.append(f"{location}: {exc}")
 
