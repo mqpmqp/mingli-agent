@@ -33,7 +33,15 @@ GitHub Actions 将在本分支 push 和 PR 上执行：
 - `git diff --check`
 - `git diff --exit-code origin/main...HEAD -- spec`
 
-当前状态：等待 GitHub Actions 首次执行。本报告只会在取得真实 CI 结果后标记 PASS。
+当前状态：PASS。
+
+- GitHub Actions workflow: Core Runtime Verification
+- run: #3
+- verified commit: `9d8b9d2280dc4334d101e3a11711444b32ce83cb`
+- conclusion: success
+- result URL: https://github.com/mqpmqp/mingli-agent/actions/runs/29117239043
+
+全部 CODEX_TASK.md 验收命令和 `spec/` 零差异检查均由 GitHub Actions 实际执行并通过。
 
 ## 保持边界
 
