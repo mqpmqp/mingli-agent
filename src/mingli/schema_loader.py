@@ -119,10 +119,19 @@ def validate_spec(root: str | Path) -> tuple[ValidationIssue, ...]:
 
     schemas: dict[Path, dict[str, Any]] = {}
     for path, parsed in records.items():
-        key = _schema_key(path)
-        if key is None or not parsed or not isinstance(parsed[0].value, dict):
+        if _schema_key(path) is None or not parsed:
             continue
         schema = parsed[0].value
+        if not isinstance(schema, dict):
+            issues.append(
+                ValidationIssue(
+                    _relative(path, source_root),
+                    parsed[0].line,
+                    "$",
+                    "JSON Schema 顶层必须是 object",
+                )
+            )
+            continue
         schemas[path] = schema
         try:
             validator_for(schema).check_schema(schema)
