@@ -14,10 +14,10 @@ BaseChart (Phase 5, frozen contract)
 
 推荐首批只实现藏干、可见天干十神、藏干十神、纳音和旬空。十二长生、大运起止时间、年龄映射、合冲刑害关系需要先确定流派 profile 或边界；神煞及全部解释、预测能力排除在核心确定性层之外。
 
-本报告不替产品方决定以下合理分歧：首版是否包含时间序列、合冲刑害是否单列子能力、十二长生采用何种 profile，以及 23:00 未决依赖是允许部分结果还是整单拒绝。因此最终 Gate 为：
+产品与架构决策已通过 `PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED` 锁定：v0.1 只包含五项静态核心；时间序列、十二长生、关系、神煞、解释和预测均排除；默认 strict 拒绝未决依赖，API 仅在显式 opt-in 时允许 partial。因此最终 Gate 为：
 
 ```text
-PHASE_6_SCOPE_GATE_NEEDS_DECISION
+PHASE_6_SCOPE_GATE_OPEN
 ```
 
 本阶段没有开始实现业务代码。
@@ -140,9 +140,9 @@ schema 演进成本：高。旧概念 schema 与运行结果本已分叉，且 `
 
 后续影响：能把未来解释阶段限制为独立 consumer，便于安全审计、禁用和替换。代价是实现前必须先确定引用和 version 合同。
 
-### 推荐
+### 已批准方案
 
-采用 **C 的分层架构 + B 的结果对象**。A 与现状的无类型 dict、schema 漂移和 method/version 混用冲突最大。推荐不等于 Gate 自动放行：时间序列、relations、growth profile 和 partial policy 仍需要产品决定。
+采用 **C 的分层架构 + B 的结果对象**。A 与现状的无类型 dict、schema 漂移和 method/version 混用冲突最大。产品已批准该方案，并锁定 v0.1 为静态核心、排除 timeline/relations/twelve growth，采用 strict 默认与显式 partial API。
 
 ## 6. Recommended Phase 6 Boundary
 
@@ -409,9 +409,9 @@ Phase 5 的 `ChartProvider`、`UnavailableChartProvider` 和 `DeterministicBaziE
 
 进入实现阶段前必须满足：
 
-1. 产品确认 C+B 架构或选择其他方案并记录理由。
-2. 明确 v0.1 是静态核心，还是包含大运/流年子模块。
-3. 明确十二长生 profile、relations 范围与 23:00 partial/strict policy。
+1. C+B 架构、静态核心范围和独立结果对象已由 `PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED` 确认。
+2. timeline、十二长生和 relations 已明确排除 v0.1，不能在实现阶段重新扩大范围。
+3. 23:00 policy 已锁定：strict 默认整单拒绝；仅显式 API opt-in 允许 partial，并传播字段级 ambiguity。
 4. 首批至少 272 个独立断言，传统映射表具备双源、版本和 license 记录；若扩大范围按第 10 节增加。
 5. 现存 `luck.direction` 与 `start_age_years` 在进入 timeline 前获得独立验证；定义不依赖舍入年龄的精确起运锚点。
 6. 冻结 stable code、schema、canonical JSON/hash 和 base compatibility matrix。
@@ -420,15 +420,14 @@ Phase 5 的 `ChartProvider`、`UnavailableChartProvider` 和 `DeterministicBaziE
 
 ## 15. Blockers and Open Questions
 
-需要产品/架构决定：
+产品/架构问题已关闭：
 
-1. 是否批准“分层流水线 + 独立 DerivedChartResult”。
-2. Phase 6 v0.1 是否仅静态核心；若包含时间序列，是同一 release 还是后续子版本。
-3. relations 是完全延后，还是作为默认关闭、只有原始关系的独立 capability。
-4. 十二长生是首版排除，还是支持明确命名的多个 profile。
-5. 23:00 未决依赖采用：稳定字段 partial + 时柱相关字段 unresolved，还是 strict 下整单拒绝。推荐 CLI strict 拒绝、API 可显式选择 partial，但需产品确认。
-6. 起运是以精确 instant/duration 为主，还是继续暴露舍入年龄；推荐前者，舍入年龄只作为展示派生值。
-7. implementation-owned schema 的目录位置和发布兼容承诺。
+1. 批准“分层流水线 + 独立 DerivedChartResult”。
+2. Phase 6 v0.1 仅包含静态核心；timeline 进入未来独立阶段或子版本。
+3. relations 与十二长生完全排除 v0.1。
+4. 23:00 默认 strict 整单拒绝；API 仅显式 opt-in partial。
+5. 未来 canonical 起运值必须使用 exact instant 或 exact duration；舍入年龄仅供展示。
+6. implementation-owned schema 固定在 `src/mingli/contracts/schemas/`，必须作为 package data 随 wheel 发布。
 
 技术阻塞：
 
@@ -438,12 +437,79 @@ Phase 5 的 `ChartProvider`、`UnavailableChartProvider` 和 `DeterministicBaziE
 - 十二长生存在可追溯的流派冲突；未选 profile 前没有唯一 expected。
 - 旧概念 schema、当前运行结果和部分历史文档存在漂移；不能通过修改 `spec/` 偷偷消除。
 
-## 16. Final Gate Decision
+## 16. Product / Architecture Decision Record
 
-Phase 6 的安全技术边界已经可描述，推荐架构和实现顺序也明确；但存在多个会实质改变合同、benchmark 规模和兼容策略的合理选择，必须由产品/架构方确认。为避免以“推进”为由静默选边，本 Gate 不开放实现。
+Decision ID：`PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED`。
+
+### 16.1 架构
+
+- 批准 `BaseChart -> DerivedStructure -> Interpretation` 分层流水线。
+- 使用独立 `DerivedChartResult`；Phase 5 BaseChart 合同、`calculate()` payload、method ID 和 calculation version 保持冻结。
+- Phase 6 只通过只读 adapter 消费明确兼容的 Phase 5 base result，不猜测、不修正、不重算基础盘。
+- Interpretation 不属于 Phase 6。
+
+### 16.2 v0.1 静态核心
+
+- 地支藏干：有序输出，携带 mapping profile；无权重、主中余气强弱解释。
+- 可见天干十神：日主为参照，四柱天干分别输出；稳定英文 code，中文仅为 label。
+- 藏干十神：逐个藏干输出，不把整个地支压缩为单一十神。
+- 六十甲子纳音：四柱分别输出结构映射，无性格、吉凶或事件解释。
+- 旬空/空亡：四柱分别输出旬首、旬序和两个空支，无吉凶解释。
+
+### 16.3 明确排除
+
+v0.1 排除大运/流年及组合 timeline、起止时间、周岁/虚岁、十二长生、所有合冲刑害破/三合三会半合暗合自刑、神煞、胎元、命宫、身宫、小运、23:00 新流派、真太阳时以外地方时修正、旺衰、格局、用神、喜忌、吉凶、事件窗口，以及人格、财富、婚姻、事业、健康和任何现实结果预测。
+
+不得接入 LLM、外部排盘 API、数据库、网络运行时服务、Core Runtime renderer、Knowledge OS production rules 或 Evidence Engine 推断路径。
+
+### 16.4 未决依赖策略
+
+- 默认 `strict=true`。基础日柱或时柱依赖 unresolved 时整次请求以 `DERIVED_DEPENDENCY_UNRESOLVED` 拒绝；unresolved 永不计 PASS。
+- API 可在显式 `strict=false` 时返回 partial：只保留不依赖未决字段的稳定结果；所有依赖日柱/时柱的字段标为 unresolved；`status=partial`；`ambiguities` 记录来源与字段路径；warnings 明示基础盘未决。
+- CLI v0.1 不允许隐式 partial，只能通过显式参数启用。
+
+### 16.5 时间序列、schema 与版本
+
+- timeline 不在 v0.1。未来 canonical 起运值必须是 exact instant 或 exact duration；`start_age_years` 六位小数只能展示，不能作为唯一锚点。实现 timeline 前必须独立验证 Phase 5 luck direction 与起运算法。
+- implementation-owned schema 固定在 `src/mingli/contracts/schemas/`，随 wheel/package-data 发布，并有安装后读取测试；不得依赖 source checkout，不修改 `spec/schemas`。
+- Phase 6 固定：`schema_version=bazi-derived-structure-result@0.1`、`method_id=bazi-derived-structure@0.1.0`、`calculation_version=0.1.0`。
+- hidden_stems、ten_gods、nayin、xunkong profile 分别版本化；映射或约定变化创建新 profile，不原地改写历史 profile。
+
+### 16.6 安全与状态合同
+
+所有 complete/partial 结果必须包含 `prediction_validity: not_evaluated`。不得出现 good/bad、auspicious/inauspicious、personality、wealth、marriage、career、health、event prediction，或依据盘面结构生成的 recommendation。
+
+```yaml
+architecture:
+  layered_pipeline: approved
+  independent_derived_result: approved
+
+phase_6_v0_1:
+  static_core_only: true
+  timelines: excluded
+  twelve_growth: excluded
+  relations: excluded
+  shensha: excluded
+  interpretation: forbidden
+  prediction: forbidden
+
+dependency_policy:
+  strict_default: true
+  explicit_partial_api: allowed
+  unresolved_counts_as_pass: false
+
+implementation_started: false
+spec_modified: false
+knowledge_modified: false
+prediction_added: false
+```
+
+## 17. Final Gate Decision
+
+Phase 6 的架构、v0.1 保守范围、未决依赖、timeline、schema/version 与安全边界均已由产品批准。Batch 0/1 可在 PR #8 合并且 main push CI 通过后，从最新 `origin/main` 的全新 clean worktree 开始。
 
 ```text
-PHASE_6_SCOPE_GATE_NEEDS_DECISION
+PHASE_6_SCOPE_GATE_OPEN
 ```
 
 ```yaml
@@ -452,3 +518,4 @@ spec_modified: false
 knowledge_modified: false
 prediction_added: false
 ```
+
