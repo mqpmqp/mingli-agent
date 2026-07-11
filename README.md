@@ -43,6 +43,20 @@ python -m mingli.cli phase6 schemas
 
 `phase6 map` 也可从 stdin 读取 JSON。stdout 只输出机器可读 JSON，错误写入 stderr；命令不读取网络、不调用外部模型、不修改输入文件。
 
+Phase 7 在 Phase 5 和 Phase 6 之上构建确定性的八字事实图谱。它新增精确起运锚点、大运/流年时间线、显式年龄快照、十二长生结构事实、天干/地支结构关系以及 canonical graph SHA-256。它仍不计算旺衰、格局、用神、喜忌、吉凶、自然语言解读或事件预测。
+
+```bash
+python -m mingli.cli phase7 build --input base_chart.json
+python -m mingli.cli phase7 timeline --input base_chart.json
+python -m mingli.cli phase7 relations --input derived_chart.json
+python -m mingli.cli phase7 validate
+python -m mingli.cli phase7 benchmark
+python -m mingli.cli phase7 profiles
+python -m mingli.cli phase7 schemas
+```
+
+公共 API 位于 `mingli.phase7`：`build_bazi_fact_graph(...)`、`build_luck_timeline(...)`、`detect_structural_relations(...)`、`calculate_growth_stages(...)` 和 `benchmark_phase7(...)`。所有成功输出继续固定 `prediction_validity=not_evaluated`。
+
 ## 核心约束
 
 - 生产规则检索默认只返回 `reviewed` 与 `verified`，现实规则始终先于普通结构规则，再按优先级降序排列。
@@ -65,6 +79,8 @@ python -m mingli.cli chart-validate --strict
 python -m mingli.cli chart-benchmark --independent-only
 python -m mingli.cli phase6 validate
 python -m mingli.cli phase6 benchmark
+python -m mingli.cli phase7 validate
+python -m mingli.cli phase7 benchmark
 git diff --check
 ```
 

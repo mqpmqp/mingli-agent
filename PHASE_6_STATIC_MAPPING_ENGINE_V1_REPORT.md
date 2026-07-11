@@ -6,7 +6,7 @@
 PHASE_6_STATIC_MAPPING_ENGINE_V1_COMPLETE
 ```
 
-This report is authored on the implementation branch before the implementation PR merge. Fields that are unknowable until GitHub creates the PR merge commit are recorded as pending here and finalized in the release response after post-merge CI.
+This report was originally authored on the implementation branch before the implementation PR merge. Phase 7 release readback updated the post-merge fields after PR #10 and main push CI completed.
 
 ## PR #9 Closure
 
@@ -24,9 +24,12 @@ The PR #9 packaging test was fixed before merge by isolating wheel builds in a c
 - Branch: `agent/phase6-static-mapping-engine-v1`
 - Baseline main/origin-main: `3c1c443215bd767f41ab47facff57d8b21896f1d`
 - Worktree: new clean clone under `mingli-agent-phase6-static-mapping-engine-v1`
-- Implementation PR: pending at report authoring time
-- Implementation merge commit: pending at report authoring time
-- Main post-merge HEAD: pending at report authoring time
+- Implementation PR: `https://github.com/mqpmqp/mingli-agent/pull/10`
+- Implementation commit: `affbd329957badc585305ac762962eda97ec6164`
+- Implementation PR CI: run `29151108639`, success
+- Implementation merge commit: `2cfc080e54f041642539e83046fb2b066f36b981`
+- Main post-merge HEAD: `2cfc080e54f041642539e83046fb2b066f36b981`
+- Main post-merge CI: run `29151166536`, success
 
 ## Changed Files
 

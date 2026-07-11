@@ -1,0 +1,58 @@
+{
+  "manifest_version": "phase7-source-manifest@0.1",
+  "reviewed_at": "2026-07-12",
+  "sources": [
+    {
+      "source_id": "hko-stems-branches-1901-2100-20260711",
+      "title": "Hong Kong Observatory stems, branches and calendar conversion references",
+      "author_institution": "Hong Kong Observatory",
+      "locator": "https://www.hko.gov.hk/en/gts/time/stemsandbranches.htm",
+      "version_edition": "1901-2100 public tables",
+      "page_anchor": "stems-and-branches-calendar-reference",
+      "accessed_at": "2026-07-11",
+      "license_usage_note": "Public web reference; used only as citation and independent verification anchor.",
+      "independence_group": "calendar-authority",
+      "verification_status": "reviewed",
+      "capabilities": ["luck_anchor", "dayun_sequence", "liunian_boundary", "age", "fact_graph"]
+    },
+    {
+      "source_id": "yuan-hai-zi-ping-wikisource-20260711",
+      "title": "Yuan Hai Zi Ping public text",
+      "author_institution": "Traditional public-domain text via Wikisource",
+      "locator": "https://zh.wikisource.org/zh-hans/%E6%B7%B5%E6%B5%B7%E5%AD%90%E5%B9%B3",
+      "version_edition": "Wikisource public text, accessed 2026-07-11",
+      "page_anchor": "classical-bazi-rules",
+      "accessed_at": "2026-07-11",
+      "license_usage_note": "Used as classical reference citation; no long text copied.",
+      "independence_group": "classical-yuan-hai-zi-ping",
+      "verification_status": "reviewed",
+      "capabilities": ["luck_direction", "luck_anchor", "dayun_sequence", "twelve_growth", "stem_relations", "branch_relations", "fact_graph"]
+    },
+    {
+      "source_id": "san-ming-tong-hui-ctext-20260711",
+      "title": "San Ming Tong Hui public text",
+      "author_institution": "Traditional public-domain text via Chinese Text Project",
+      "locator": "https://ctext.org/wiki.pl?chapter=926860&if=en",
+      "version_edition": "Chinese Text Project public text, accessed 2026-07-11",
+      "page_anchor": "classical-bazi-rules",
+      "accessed_at": "2026-07-11",
+      "license_usage_note": "Used as classical reference citation; no long text copied.",
+      "independence_group": "classical-san-ming-tong-hui",
+      "verification_status": "reviewed",
+      "capabilities": ["luck_direction", "twelve_growth", "stem_relations", "branch_relations", "fact_graph"]
+    },
+    {
+      "source_id": "lunar-python-lunarutil-master-20260711",
+      "title": "6tail lunar-python LunarUtil reference tables",
+      "author_institution": "6tail lunar-python project",
+      "locator": "https://github.com/6tail/lunar-python",
+      "version_edition": "Repository public reference, accessed 2026-07-11",
+      "page_anchor": "LunarUtil static mapping references",
+      "accessed_at": "2026-07-11",
+      "license_usage_note": "Used as modern implementation comparison reference, not as runtime dependency.",
+      "independence_group": "modern-6tail-lunar",
+      "verification_status": "reviewed",
+      "capabilities": ["luck_anchor", "dayun_sequence", "liunian_boundary", "age", "twelve_growth", "stem_relations", "branch_relations", "fact_graph"]
+    }
+  ]
+}
