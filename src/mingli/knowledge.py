@@ -31,6 +31,13 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _text_sha256(path: Path) -> str:
+    """Hash UTF-8 text independently of the checkout's line endings."""
+    text = path.read_text(encoding="utf-8")
+    canonical = text.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def stable_source_id(checksum: str) -> str:
     return f"src_sha256_{checksum[:12]}"
 
@@ -263,13 +270,13 @@ def import_pilot(pilot: Path, knowledge_root: Path) -> dict[str, Any]:
         relative = path.relative_to(repository_root).as_posix()
         if path.exists():
             modified.append(relative)
-            before[relative] = {"sha256": _sha256(path), "content": path.read_text(encoding="utf-8")}
+            before[relative] = {"sha256": _text_sha256(path), "content": path.read_text(encoding="utf-8")}
         else:
             created.append(relative)
     _write_jsonl(registry_path, sorted(registry, key=lambda item: item["id"]))
     for kind, path in paths.items():
         _write_jsonl(path, outputs[kind])
-    output_hashes = {path.relative_to(repository_root).as_posix(): _sha256(path) for path in [registry_path, *paths.values()]}
+    output_hashes = {path.relative_to(repository_root).as_posix(): _text_sha256(path) for path in [registry_path, *paths.values()]}
     manifest = {
         "batch_id": batch_id,
         "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -298,7 +305,7 @@ def rollback(batch_id: str, knowledge_root: Path, *, dry_run: bool = False) -> d
     conflicts = []
     for relative, expected in plan["expected_hashes"].items():
         path = repository_root / relative
-        if not path.exists() or _sha256(path) == expected:
+        if not path.exists() or _text_sha256(path) == expected:
             continue
         if relative == "knowledge/sources/registry.jsonl":
             current = _json_lines(path)
