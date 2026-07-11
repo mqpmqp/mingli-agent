@@ -1,0 +1,27 @@
+{
+  "manifest_version": "phase6-capability-manifest@0.1",
+  "decision_id": "PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED",
+  "method_id": "bazi-derived-structure@0.1.0",
+  "schema_version": "bazi-derived-structure-result@0.1",
+  "calculation_version": "0.1.0",
+  "enabled": {
+    "hidden_stems": "hidden-stems-r1@0.1",
+    "visible_stem_ten_gods": "ten-gods-r1@0.1",
+    "hidden_stem_ten_gods": "ten-gods-r1@0.1",
+    "nayin": "nayin-r1@0.1",
+    "xunkong": "xunkong-r1@0.1"
+  },
+  "excluded": [
+    "timeline",
+    "age_mapping",
+    "twelve_growth",
+    "relations",
+    "shensha",
+    "interpretation",
+    "prediction"
+  ],
+  "strict_default": true,
+  "explicit_partial_api": true,
+  "unresolved_counts_as_pass": false,
+  "prediction_validity": "not_evaluated"
+}

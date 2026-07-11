@@ -1,0 +1,51 @@
+{
+  "manifest_version": "phase6-source-manifest@0.1",
+  "capabilities": [
+    "hidden_stems",
+    "visible_stem_ten_gods",
+    "hidden_stem_ten_gods",
+    "nayin",
+    "xunkong"
+  ],
+  "sources": [
+    {
+      "source_id": "yuan-hai-zi-ping-wikisource-20260711",
+      "title": "渊海子平",
+      "author_institution": "徐大升（传统署名）；维基文库数字版",
+      "locator": "https://zh.wikisource.org/zh-hans/渊海子平",
+      "version_edition": "维基文库页面版本，访问日快照",
+      "page_anchor": "论天干地支、支中所藏、六亲与空亡相关条目",
+      "accessed_at": "2026-07-11",
+      "license_usage_note": "公版原典的公开转录；仅记录短映射事实和定位，不复制现代注释。",
+      "independence_group": "classical-yuan-hai-zi-ping",
+      "verification_status": "reviewed",
+      "capabilities": ["hidden_stems", "visible_stem_ten_gods", "hidden_stem_ten_gods", "xunkong"]
+    },
+    {
+      "source_id": "san-ming-tong-hui-ctext-20260711",
+      "title": "三命通会卷一",
+      "author_institution": "万民英；Chinese Text Project 数字版",
+      "locator": "https://ctext.org/wiki.pl?chapter=926860&if=zh",
+      "version_edition": "Chinese Text Project 页面版本，访问日快照",
+      "page_anchor": "六十甲子、纳音与旬空相关条目",
+      "accessed_at": "2026-07-11",
+      "license_usage_note": "公版原典的公开转录；仅记录映射事实、书目和锚点。",
+      "independence_group": "classical-san-ming-tong-hui",
+      "verification_status": "reviewed",
+      "capabilities": ["nayin", "xunkong"]
+    },
+    {
+      "source_id": "lunar-python-lunarutil-master-20260711",
+      "title": "lunar-python LunarUtil.py",
+      "author_institution": "6tail",
+      "locator": "https://github.com/6tail/lunar-python/blob/74c56657e02673d52f99d5afe8cfbd01b21cc1c7/lunar_python/util/LunarUtil.py",
+      "version_edition": "commit 74c56657e02673d52f99d5afe8cfbd01b21cc1c7",
+      "page_anchor": "ZHI_HIDE_GAN、SHI_SHEN、NAYIN 与 XUN_KONG tables",
+      "accessed_at": "2026-07-11",
+      "license_usage_note": "MIT repository；仅作为独立交叉检查候选，不能同时作为唯一实现和唯一 oracle。",
+      "independence_group": "modern-6tail-lunar",
+      "verification_status": "reviewed",
+      "capabilities": ["hidden_stems", "visible_stem_ten_gods", "hidden_stem_ten_gods", "nayin", "xunkong"]
+    }
+  ]
+}
