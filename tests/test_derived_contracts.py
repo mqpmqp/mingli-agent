@@ -183,9 +183,14 @@ class SourceAndPackagingTests(unittest.TestCase):
     def test_wheel_contains_readable_schemas(self) -> None:
         root = Path(__file__).parents[1]
         with tempfile.TemporaryDirectory() as temp:
-            clean_env = os.environ.copy()
-            clean_env.pop("PYTHONHOME", None)
-            clean_env.pop("PYTHONPATH", None)
+            clean_env = {
+                key: value
+                for key, value in os.environ.items()
+                if key.upper() in {"COMSPEC", "PATH", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP", "WINDIR"}
+            }
+            clean_env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
+            clean_env["PYTHONIOENCODING"] = "utf-8"
+            clean_env["PYTHONUTF8"] = "1"
             temp_path = Path(temp).resolve()
             build_root = temp_path / "source"
             shutil.copytree(
@@ -207,6 +212,7 @@ class SourceAndPackagingTests(unittest.TestCase):
                 env=clean_env,
                 check=True,
                 capture_output=True,
+                encoding="utf-8",
                 text=True,
             )
             wheel = next(output.glob("*.whl"))
@@ -214,6 +220,7 @@ class SourceAndPackagingTests(unittest.TestCase):
                 [sys.executable, "-m", "zipfile", "-l", str(wheel)],
                 check=True,
                 capture_output=True,
+                encoding="utf-8",
                 text=True,
             )
             import zipfile
@@ -228,18 +235,37 @@ class SourceAndPackagingTests(unittest.TestCase):
                 [str(python), "-m", "pip", "install", "--no-deps", str(wheel)],
                 check=True,
                 capture_output=True,
+                encoding="utf-8",
                 text=True,
                 env=clean_env,
             )
+            code = (
+                "from mingli.contracts import get_schema; "
+                "from mingli.derived import benchmark_static_mappings, derive_static_chart, "
+                "load_packaged_capability_manifest, load_packaged_source_manifest; "
+                "base={'method_id':'bazi-deterministic-lichun-jie-noaa-v0.1','calculation_version':'0.1.0',"
+                "'pillars':{'year':'甲子','month':'丙寅','day':'戊辰','hour':'庚申'},'conventions':{'day_boundary':'00:00'}}; "
+                "print('|'.join(["
+                "get_schema('derived_chart_result.schema.json')['type'], "
+                "load_packaged_capability_manifest()['decision_id'], "
+                "load_packaged_source_manifest()['manifest_version'], "
+                "str(benchmark_static_mappings().passed), "
+                "derive_static_chart(base).status"
+                "]))"
+            )
             probe = subprocess.run(
-                [str(python), "-I", "-c", "from mingli.contracts import get_schema; print(get_schema('derived_chart_result.schema.json')['type'])"],
+                [str(python), "-I", "-c", code],
                 cwd=temp_path,
                 env=clean_env,
                 check=True,
                 capture_output=True,
+                encoding="utf-8",
                 text=True,
             )
-            self.assertEqual("object", probe.stdout.strip())
+            self.assertEqual(
+                "object|PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED|phase6-source-manifest@0.1|352|complete",
+                probe.stdout.strip(),
+            )
 
 
 if __name__ == "__main__":

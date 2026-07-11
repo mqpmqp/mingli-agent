@@ -55,6 +55,9 @@ class HiddenStemRecord(Serializable):
     ordinal: int
     stem: str
     ten_god: TenGodRecord | None = None
+    source_ids: tuple[str, ...] = ()
+    determinism_level: Literal["D1", "D2"] = "D2"
+    verification_status: Literal["verified", "unresolved"] = "verified"
 
 
 @dataclass(frozen=True)
