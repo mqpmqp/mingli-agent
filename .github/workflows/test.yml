@@ -51,6 +51,11 @@ jobs:
           python -m mingli.cli knowledge-validate knowledge
           python -m mingli.cli knowledge-inventory knowledge
 
+      - name: Verify deterministic Bazi engine
+        run: |
+          python -m mingli.cli chart-validate --strict
+          python -m mingli.cli chart-benchmark --independent-only
+
       - name: Verify pilot import and rollback
         run: |
           temp_dir="$(mktemp -d)"
@@ -70,7 +75,12 @@ jobs:
           test "$(python -m mingli.cli knowledge-inventory knowledge)" = "$baseline"
 
       - name: Check patch whitespace
-        run: git diff --check
+        run: |
+          git diff --check
+          git diff --check origin/main...HEAD
 
       - name: Confirm spec is unchanged
         run: git diff --exit-code origin/main...HEAD -- spec
+
+      - name: Confirm knowledge is unchanged
+        run: git diff --exit-code origin/main...HEAD -- knowledge

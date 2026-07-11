@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .benchmark import benchmark_static
+from .bazi import benchmark_charts, validate_benchmarks
 from .errors import MingLiError, RuleValidationError
 from .models import RULE_STATUSES
 from .rule_loader import load_rules
@@ -35,6 +36,20 @@ def _parser() -> argparse.ArgumentParser:
     knowledge_rollback = subcommands.add_parser("knowledge-rollback", help="按 manifest 回滚批次")
     knowledge_rollback.add_argument("batch_id")
     knowledge_rollback.add_argument("--dry-run", action="store_true")
+    chart_validate = subcommands.add_parser("chart-validate", help="validate deterministic chart contracts")
+    chart_validate.add_argument("--strict", action="store_true")
+    chart_validate.add_argument(
+        "--path",
+        type=Path,
+        default=Path("tests/fixtures/bazi_independent_benchmarks_v0.1.jsonl"),
+    )
+    chart_benchmark = subcommands.add_parser("chart-benchmark", help="run deterministic chart benchmarks")
+    chart_benchmark.add_argument("--independent-only", action="store_true")
+    chart_benchmark.add_argument(
+        "--path",
+        type=Path,
+        default=Path("tests/fixtures/bazi_independent_benchmarks_v0.1.jsonl"),
+    )
     return parser
 
 
@@ -74,6 +89,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "knowledge-rollback":
             print(json.dumps(rollback(args.batch_id, Path("knowledge"), dry_run=args.dry_run), ensure_ascii=False, sort_keys=True))
             return 0
+        if args.command == "chart-validate":
+            issues = validate_benchmarks(args.path, strict=args.strict)
+            if issues:
+                for issue in issues:
+                    print(f"error: {issue}", file=sys.stderr)
+                return 1
+            print(json.dumps({"status": "passed", "strict": args.strict, "path": str(args.path)}, sort_keys=True))
+            return 0
+        if args.command == "chart-benchmark":
+            result = benchmark_charts(args.path, independent_only=args.independent_only)
+            payload = {
+                "total": result.total,
+                "independent": result.independent,
+                "passed": result.passed,
+                "failed": result.failed,
+                "unresolved": result.unresolved,
+                "source_agreement": result.source_agreement,
+                "categories": result.categories,
+            }
+            print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            for failure in result.failures:
+                print(f"error: {failure}", file=sys.stderr)
+            return 1 if result.failed else 0
 
         result = benchmark_static(args.path)
         if result.failures:

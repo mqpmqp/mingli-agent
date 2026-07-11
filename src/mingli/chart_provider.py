@@ -4,6 +4,7 @@ from typing import Mapping, Protocol, runtime_checkable
 
 from .errors import ChartProviderUnavailable
 from .models import ChartInput
+from .bazi import DeterministicBaziEngine
 
 
 @runtime_checkable
@@ -19,3 +20,6 @@ class UnavailableChartProvider:
         raise ChartProviderUnavailable(
             "未配置可靠排盘器；不可生成四柱或旺衰；不会使用硬编码示例盘冒充结果。"
         )
+
+
+__all__ = ["ChartProvider", "DeterministicBaziEngine", "UnavailableChartProvider"]
