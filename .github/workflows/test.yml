@@ -6,6 +6,7 @@ on:
       - main
   push:
     branches:
+      - main
       - agent/finalize-core-runtime-v0.1-verification
       - agent/knowledge-os-v0.2
 
