@@ -18,6 +18,15 @@ from .derived import (
     validate_static_assertions,
 )
 from .errors import MingLiError, RuleValidationError
+from .phase7 import (
+    benchmark_phase7,
+    build_bazi_fact_graph,
+    build_luck_timeline,
+    detect_structural_relations,
+    load_phase7_profiles,
+    phase7_schema_summary,
+    validate_phase7_profiles,
+)
 from .models import RULE_STATUSES
 from .rule_loader import load_rules
 from .schema_loader import validate_spec
@@ -72,6 +81,24 @@ def _parser() -> argparse.ArgumentParser:
     phase6_benchmark.add_argument("--assertions", type=Path)
     phase6_subcommands.add_parser("capabilities", help="输出 Phase 6 capability manifest")
     phase6_subcommands.add_parser("schemas", help="输出 Phase 6 schema 清单")
+    phase7 = subcommands.add_parser("phase7", help="Phase 7 deterministic fact graph tools")
+    phase7_subcommands = phase7.add_subparsers(dest="phase7_command", required=True)
+    phase7_build = phase7_subcommands.add_parser("build", help="build a Phase 7 Bazi fact graph from a Phase 5 base chart")
+    phase7_build.add_argument("--input", default="-", help="JSON file path; defaults to stdin")
+    phase7_build.add_argument("--dayun-count", type=int, default=10)
+    phase7_build.add_argument("--liunian-start-year", type=int)
+    phase7_build.add_argument("--liunian-end-year", type=int)
+    phase7_timeline = phase7_subcommands.add_parser("timeline", help="build deterministic DaYun and LiuNian timeline facts")
+    phase7_timeline.add_argument("--input", default="-", help="JSON file path; defaults to stdin")
+    phase7_timeline.add_argument("--dayun-count", type=int, default=10)
+    phase7_timeline.add_argument("--liunian-start-year", type=int)
+    phase7_timeline.add_argument("--liunian-end-year", type=int)
+    phase7_relations = phase7_subcommands.add_parser("relations", help="detect structural stem/branch relations from a derived chart")
+    phase7_relations.add_argument("--input", default="-", help="JSON file path; defaults to stdin")
+    phase7_subcommands.add_parser("validate", help="validate packaged Phase 7 profiles")
+    phase7_subcommands.add_parser("benchmark", help="run Phase 7 assertion matrix")
+    phase7_subcommands.add_parser("profiles", help="output Phase 7 profile manifest")
+    phase7_subcommands.add_parser("schemas", help="output Phase 7 schema/profile/source metadata")
     return parser
 
 
@@ -195,6 +222,62 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "source_manifest": load_packaged_source_manifest()["manifest_version"],
             }
             print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            return 0
+
+        if args.command == "phase7":
+            if args.phase7_command == "build":
+                value = _read_json_argument(args.input)
+                if not isinstance(value, dict):
+                    raise ValueError("Phase 7 build input must be a JSON object")
+                result = build_bazi_fact_graph(
+                    value,
+                    dayun_count=args.dayun_count,
+                    liunian_start_year=args.liunian_start_year,
+                    liunian_end_year=args.liunian_end_year,
+                )
+                print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+                return 0
+            if args.phase7_command == "timeline":
+                value = _read_json_argument(args.input)
+                if not isinstance(value, dict):
+                    raise ValueError("Phase 7 timeline input must be a JSON object")
+                result = build_luck_timeline(
+                    value,
+                    dayun_count=args.dayun_count,
+                    liunian_start_year=args.liunian_start_year,
+                    liunian_end_year=args.liunian_end_year,
+                )
+                print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+                return 0
+            if args.phase7_command == "relations":
+                value = _read_json_argument(args.input)
+                if not isinstance(value, dict):
+                    raise ValueError("Phase 7 relations input must be a JSON object")
+                payload = {"relations": [fact.to_dict() for fact in detect_structural_relations(value)]}
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+                return 0
+            if args.phase7_command == "validate":
+                issues = validate_phase7_profiles()
+                payload = {"status": "passed" if not issues else "failed", "issues": list(issues)}
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+                return 1 if issues else 0
+            if args.phase7_command == "benchmark":
+                result = benchmark_phase7()
+                print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True))
+                for failure in result.failures:
+                    print(f"error: {failure}", file=sys.stderr)
+                return 1 if (
+                    result.failed
+                    or result.schema_failures
+                    or result.provenance_failures
+                    or result.hash_mismatches
+                    or result.interval_gaps
+                    or result.interval_overlaps
+                ) else 0
+            if args.phase7_command == "profiles":
+                print(json.dumps(load_phase7_profiles(), ensure_ascii=False, sort_keys=True))
+                return 0
+            print(json.dumps(phase7_schema_summary(), ensure_ascii=False, sort_keys=True))
             return 0
 
         result = benchmark_static(args.path)

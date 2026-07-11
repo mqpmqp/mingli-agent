@@ -1,0 +1,104 @@
+{
+  "manifest_version": "phase7-profile-manifest@0.1",
+  "profile_set_id": "phase7-fact-graph-r1@0.1",
+  "decision_id": "PHASE_7_FACT_GRAPH_R1_DETERMINISTIC_BOUNDARY_APPROVED",
+  "prediction_validity": "not_evaluated",
+  "profiles": [
+    {
+      "profile_id": "age-profile@0.1",
+      "version": "0.1.0",
+      "convention_summary": "Chronological age is computed from the birth instant. Nominal age uses an explicit birth-counts-as-one profile; it is never used as a prediction signal.",
+      "source_ids": ["hko-stems-branches-1901-2100-20260711", "lunar-python-lunarutil-master-20260711"],
+      "independence_groups": ["calendar-authority", "modern-6tail-lunar"],
+      "reviewed": true,
+      "applicable_inputs": ["birth_instant", "target_instant", "timezone"],
+      "explicit_exclusions": ["health", "career", "wealth", "marriage", "event_prediction"],
+      "unresolved_conditions": ["nominal age is omitted when this profile is not selected"],
+      "compatibility_version": "phase5@0.1+phase6@0.1"
+    },
+    {
+      "profile_id": "branch-relation-profile@0.1",
+      "version": "0.1.0",
+      "convention_summary": "Detects only structural branch relation membership: liuhe, liuchong, liuhai, liupo, sanxing, self-punishment, sanhe, half-combine, sanhui and same-branch. Transformation, strength and auspiciousness are explicitly not evaluated.",
+      "source_ids": ["yuan-hai-zi-ping-wikisource-20260711", "san-ming-tong-hui-ctext-20260711", "lunar-python-lunarutil-master-20260711"],
+      "independence_groups": ["classical-yuan-hai-zi-ping", "classical-san-ming-tong-hui", "modern-6tail-lunar"],
+      "reviewed": true,
+      "applicable_inputs": ["branch_pair", "branch_triple", "derived_chart"],
+      "explicit_exclusions": ["chengju", "transformation", "strength", "auspiciousness", "event_prediction"],
+      "unresolved_conditions": ["relations requiring season, strength or transformation are not emitted"],
+      "compatibility_version": "phase5@0.1+phase6@0.1"
+    },
+    {
+      "profile_id": "dayun-sequence-profile@0.1",
+      "version": "0.1.0",
+      "convention_summary": "DaYun sequence starts from the adjacent month-pillar sexagenary item according to the verified luck direction. Each period is a deterministic ten-tropical-year half-open interval from the exact luck anchor.",
+      "source_ids": ["hko-stems-branches-1901-2100-20260711", "yuan-hai-zi-ping-wikisource-20260711", "lunar-python-lunarutil-master-20260711"],
+      "independence_groups": ["calendar-authority", "classical-yuan-hai-zi-ping", "modern-6tail-lunar"],
+      "reviewed": true,
+      "applicable_inputs": ["month_pillar", "luck_direction", "luck_anchor", "period_count"],
+      "explicit_exclusions": ["dayun_auspiciousness", "event_window", "strength", "interpretation"],
+      "unresolved_conditions": ["missing precise luck anchor refuses timeline generation"],
+      "compatibility_version": "phase5@0.1+phase6@0.1"
+    },
+    {
+      "profile_id": "liunian-boundary-profile@0.1",
+      "version": "0.1.0",
+      "convention_summary": "LiuNian periods are half-open intervals from LiChun to the next LiChun, not Gregorian January 1 boundaries.",
+      "source_ids": ["hko-stems-branches-1901-2100-20260711", "lunar-python-lunarutil-master-20260711"],
+      "independence_groups": ["calendar-authority", "modern-6tail-lunar"],
+      "reviewed": true,
+      "applicable_inputs": ["label_year", "solar_term_profile", "timezone"],
+      "explicit_exclusions": ["annual_fortune", "event_prediction", "auspiciousness"],
+      "unresolved_conditions": ["years outside 1901-2099 are refused"],
+      "compatibility_version": "phase5@0.1+phase6@0.1"
+    },
+    {
+      "profile_id": "luck-anchor-profile@0.1",
+      "version": "0.1.0",
+      "convention_summary": "The exact luck anchor is computed from the absolute duration between birth and the adjacent jie selected by direction. The display age follows Phase 5 days/3 convention; exact start instant uses integer microseconds and a 365.2425-day tropical-year conversion.",
+      "source_ids": ["hko-stems-branches-1901-2100-20260711", "yuan-hai-zi-ping-wikisource-20260711", "lunar-python-lunarutil-master-20260711"],
+      "independence_groups": ["calendar-authority", "classical-yuan-hai-zi-ping", "modern-6tail-lunar"],
+      "reviewed": true,
+      "applicable_inputs": ["birth_instant", "adjacent_jie_instant", "luck_direction"],
+      "explicit_exclusions": ["reverse_engineering_from_rounded_age", "local_temp_paths", "random_uuid", "binary_float_public_result"],
+      "unresolved_conditions": ["missing adjacent jie instant refuses anchor generation"],
+      "compatibility_version": "phase5@0.1+phase6@0.1"
+    },
+    {
+      "profile_id": "luck-direction-profile@0.1",
+      "version": "0.1.0",
+      "convention_summary": "Yang-year male and yin-year female run forward; yin-year male and yang-year female run reverse. Year polarity is taken from the calculated year stem.",
+      "source_ids": ["yuan-hai-zi-ping-wikisource-20260711", "san-ming-tong-hui-ctext-20260711"],
+      "independence_groups": ["classical-yuan-hai-zi-ping", "classical-san-ming-tong-hui"],
+      "reviewed": true,
+      "applicable_inputs": ["year_stem", "gender"],
+      "explicit_exclusions": ["non-binary-gender-extension", "luck_quality", "event_prediction"],
+      "unresolved_conditions": ["missing gender refuses Phase 5 base chart generation"],
+      "compatibility_version": "phase5@0.1+phase6@0.1"
+    },
+    {
+      "profile_id": "stem-relation-profile@0.1",
+      "version": "0.1.0",
+      "convention_summary": "Detects same-stem, five-combine and clash membership only. Combination transformation, strength and auspiciousness are not evaluated.",
+      "source_ids": ["yuan-hai-zi-ping-wikisource-20260711", "san-ming-tong-hui-ctext-20260711", "lunar-python-lunarutil-master-20260711"],
+      "independence_groups": ["classical-yuan-hai-zi-ping", "classical-san-ming-tong-hui", "modern-6tail-lunar"],
+      "reviewed": true,
+      "applicable_inputs": ["stem_pair", "derived_chart"],
+      "explicit_exclusions": ["transformation", "strength", "auspiciousness", "personality", "event_prediction"],
+      "unresolved_conditions": ["relations requiring non-structural context are not emitted"],
+      "compatibility_version": "phase5@0.1+phase6@0.1"
+    },
+    {
+      "profile_id": "twelve-growth-profile@0.1",
+      "version": "0.1.0",
+      "convention_summary": "Twelve growth stages use yang-stem forward and yin-stem reverse traversal; earth stems follow the fire-storage convention. Output is only the stage label, never strength, auspiciousness or decline/boom judgement.",
+      "source_ids": ["yuan-hai-zi-ping-wikisource-20260711", "san-ming-tong-hui-ctext-20260711", "lunar-python-lunarutil-master-20260711"],
+      "independence_groups": ["classical-yuan-hai-zi-ping", "classical-san-ming-tong-hui", "modern-6tail-lunar"],
+      "reviewed": true,
+      "applicable_inputs": ["stem", "branch"],
+      "explicit_exclusions": ["strength_quantification", "wang_shuai", "auspiciousness", "event_prediction"],
+      "unresolved_conditions": ["unknown growth profile refuses calculation"],
+      "compatibility_version": "phase5@0.1+phase6@0.1"
+    }
+  ]
+}
