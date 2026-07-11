@@ -518,4 +518,3 @@ spec_modified: false
 knowledge_modified: false
 prediction_added: false
 ```
-
