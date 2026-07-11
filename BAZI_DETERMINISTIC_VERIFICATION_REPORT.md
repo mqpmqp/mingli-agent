@@ -2,7 +2,7 @@
 
 ## Decision
 
-The Phase 5 implementation is locally ready for PR verification. It adds deterministic calendar calculation and verification only; it adds no event prediction, LLM integration, or claim of predictive validity. Final merge readiness remains conditional on the Phase 5 PR CI result.
+The Phase 5 implementation is ready for merge after final-head CI. It adds deterministic calendar calculation and verification only; it adds no event prediction, LLM integration, or claim of predictive validity. GitHub Actions passed for implementation commit `03c1069f000f571f79a8a62003b0d68257d30fa0` in run `29135568673`; the documentation-only closure commit must also pass before the PR is marked Ready.
 
 ## Scope
 
@@ -92,4 +92,4 @@ An additional seeded 1,000-case audit across 1901-2099 found zero pillar conflic
 - external conflict recorded without automatic selection: pass
 - legacy tests: pass
 - `spec/` and `knowledge/` unchanged: pass
-- CI: pending Phase 5 PR
+- CI: implementation commit passed; final documentation-only head recheck required before Ready
