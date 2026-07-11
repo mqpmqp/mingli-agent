@@ -25,5 +25,13 @@ class ChartProviderUnavailable(MingLiError, RuntimeError):
     """没有配置经过验证的排盘器。"""
 
 
+class ChartCalculationError(MingLiError, ValueError):
+    """Deterministic chart input or calculation failure."""
+
+    def __init__(self, code: str, message: str):
+        self.code = code
+        super().__init__(f"{code}: {message}")
+
+
 class RouterError(MingLiError, ValueError):
     """路由规范无效或意图不受支持。"""
