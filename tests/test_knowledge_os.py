@@ -73,7 +73,12 @@ class SourceRegistryTests(unittest.TestCase):
             inside = root / "inside.txt"
             inside.write_text("inside", encoding="utf-8")
             link = root / "inside-link"
-            link.symlink_to(inside)
+            try:
+                link.symlink_to(inside)
+            except OSError as exc:
+                if getattr(exc, "winerror", None) == 1314:
+                    self.skipTest("Windows symlink privilege is unavailable")
+                raise
             with self.assertRaisesRegex(ValueError, "symlink 默认"):
                 register_source(link, root / "registry.jsonl", domain="yijing", repository_root=root)
             external = Path(outside) / "outside.txt"
