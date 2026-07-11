@@ -22,6 +22,7 @@ python -m mingli.cli validate-rules spec/rules
 python -m mingli.cli benchmark-static spec/evaluation/golden_cases_v0.2.jsonl
 python -m mingli.cli chart-validate --strict
 python -m mingli.cli chart-benchmark --independent-only
+python -m mingli.cli phase6 benchmark
 ```
 
 - `validate-spec` 递归解析全部 JSON/JSONL，校验所有 JSON Schema 本身，并对同目录明确匹配的数据及规则数据执行 Schema 校验。错误包含文件、行号和 JSON 路径，任一错误返回非零状态。
@@ -29,6 +30,18 @@ python -m mingli.cli chart-benchmark --independent-only
 - `benchmark-static` 检查 40 个黄金案例及 24 个实战盲测案例的确定性策略合同。结果不表示真实模型或命理预测准确率。
 
 Phase 5 提供带版本标识的 `DeterministicBaziEngine`。每次成功结果都包含 `method_id`、完整约定与 `prediction_validity=not_evaluated`。详细口径见 `BAZI_CALCULATION_CONVENTIONS.md` 和 `BAZI_DETERMINISTIC_VERIFICATION_REPORT.md`；排盘成功不代表预测有效。
+
+Phase 6 提供确定性静态派生结构映射层，只从 allowlisted Phase 5 结构化结果派生五项结构事实：地支藏干、可见天干十神、藏干十神、六十甲子纳音和旬空。它不计算大运/流年时间线、旺衰、格局、用神、喜忌、神煞、合冲刑害吉凶或事件预测；所有结果继续固定 `prediction_validity=not_evaluated`。
+
+```bash
+python -m mingli.cli phase6 map --input base_chart.json
+python -m mingli.cli phase6 validate
+python -m mingli.cli phase6 benchmark
+python -m mingli.cli phase6 capabilities
+python -m mingli.cli phase6 schemas
+```
+
+`phase6 map` 也可从 stdin 读取 JSON。stdout 只输出机器可读 JSON，错误写入 stderr；命令不读取网络、不调用外部模型、不修改输入文件。
 
 ## 核心约束
 
@@ -50,6 +63,8 @@ python -m mingli.cli validate-rules spec/rules
 python -m mingli.cli benchmark-static spec/evaluation/golden_cases_v0.2.jsonl
 python -m mingli.cli chart-validate --strict
 python -m mingli.cli chart-benchmark --independent-only
+python -m mingli.cli phase6 validate
+python -m mingli.cli phase6 benchmark
 git diff --check
 ```
 

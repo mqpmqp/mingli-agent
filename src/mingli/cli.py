@@ -8,6 +8,15 @@ from typing import Sequence
 
 from .benchmark import benchmark_static
 from .bazi import benchmark_charts, validate_benchmarks
+from .contracts import get_schema
+from .derived import (
+    benchmark_static_mappings,
+    derive_static_chart,
+    load_packaged_capability_manifest,
+    load_packaged_source_manifest,
+    load_static_assertions,
+    validate_static_assertions,
+)
 from .errors import MingLiError, RuleValidationError
 from .models import RULE_STATUSES
 from .rule_loader import load_rules
@@ -50,7 +59,25 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("tests/fixtures/bazi_independent_benchmarks_v0.1.jsonl"),
     )
+    phase6 = subcommands.add_parser("phase6", help="Phase 6 静态派生结构工具")
+    phase6_subcommands = phase6.add_subparsers(dest="phase6_command", required=True)
+    phase6_map = phase6_subcommands.add_parser("map", help="从 Phase 5 结构化结果映射 Phase 6 派生结构")
+    phase6_map.add_argument("--input", default="-", help="JSON 文件路径；默认为 stdin")
+    phase6_map.add_argument("--profile", default="derived-static-r1@0.1")
+    phase6_map.add_argument("--capability", action="append", dest="capabilities")
+    phase6_map.add_argument("--allow-partial", action="store_true", help="显式允许 unresolved 依赖返回 partial")
+    phase6_validate = phase6_subcommands.add_parser("validate", help="校验 Phase 6 assertion matrix")
+    phase6_validate.add_argument("--assertions", type=Path)
+    phase6_benchmark = phase6_subcommands.add_parser("benchmark", help="运行 Phase 6 静态映射 benchmark")
+    phase6_benchmark.add_argument("--assertions", type=Path)
+    phase6_subcommands.add_parser("capabilities", help="输出 Phase 6 capability manifest")
+    phase6_subcommands.add_parser("schemas", help="输出 Phase 6 schema 清单")
     return parser
+
+
+def _read_json_argument(path: str) -> object:
+    text = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
+    return json.loads(text)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -112,6 +139,63 @@ def main(argv: Sequence[str] | None = None) -> int:
             for failure in result.failures:
                 print(f"error: {failure}", file=sys.stderr)
             return 1 if result.failed else 0
+        if args.command == "phase6":
+            if args.phase6_command == "map":
+                value = _read_json_argument(args.input)
+                if not isinstance(value, dict):
+                    raise ValueError("Phase 6 map input must be a JSON object")
+                result = derive_static_chart(
+                    value,
+                    capabilities=args.capabilities,
+                    profile_id=args.profile,
+                    strict=not args.allow_partial,
+                )
+                print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+                return 0
+            if args.phase6_command == "validate":
+                assertions = load_static_assertions(args.assertions)
+                issues = validate_static_assertions(assertions)
+                payload = {
+                    "assertions": len(assertions),
+                    "issues": list(issues),
+                    "status": "passed" if not issues else "failed",
+                }
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+                return 1 if issues else 0
+            if args.phase6_command == "benchmark":
+                result = benchmark_static_mappings(args.assertions)
+                payload = {
+                    "total": result.total,
+                    "passed": result.passed,
+                    "failed": result.failed,
+                    "unresolved": result.unresolved,
+                    "capabilities": result.capability_counts,
+                    "source_groups": result.source_group_counts,
+                    "independence_group_violations": result.independence_group_violations,
+                    "deterministic_hash_mismatches": result.deterministic_hash_mismatches,
+                    "schema_failures": result.schema_failures,
+                    "provenance_failures": result.provenance_failures,
+                }
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+                for failure in result.failures:
+                    print(f"error: {failure}", file=sys.stderr)
+                return 1 if (result.failed or result.independence_group_violations or result.deterministic_hash_mismatches or result.schema_failures or result.provenance_failures) else 0
+            if args.phase6_command == "capabilities":
+                print(json.dumps(load_packaged_capability_manifest(), ensure_ascii=False, sort_keys=True))
+                return 0
+            schema_names = [
+                "base_chart_ref.schema.json",
+                "derived_chart_result.schema.json",
+                "derived_convention_profile.schema.json",
+                "derived_error.schema.json",
+                "source_manifest.schema.json",
+            ]
+            payload = {
+                "schemas": {name: get_schema(name).get("$id") for name in schema_names},
+                "source_manifest": load_packaged_source_manifest()["manifest_version"],
+            }
+            print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            return 0
 
         result = benchmark_static(args.path)
         if result.failures:
