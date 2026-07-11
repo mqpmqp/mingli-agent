@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -181,10 +183,28 @@ class SourceAndPackagingTests(unittest.TestCase):
     def test_wheel_contains_readable_schemas(self) -> None:
         root = Path(__file__).parents[1]
         with tempfile.TemporaryDirectory() as temp:
-            output = Path(temp) / "dist"
+            clean_env = os.environ.copy()
+            clean_env.pop("PYTHONHOME", None)
+            clean_env.pop("PYTHONPATH", None)
+            temp_path = Path(temp).resolve()
+            build_root = temp_path / "source"
+            shutil.copytree(
+                root,
+                build_root,
+                ignore=shutil.ignore_patterns(
+                    ".git",
+                    ".pytest_cache",
+                    "__pycache__",
+                    "build",
+                    "dist",
+                    "*.egg-info",
+                ),
+            )
+            output = temp_path / "dist"
             subprocess.run(
                 [sys.executable, "-m", "build", "--wheel", "--outdir", str(output)],
-                cwd=root,
+                cwd=build_root,
+                env=clean_env,
                 check=True,
                 capture_output=True,
                 text=True,
@@ -201,13 +221,20 @@ class SourceAndPackagingTests(unittest.TestCase):
             with zipfile.ZipFile(wheel) as archive:
                 packaged = {name for name in archive.namelist() if "/schemas/" in name and name.endswith(".json")}
             self.assertEqual(5, len(packaged))
-            environment = Path(temp) / "installed"
+            environment = temp_path / "installed"
             venv.EnvBuilder(with_pip=True).create(environment)
             python = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
-            subprocess.run([str(python), "-m", "pip", "install", "--no-deps", str(wheel)], check=True, capture_output=True, text=True)
+            subprocess.run(
+                [str(python), "-m", "pip", "install", "--no-deps", str(wheel)],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=clean_env,
+            )
             probe = subprocess.run(
                 [str(python), "-I", "-c", "from mingli.contracts import get_schema; print(get_schema('derived_chart_result.schema.json')['type'])"],
-                cwd=temp,
+                cwd=temp_path,
+                env=clean_env,
                 check=True,
                 capture_output=True,
                 text=True,
