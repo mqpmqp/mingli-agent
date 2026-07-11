@@ -58,12 +58,16 @@ jobs:
           cd "$temp_dir/repo"
           batch_id="$(python -c 'from pathlib import Path; print(next(Path("knowledge/batches/manifests").glob("*.json")).stem)')"
           python -m mingli.cli knowledge-rollback "$batch_id"
+          baseline="$(python -m mingli.cli knowledge-inventory knowledge)"
           python -m mingli.cli knowledge-import spec/knowledge/pilots/zhouyi_yu_yucexue_ch01
-          python -m mingli.cli knowledge-inventory knowledge | python -c 'import json,sys; data=json.load(sys.stdin); assert (data["concepts"],data["rules"],data["evidence"],data["benchmarks"]) == (30,14,8,8)'
+          test "$(wc -l < knowledge/concepts/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl)" -eq 30
+          test "$(wc -l < knowledge/rules/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl)" -eq 14
+          test "$(wc -l < knowledge/evidence/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl)" -eq 8
+          test "$(wc -l < knowledge/benchmarks/draft/yijing/zhouyi_yu_yucexue_ch01.jsonl)" -eq 8
           python -m mingli.cli knowledge-rollback "$batch_id" --dry-run
           python -m mingli.cli knowledge-rollback "$batch_id"
           python -m mingli.cli knowledge-validate knowledge
-          python -m mingli.cli knowledge-inventory knowledge | python -c 'import json,sys; data=json.load(sys.stdin); assert (data["concepts"],data["rules"],data["evidence"],data["benchmarks"]) == (0,0,0,0)'
+          test "$(python -m mingli.cli knowledge-inventory knowledge)" = "$baseline"
 
       - name: Check patch whitespace
         run: git diff --check
