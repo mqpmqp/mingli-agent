@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - agent/finalize-core-runtime-v0.1-verification
+      - agent/knowledge-os-v0.2
 
 permissions:
   contents: read
@@ -44,6 +45,25 @@ jobs:
 
       - name: Run static benchmark
         run: python -m mingli.cli benchmark-static spec/evaluation/golden_cases_v0.2.jsonl
+
+      - name: Validate knowledge repository
+        run: |
+          python -m mingli.cli knowledge-validate knowledge
+          python -m mingli.cli knowledge-inventory knowledge
+
+      - name: Verify pilot import and rollback
+        run: |
+          temp_dir="$(mktemp -d)"
+          cp -a . "$temp_dir/repo"
+          cd "$temp_dir/repo"
+          batch_id="$(python -c 'from pathlib import Path; print(next(Path("knowledge/batches/manifests").glob("*.json")).stem)')"
+          python -m mingli.cli knowledge-rollback "$batch_id"
+          python -m mingli.cli knowledge-import spec/knowledge/pilots/zhouyi_yu_yucexue_ch01
+          python -m mingli.cli knowledge-inventory knowledge | python -c 'import json,sys; data=json.load(sys.stdin); assert (data["concepts"],data["rules"],data["evidence"],data["benchmarks"]) == (30,14,8,8)'
+          python -m mingli.cli knowledge-rollback "$batch_id" --dry-run
+          python -m mingli.cli knowledge-rollback "$batch_id"
+          python -m mingli.cli knowledge-validate knowledge
+          python -m mingli.cli knowledge-inventory knowledge | python -c 'import json,sys; data=json.load(sys.stdin); assert (data["concepts"],data["rules"],data["evidence"],data["benchmarks"]) == (0,0,0,0)'
 
       - name: Check patch whitespace
         run: git diff --check

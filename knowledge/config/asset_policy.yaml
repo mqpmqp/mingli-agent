@@ -1,0 +1,19 @@
+version: 1
+max_file_size_bytes: 52428800
+forbidden_extensions: [.exe, .dll, .dylib, .so]
+assets:
+  raw_documents:
+    extensions: [.pdf, .epub, .mobi]
+    classification: raw
+    import_allowed: true
+    git_lfs: true
+  raw_images:
+    extensions: [.png, .jpg, .jpeg, .tif, .tiff]
+    classification: raw
+    import_allowed: true
+    git_lfs: true
+  derived_text:
+    extensions: [.json, .jsonl, .md, .txt, .yaml, .yml]
+    classification: derived
+    import_allowed: true
+    git_lfs: false
