@@ -20,6 +20,7 @@ dev = ["pytest>=8,<10", "build>=1.2,<2"]
 
 [project.scripts]
 mingli = "mingli.cli:main"
+mingli-phase8 = "mingli.phase8_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
