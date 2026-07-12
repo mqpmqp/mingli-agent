@@ -1,0 +1,41 @@
+{
+  "manifest_version": "phase9-strength-assertion-plan@0.1",
+  "decision_id": "PHASE_9_BAZI_STRENGTH_QUANTIFICATION_R1_APPROVED",
+  "profile_id": "strength-quantification-r1@0.1",
+  "generated_matrix": {
+    "ten_day_masters": true,
+    "five_elements": true,
+    "same_and_different_type_mapping": true,
+    "twelve_month_branches": true,
+    "principal_middle_residual_hidden_qi": true,
+    "visible_stems": true,
+    "single_multi_and_no_roots": true,
+    "month_order_support_and_opposition": true,
+    "classification_bands": [
+      "very_weak",
+      "weak",
+      "balanced",
+      "strong",
+      "very_strong"
+    ],
+    "threshold_boundaries": true,
+    "blocked_inputs": true,
+    "unresolved_input_contracts": true,
+    "profile_validation_failures": true,
+    "json_key_reorder": true,
+    "rule_order_reorder": true,
+    "different_cwd": true,
+    "subprocess": true,
+    "wheel_install": true
+  },
+  "minimum_expected_assertions_total": 300,
+  "acceptance": {
+    "failed": 0,
+    "unresolved": 0,
+    "schema_failures": 0,
+    "provenance_failures": 0,
+    "hash_mismatches": 0,
+    "threshold_gaps": 0,
+    "threshold_overlaps": 0
+  }
+}

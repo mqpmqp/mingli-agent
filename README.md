@@ -2,6 +2,19 @@
 
 MingLi Agent Core Runtime v0.1 是一个纯确定性的 Python 核心库。它把 `spec/` 中可验证的部分落成数据模型、规范校验、规则加载、证据融合、现实校正、置信度门禁、意图路由、中文渲染和静态策略检查。
 
+Phase 9 adds an independent deterministic Bazi strength quantification layer:
+
+```bash
+python -m mingli.phase9_cli calculate --graph fact_graph.json
+python -m mingli.phase9_cli validate
+python -m mingli.phase9_cli benchmark
+python -m mingli.phase9_cli profiles
+python -m mingli.phase9_cli schemas
+python -m mingli.phase9_cli provenance --expected-root .
+```
+
+The Phase 9 layer consumes Phase 7 Fact Graph data, emits profile-driven strength facts and evidence records, and keeps `prediction_validity=not_evaluated`. It does not emit GeJu, YongShen, XiJi, auspiciousness, event prediction, or natural-language readings.
+
 本项目不是完整算命产品。Phase 5 只按公开约定计算四柱、历法转换、真太阳时校正以及大运顺逆和起运数值，不计算旺衰、大运序列、流年或事件预测，也不调用 LLM、OCR、数据库、Web 服务或外部排盘 API。调用方未选择确定性实现时，`UnavailableChartProvider` 仍会明确拒绝生成命盘，不会用示例盘冒充结果。
 
 ## 环境与安装
