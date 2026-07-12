@@ -23,6 +23,7 @@ python -m mingli.cli benchmark-static spec/evaluation/golden_cases_v0.2.jsonl
 python -m mingli.cli chart-validate --strict
 python -m mingli.cli chart-benchmark --independent-only
 python -m mingli.cli phase6 benchmark
+python -m mingli.phase8_cli benchmark
 ```
 
 - `validate-spec` 递归解析全部 JSON/JSONL，校验所有 JSON Schema 本身，并对同目录明确匹配的数据及规则数据执行 Schema 校验。错误包含文件、行号和 JSON 路径，任一错误返回非零状态。
@@ -57,10 +58,24 @@ python -m mingli.cli phase7 schemas
 
 公共 API 位于 `mingli.phase7`：`build_bazi_fact_graph(...)`、`build_luck_timeline(...)`、`detect_structural_relations(...)`、`calculate_growth_stages(...)` 和 `benchmark_phase7(...)`。所有成功输出继续固定 `prediction_validity=not_evaluated`。
 
+Phase 8 消费 Phase 7 Fact Graph，提供可运行但不生成命理解读的规则评估与证据合同。规则使用受限事实选择器和现实条件操作符；输出显式区分 `matched`、`not_matched`、`blocked`、`skipped`，并生成证据、冲突、现实硬覆盖、置信度输入、provenance 与 canonical hash。Phase 8 不内置旺衰、格局、用神、喜忌、吉凶或主题预测规则。
+
+```bash
+python -m mingli.phase8_cli evaluate --graph fact_graph.json --rules rules.json --reality reality.json --intent career
+python -m mingli.phase8_cli validate --rules rules.json
+python -m mingli.phase8_cli benchmark
+python -m mingli.phase8_cli schemas
+python -m mingli.phase8_cli provenance --expected-root .
+```
+
+公共 API 位于 `mingli.phase8`：`evaluate_rule_set(...)`、`parse_rule_set(...)`、`load_phase8_rules(...)`、`validate_phase8_rules(...)`、`benchmark_phase8(...)` 和 `validate_import_origin(...)`。所有成功输出继续固定 `prediction_validity=not_evaluated`。
+
 ## 核心约束
 
 - 生产规则检索默认只返回 `reviewed` 与 `verified`，现实规则始终先于普通结构规则，再按优先级降序排列。
 - 现实硬事实在证据融合中权重最高；分数只作汇总，不会自动生成命理结论。
+- Phase 8 现实覆盖必须由规则显式声明 `reality_override_codes`，并且只覆盖已有 matched 证据的对应 claim。
+- 同一 claim 的相反证据永久保留冲突记录；现实硬覆盖优先，其次按规则 priority，等优先级冲突保持 unresolved。
 - 图片盘未确认时只请求确认并给出低置信限制说明。
 - 考公输出分开处理体制适配、上岸、岗位与备考；复合输出分开处理缘分牵引、复联、复合与稳定。
 - 医疗与投资场景优先现实专业处置；命理不能决定诊断、就医、杠杆或仓位。
@@ -69,6 +84,7 @@ python -m mingli.cli phase7 schemas
 ## 测试
 
 ```bash
+python -c "import mingli; print(mingli.__file__)"
 python -m compileall src tests
 python -m unittest discover -v
 python -m pytest -q
@@ -81,6 +97,8 @@ python -m mingli.cli phase6 validate
 python -m mingli.cli phase6 benchmark
 python -m mingli.cli phase7 validate
 python -m mingli.cli phase7 benchmark
+python -m mingli.phase8_cli provenance --expected-root .
+python -m mingli.phase8_cli benchmark
 git diff --check
 ```
 
