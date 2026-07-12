@@ -1,0 +1,122 @@
+{
+  "manifest_version": "phase9-strength-profile-manifest@0.1",
+  "decision_id": "PHASE_9_BAZI_STRENGTH_QUANTIFICATION_R1_APPROVED",
+  "schema_version": "phase9-strength-profile@0.1",
+  "profiles": [
+    {
+      "profile_id": "strength-quantification-r1@0.1",
+      "version": "0.1.0",
+      "convention_summary": "Deterministic profile for day-master five-element strength quantification. Month branch season is the highest weight source; visible stems, hidden stems and roots contribute. Structural relations are retained as facts but do not alter scores.",
+      "reviewed": true,
+      "source_ids": [
+        "phase6-static-mapping-manifest@0.1",
+        "phase7-fact-graph-profile-manifest@0.1",
+        "phase9-strength-profile-design-r1@0.1"
+      ],
+      "independence_groups": [
+        "static-derived-structure",
+        "fact-graph-contract",
+        "phase9-profile-design"
+      ],
+      "compatibility_version": "phase5@0.1|phase6@0.1|phase7@0.1|phase8@0.1|phase9@0.1",
+      "same_type_relations": [
+        "peer",
+        "resource"
+      ],
+      "different_type_relations": [
+        "output",
+        "wealth",
+        "authority"
+      ],
+      "weights": {
+        "month_branch_weight": "100.0000",
+        "branch_position_weights": {
+          "year": "25.0000",
+          "month": "100.0000",
+          "day": "50.0000",
+          "hour": "25.0000"
+        },
+        "visible_stem_weights": {
+          "year": "20.0000",
+          "month": "20.0000",
+          "day": "0.0000",
+          "hour": "20.0000"
+        },
+        "hidden_stem_ordinal_weights": {
+          "1": "1.0000",
+          "2": "0.6000",
+          "3": "0.3000"
+        },
+        "seasonal_hidden_stem_weights": {
+          "1": "1.0000",
+          "2": "0.5000",
+          "3": "0.2500"
+        },
+        "root_level_weights": {
+          "principal": "45.0000",
+          "middle": "25.0000",
+          "residual": "15.0000"
+        }
+      },
+      "quantity": {
+        "score_precision": "0.0001",
+        "ratio_precision": "0.0001",
+        "rounding": "ROUND_HALF_UP",
+        "score_unit": "profile_points"
+      },
+      "classification_thresholds": [
+        {
+          "classification": "very_weak",
+          "min_inclusive": "0.0000",
+          "max_exclusive": "0.2000"
+        },
+        {
+          "classification": "weak",
+          "min_inclusive": "0.2000",
+          "max_exclusive": "0.4500"
+        },
+        {
+          "classification": "balanced",
+          "min_inclusive": "0.4500",
+          "max_exclusive": "0.5500"
+        },
+        {
+          "classification": "strong",
+          "min_inclusive": "0.5500",
+          "max_exclusive": "0.8000"
+        },
+        {
+          "classification": "very_strong",
+          "min_inclusive": "0.8000",
+          "max_inclusive": "1.0000"
+        }
+      ],
+      "toggles": {
+        "month_branch_participates": true,
+        "visible_stems_participate": true,
+        "hidden_stems_participate": true,
+        "roots_participate": true,
+        "structural_relations_affect_score": false,
+        "combination_transformation_affect_score": false,
+        "xunkong_affect_score": false,
+        "twelve_growth_affect_score": false,
+        "climate_adjustment_affect_score": false,
+        "follower_pattern_final_judgement": false
+      },
+      "explicit_exclusions": [
+        "structural relations do not alter strength score",
+        "combination transformation is not calculated",
+        "xunkong does not alter strength score",
+        "twelve growth stage is not equated with wang/shuai",
+        "climate adjustment is not calculated",
+        "follower-pattern final judgement is not made",
+        "no GeJu, YongShen, XiJi, auspiciousness, event window or renderer output"
+      ],
+      "unresolved_conditions": [
+        "unsupported school-specific strength formula requested",
+        "required fact graph nodes are missing",
+        "input prediction_validity is not not_evaluated"
+      ]
+    }
+  ]
+}
