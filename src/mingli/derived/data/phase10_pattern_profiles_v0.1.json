@@ -1,0 +1,67 @@
+{
+  "manifest_version": "phase10-pattern-profile-manifest@0.1",
+  "decision_id": "PHASE_10_BAZI_PATTERN_EVALUATION_R1_APPROVED",
+  "profiles": [
+    {
+      "profile_id": "bazi-pattern-evaluation-r1@0.1",
+      "version": "0.1.0",
+      "reviewed": true,
+      "convention_summary": "Deterministic structural pattern-candidate evaluation rooted in the reviewed month-command hidden stems; it records establishment, breaking, rescue and unresolved evidence without auspiciousness or prediction claims.",
+      "candidate_source_order": [
+        "month_principal_transparent",
+        "month_middle_transparent",
+        "month_residual_transparent",
+        "month_principal_structural",
+        "jian_lu_or_yang_ren",
+        "special_pattern_candidate",
+        "unresolved"
+      ],
+      "hidden_stem_priority": {"1": 300, "2": 200, "3": 100},
+      "establishment_weights": {"month_source": "40", "transparent": "30", "structural": "15", "strength_context": "15"},
+      "break_weights": {"mixing": "20", "direct_attack": "30", "peer_wealth": "25", "resource_output": "25"},
+      "rescue_weights": {"resource_controls_output": "20", "wealth_generates_authority": "15", "output_generates_wealth": "15", "output_controls_killing": "20", "resource_bridges_killing": "20"},
+      "purity_thresholds": [
+        {"status": "rejected", "min_inclusive": "0", "max_exclusive": "20"},
+        {"status": "contradicted", "min_inclusive": "20", "max_exclusive": "40"},
+        {"status": "weakened", "min_inclusive": "40", "max_exclusive": "70"},
+        {"status": "conditionally_supported", "min_inclusive": "70", "max_exclusive": "85"},
+        {"status": "supported", "min_inclusive": "85", "max_inclusive": "100"}
+      ],
+      "primary_candidate_threshold": "70",
+      "conflict_resolution_order": [
+        "month_command_over_non_month",
+        "principal_over_middle_over_residual",
+        "transparent_over_nontransparent",
+        "establishment_and_break_evidence_retained_separately",
+        "rescue_does_not_delete_break",
+        "ordinary_over_jianlu_yangren_when_month_source_ranks_higher",
+        "special_never_silently_overrides_ordinary",
+        "equal_rank_conflict_is_unresolved",
+        "stable_candidate_id_tiebreak_for_serialization_only"
+      ],
+      "ordinary_pattern_rules": {
+        "zheng_guan": {"break": ["shang_guan", "authority_mixing"], "rescue": ["zheng_yin", "zheng_cai"]},
+        "qi_sha": {"break": ["authority_mixing"], "rescue": ["shi_shen", "zheng_yin", "pian_yin"]},
+        "zheng_yin": {"break": ["zheng_cai", "pian_cai", "resource_mixing"], "rescue": ["qi_sha", "zheng_guan"]},
+        "pian_yin": {"break": ["shi_shen", "resource_mixing"], "rescue": ["qi_sha"]},
+        "shi_shen": {"break": ["pian_yin", "output_mixing"], "rescue": ["zheng_cai", "pian_cai", "qi_sha"]},
+        "shang_guan": {"break": ["zheng_guan", "output_mixing"], "rescue": ["zheng_yin", "pian_yin", "zheng_cai", "pian_cai"]},
+        "zheng_cai": {"break": ["jian_lu", "yang_ren", "wealth_mixing"], "rescue": ["zheng_guan"]},
+        "pian_cai": {"break": ["jian_lu", "yang_ren", "wealth_mixing"], "rescue": ["qi_sha"]}
+      },
+      "jianlu_rules": {"principal_hidden_ten_god": "peer_same_polarity", "source_kind": "jian_lu_or_yang_ren"},
+      "yangren_rules": {"month_branches_by_day_stem": {"甲": "卯", "丙": "午", "戊": "午", "庚": "酉", "壬": "子"}, "yin_day_stems": "unresolved_by_profile"},
+      "special_pattern_candidate_rules": {
+        "very_strong": ["cong_qiang_candidate"],
+        "very_weak": ["cong_weak_candidate", "cong_cai_candidate", "cong_guan_sha_candidate", "cong_er_candidate"],
+        "stem_combination": ["hua_qi_candidate"],
+        "maximum_status": "conditionally_supported"
+      },
+      "source_ids": ["phase6-static-mapping-manifest@0.1", "phase7-fact-graph-profile-manifest@0.1", "phase9-strength-profile-design-r1@0.1", "phase10-pattern-profile-design-r1@0.1"],
+      "independence_groups": ["static-derived-structure", "fact-graph-contract", "strength-contract", "phase10-profile-design"],
+      "explicit_exclusions": ["no climate adjustment", "no useful-god or favorable-unfavorable judgement", "no luck-cycle prediction", "no final follower or transformation-pattern judgement", "no natural-language renderer"],
+      "unresolved_conditions": ["combination transformation truth is not calculated", "transformation element seasonal authority is not calculated", "competing combinations are not calculated", "yin-day-master yang-ren convention is not selected"],
+      "compatibility_version": "phase5@0.1|phase6@0.1|phase7@0.1|phase8@0.1|phase9@0.1|phase10@0.1"
+    }
+  ]
+}

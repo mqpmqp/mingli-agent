@@ -1,0 +1,19 @@
+{
+  "manifest_version": "phase10-pattern-assertions@0.1",
+  "minimum_expected_assertions_total": 1200,
+  "matrix_axes": {
+    "day_stems": 10,
+    "month_branches": 12,
+    "deterministic_checks_per_chart": 10
+  },
+  "required_coverage": [
+    "eight_ordinary_patterns", "jian_lu", "yang_ren", "principal_middle_residual",
+    "multiple_transparency", "authority_output_wealth_resource_mixing", "food_controls_killing",
+    "hurting_officer_with_resource", "killing_resource_generation", "wealth_authority_generation",
+    "output_wealth_generation", "resource_seizes_food", "peer_seizes_wealth", "breaking_and_rescue",
+    "ordinary_jianlu_yangren_conflict", "special_candidates", "hua_qi_unresolved",
+    "equal_priority_unresolved", "profile_boundaries", "malformed_profile", "blocked_input",
+    "missing_provenance", "json_key_reorder", "candidate_order_independence", "subprocess",
+    "different_cwd", "isolated_wheel", "phase7_phase8_phase9_regression"
+  ]
+}
