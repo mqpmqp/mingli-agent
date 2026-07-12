@@ -66,7 +66,6 @@ class StrengthProfile:
     def to_dict(self) -> dict[str, object]:
         return _plain_dataclass(self)
 
-
 @dataclass(frozen=True)
 class ElementContribution:
     contribution_id: str
@@ -282,4 +281,3 @@ class Phase9BenchmarkResult:
 
     def to_dict(self) -> dict[str, object]:
         return _plain_dataclass(self)
-

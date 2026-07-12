@@ -293,4 +293,3 @@ def profile_decimal(profile: StrengthProfile, path: str) -> Decimal:
 
 def element_zero_scores() -> dict[str, Decimal]:
     return {element: Decimal("0") for element in ELEMENTS}
-

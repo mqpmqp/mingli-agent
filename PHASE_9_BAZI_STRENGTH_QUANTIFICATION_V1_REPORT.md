@@ -152,4 +152,3 @@ knowledge_modified: false
 prediction_added: false
 original_p0_worktree_modified: false
 ```
-
