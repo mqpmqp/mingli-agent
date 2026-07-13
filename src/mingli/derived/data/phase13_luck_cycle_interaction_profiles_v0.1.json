@@ -1,0 +1,69 @@
+{
+  "decision_id": "PHASE_13_BAZI_LUCK_CYCLE_ROLE_INTERACTION_R1_APPROVED",
+  "manifest_version": "phase13-luck-cycle-interaction-profile-manifest@0.1",
+  "profiles": [
+    {
+      "profile_id": "luck-cycle-role-interaction-r1@0.1",
+      "version": "0.1.0",
+      "reviewed": true,
+      "convention_summary": "Deterministic structural interaction between Phase 7 DaYun/LiuNian timelines and Phase 12 five-element XiJi role assignments. The result reports role alignment, conflict, neutrality, unresolved states and static stem/branch relations only; no auspiciousness, event, domain, or narrative conclusion is produced.",
+      "compatibility_version": "phase7@0.1|phase8@0.1|phase12@0.1|phase13@0.1",
+      "role_directions": {
+        "yongshen": "support",
+        "xishen": "support",
+        "jishen": "conflict",
+        "choushen": "conflict",
+        "xianshen": "neutral",
+        "unresolved": "unresolved"
+      },
+      "role_multipliers": {
+        "yongshen": "1.0000",
+        "xishen": "0.7000",
+        "jishen": "1.0000",
+        "choushen": "0.7000",
+        "xianshen": "1.0000",
+        "unresolved": "0.0000"
+      },
+      "source_weights": {
+        "stem": "50.0000",
+        "branch_primary": "30.0000",
+        "branch_secondary": "12.0000",
+        "branch_tertiary": "8.0000"
+      },
+      "state_thresholds": {
+        "aligned_support_min": "40.0000",
+        "opposed_conflict_min": "40.0000",
+        "mixed_support_min": "25.0000",
+        "mixed_conflict_min": "25.0000"
+      },
+      "window_weights": {
+        "dayun": "0.6000",
+        "liunian": "0.4000"
+      },
+      "source_ids": [
+        "phase7-fact-graph-r1@0.1",
+        "xiji-role-classification-r1@0.1",
+        "phase6-static-mapping-manifest@0.1"
+      ],
+      "independence_groups": [
+        "phase7-timeline-contract",
+        "phase12-xiji-contract",
+        "phase6-static-relations"
+      ],
+      "explicit_exclusions": [
+        "no auspiciousness classification",
+        "no luck-cycle good-or-bad judgement",
+        "no event prediction",
+        "no career wealth relationship or health conclusion",
+        "no natural-language renderer",
+        "no transformation claim from stem or branch combinations"
+      ],
+      "unresolved_conditions": [
+        "Phase 12 role unresolved",
+        "Phase 7 timeline unresolved or malformed",
+        "missing active DaYun for LiuNian",
+        "hash or nested digest mismatch"
+      ]
+    }
+  ]
+}
