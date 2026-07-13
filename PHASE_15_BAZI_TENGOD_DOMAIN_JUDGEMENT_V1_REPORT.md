@@ -68,11 +68,40 @@ Implemented outputs:
 12. Record cross-domain conflicts rather than flattening them into a single conclusion.
 13. Refuse concrete event and renderer requests.
 
-## Verification target
+## Benchmark
 
-- Phase 15 benchmark: at least 7,200 deterministic assertions.
-- Full unittest and pytest regression.
-- Phase 15 CLI evaluate, query, validate, benchmark, profiles, schemas, and provenance.
-- Isolated wheel installation under `python -I`.
-- Source/install canonical-hash equality for Phase 12 through Phase 15.
-- No changes to `spec/` or `knowledge/`.
+Phase 15 benchmark result:
+
+- `assertions_total`: 7575
+- `passed`: 7575
+- `failed`: 0
+- `unresolved`: 0
+- `schema_failures`: 0
+- `provenance_failures`: 0
+- `hash_mismatches`: 0
+- `ten_god_mapping_failures`: 0
+- `domain_partition_failures`: 0
+- `query_failures`: 0
+- `reality_override_failures`: 0
+- `claim_boundary_failures`: 0
+- `prediction_boundary_failures`: 0
+
+The matrix covers ten day stems by twelve month branches with sixty-three deterministic checks per chart, plus verified-reality override, conflicting-reality, unverified-reality, year/domain query, age/domain query, target query, Phase 7/13/14 top-level hashes, nested Phase 13/14 digests, and blocked concrete-event requests.
+
+## Verification
+
+The successful Core Runtime Verification workflow executes:
+
+- `python -m compileall src tests`
+- `python -m unittest discover -v`
+- `python -m pytest -q`
+- all existing spec, rule, static benchmark, knowledge, chart, pilot import, and rollback gates
+- Phase 12, Phase 13, Phase 14, and Phase 15 profile validation and complete benchmarks
+- `python -m build`
+- fresh temporary virtual-environment installation from the generated wheel
+- installed-wheel Phase 12 through Phase 15 validation and benchmarks under `python -I`
+- source/install canonical-hash equality for Phase 12 through Phase 15
+- `git diff --check`
+- unchanged `spec/` and `knowledge/` gates
+
+All successful outputs retain `prediction_validity = not_evaluated` and `domain_judgement_validity = candidate_only`; no concrete event, auspiciousness, or natural-language destiny renderer surface is introduced.
