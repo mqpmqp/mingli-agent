@@ -1,0 +1,51 @@
+{
+  "decision_id": "PHASE_14_BAZI_TEMPORAL_TREND_EVIDENCE_R1_APPROVED",
+  "manifest_version": "phase14-temporal-trend-profile-manifest@0.1",
+  "profiles": [
+    {
+      "compatibility_version": "phase7@0.1|phase8@0.1|phase12@0.1|phase13@0.1|phase14@0.1",
+      "confidence_policy": {
+        "high_requires_consistent_verified_reality": true,
+        "medium_requires_structural_evidence": true,
+        "neutral_ceiling": "low",
+        "unresolved_ceiling": "low"
+      },
+      "convention_summary": "Converts Phase 13 structural scores into deterministic, non-event temporal tendency evidence; preserves structural support, conflict, neutral and unresolved channels; verified reality evidence may hard-override the final tendency label without deleting the structural record.",
+      "evidence_scale": "10.0000",
+      "explicit_exclusions": [
+        "no auspiciousness",
+        "no good or bad fortune conclusion",
+        "no event prediction",
+        "no career wealth relationship health conclusion",
+        "no natural-language renderer",
+        "no replacement of Phase 7 timeline",
+        "no deletion of contradicted structural evidence"
+      ],
+      "independence_groups": [
+        "phase13-structural-interaction",
+        "verified-reality-evidence"
+      ],
+      "profile_id": "temporal-trend-evidence-r1@0.1",
+      "reviewed": true,
+      "source_ids": [
+        "luck-cycle-role-interaction-r1@0.1",
+        "phase8-reality-hard-override-contract@0.1",
+        "phase7-age-and-timeline-contract@0.1"
+      ],
+      "transition_delta": "0.1000",
+      "trend_thresholds": {
+        "conflict_ratio_min": "0.5500",
+        "mixed_secondary_min": "0.2500",
+        "support_ratio_min": "0.5500"
+      },
+      "unresolved_conditions": [
+        "conflicting verified reality evidence for the same target",
+        "Phase 13 unresolved structural state",
+        "missing Phase 7 age reference",
+        "invalid nested Phase 13 digest",
+        "invalid reality evidence target"
+      ],
+      "version": "0.1.0"
+    }
+  ]
+}
