@@ -35,6 +35,7 @@ class FiveYearOutlookResult:
     range_start: int
     range_end: int
     years: tuple[YearOutlook, ...]
+    evidence_index: tuple[Mapping[str, object], ...]
     warnings: tuple[str, ...]
     canonical_hash: str
     schema_version: str = field(default=PHASE21_SCHEMA_VERSION, init=False)
@@ -83,7 +84,9 @@ def generate_five_year_outlook(raw: Mapping[str, object]) -> FiveYearOutlookResu
         forbidden = FORBIDDEN_EVENT_FIELDS.intersection(item)
         if forbidden:
             raise Phase21InputError(f"concrete event fields are forbidden: {sorted(forbidden)}")
-        evidence_id = str(item.get("evidence_id") or f"annual:{index}")
+        evidence_id = str(item.get("evidence_id", ""))
+        if not evidence_id:
+            raise Phase21InputError("annual evidence_id is required")
         if evidence_id in seen:
             raise Phase21InputError(f"duplicate evidence_id: {evidence_id}")
         seen.add(evidence_id)
@@ -96,7 +99,16 @@ def generate_five_year_outlook(raw: Mapping[str, object]) -> FiveYearOutlookResu
         reality = item.get("verified_reality")
         if reality not in {None, "support", "contradict"}:
             raise Phase21InputError("verified_reality must be support, contradict or null")
-        records.append({"evidence_id": evidence_id, "year": year, "domain": domain, "signal": signal, "verified_reality": reality})
+        source_type = str(item.get("source_type", ""))
+        source_id = str(item.get("source_id", ""))
+        verified = item.get("verified") is True
+        if source_type not in {"rule", "timing", "reality"} or not source_id:
+            raise Phase21InputError("annual evidence source_type and source_id are required")
+        if reality is not None and (source_type != "reality" or not verified):
+            raise Phase21InputError("verified_reality requires a verified reality source")
+        record = {"evidence_id": evidence_id, "year": year, "domain": domain, "signal": signal, "verified_reality": reality, "source_type": source_type, "source_id": source_id, "verified": verified}
+        record["canonical_digest"] = digest({"record_type":"AnnualEvidence","payload":record})
+        records.append(record)
     base_score = {"supportive": 1, "mixed": 0, "challenging": -1, "unresolved": None}
     years: list[YearOutlook] = []
     for year in sorted(allowed_years):
@@ -118,8 +130,8 @@ def generate_five_year_outlook(raw: Mapping[str, object]) -> FiveYearOutlookResu
         resolved_scores = [{"supportive": 1, "mixed": 0, "challenging": -1}[status] for status in statuses.values() if status != "unresolved"]
         overall = _score_to_status(None if not resolved_scores else sum(resolved_scores))
         years.append(YearOutlook(year, overall, statuses, tuple(sorted(evidence_ids)), tuple(domain for domain in DOMAINS if statuses[domain] == "unresolved")))
-    body = {"anchor_year": anchor, "range_start": anchor - 2, "range_end": anchor + 2, "years": [asdict(item) for item in years], "warnings": ["trend_only_no_concrete_event", "verified_reality_override_is_year_and_domain_scoped", "not_a_guarantee"]}
-    return FiveYearOutlookResult(anchor, anchor - 2, anchor + 2, tuple(years), tuple(body["warnings"]), digest({"record_type": "FiveYearOutlookResult", "payload": body}))
+    body = {"anchor_year": anchor, "range_start": anchor - 2, "range_end": anchor + 2, "years": [asdict(item) for item in years], "evidence_index":records, "warnings": ["trend_only_no_concrete_event", "verified_reality_override_is_year_and_domain_scoped", "not_a_guarantee"]}
+    return FiveYearOutlookResult(anchor, anchor - 2, anchor + 2, tuple(years), tuple(records), tuple(body["warnings"]), digest({"record_type": "FiveYearOutlookResult", "payload": body}))
 
 
 def renderer_years(result: FiveYearOutlookResult) -> list[dict[str, object]]:
@@ -127,7 +139,7 @@ def renderer_years(result: FiveYearOutlookResult) -> list[dict[str, object]]:
 
 
 def benchmark_phase21() -> dict[str, object]:
-    payload = {"anchor_year": 2028, "baseline_domains": {"career": "mixed", "wealth": "challenging", "relationship": "unresolved"}, "annual_evidence": [{"evidence_id": "c26", "year": 2026, "domain": "career", "signal": 2}, {"evidence_id": "r27", "year": 2027, "domain": "relationship", "signal": 0, "verified_reality": "contradict"}, {"evidence_id": "w30", "year": 2030, "domain": "wealth", "signal": 2}]}
+    payload = {"anchor_year": 2028, "baseline_domains": {"career": "mixed", "wealth": "challenging", "relationship": "unresolved"}, "annual_evidence": [{"evidence_id": "c26", "year": 2026, "domain": "career", "signal": 2,"source_type":"timing","source_id":"phase14"}, {"evidence_id": "r27", "year": 2027, "domain": "relationship", "signal": 0, "verified_reality": "contradict","source_type":"reality","source_id":"confirmed","verified":True}, {"evidence_id": "w30", "year": 2030, "domain": "wealth", "signal": 2,"source_type":"rule","source_id":"phase16"}]}
     result = generate_five_year_outlook(payload)
     by_year = {item.year: item for item in result.years}
     checks = [(len(result.years) == 5, "five_years"), ([item.year for item in result.years] == [2026, 2027, 2028, 2029, 2030], "range"), (by_year[2026].domain_statuses["career"] == "supportive", "signal"), (by_year[2027].domain_statuses["relationship"] == "challenging", "reality_override"), (by_year[2030].domain_statuses["wealth"] == "mixed", "baseline_plus_signal"), (all(item.boundary_code == "trend_only_no_concrete_event" for item in result.years), "boundary"), (result.canonical_hash == generate_five_year_outlook(json.loads(json.dumps(payload))).canonical_hash, "determinism"), (result.prediction_validity == "not_evaluated", "prediction_validity")]
