@@ -227,7 +227,8 @@ class SourceAndPackagingTests(unittest.TestCase):
 
             with zipfile.ZipFile(wheel) as archive:
                 packaged = {name for name in archive.namelist() if "/schemas/" in name and name.endswith(".json")}
-            self.assertEqual(5, len(packaged))
+            self.assertEqual(6, len(packaged))
+            self.assertIn("mingli/contracts/schemas/phase16_domain_contract_result.schema.json", packaged)
             environment = temp_path / "installed"
             venv.EnvBuilder(with_pip=True).create(environment)
             python = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
