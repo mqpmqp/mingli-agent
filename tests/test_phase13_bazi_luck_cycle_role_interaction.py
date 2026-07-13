@@ -10,6 +10,7 @@ import unittest
 
 from mingli.derived.static_engine import BRANCHES, STEMS
 from mingli.phase8_contracts import EvidenceRecord as Phase8EvidenceRecord
+from mingli.phase12_contracts import record_digest as phase12_record_digest
 from mingli.phase13 import (
     PHASE13_METHOD_ID,
     PHASE13_SCHEMA_VERSION,
@@ -24,6 +25,7 @@ from mingli.phase13 import (
 from mingli.phase13_contracts import STRUCTURAL_STATES
 
 ROOT = Path(__file__).resolve().parents[1]
+METADATA_FIELDS = {"canonical_hash", "schema_version", "method_id", "calculation_version", "prediction_validity"}
 
 
 def fixture(day_stem: str = STEMS[0], month_branch: str = BRANCHES[2]):
@@ -92,6 +94,8 @@ class Phase13EvaluationTests(unittest.TestCase):
             evaluate_luck_cycle_role_interactions({**graph, "canonical_hash": "sha256:bad"}, xiji)
         tampered = json.loads(json.dumps(xiji, ensure_ascii=False))
         tampered["element_assignments"][0]["role"] = "unresolved"
+        tampered_body = {key: value for key, value in tampered.items() if key not in METADATA_FIELDS}
+        tampered["canonical_hash"] = phase12_record_digest("BaziXiJiEvaluationResult", tampered_body)
         with self.assertRaisesRegex(Phase13InputError, "assignment canonical_digest mismatch"):
             evaluate_luck_cycle_role_interactions(graph, tampered)
         with self.assertRaisesRegex(Phase13InputError, "cannot return"):
