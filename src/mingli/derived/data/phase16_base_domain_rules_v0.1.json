@@ -1,0 +1,57 @@
+{
+  "decision_id": "PHASE_16_DOMAIN_CONTRACT_BASE_RULES_R1_APPROVED",
+  "manifest_version": "phase16-base-domain-rules@0.1",
+  "profile_id": "base-domain-contract-r1@0.1",
+  "version": "0.1.0",
+  "reviewed": true,
+  "compatibility_version": "phase15@0.1|phase16@0.1",
+  "domains": ["career", "wealth", "relationship"],
+  "source_ids": ["phase15-tengod-domain-judgement@0.1"],
+  "explicit_exclusions": [
+    "no promotion dismissal or job-offer claim",
+    "no profit loss income amount or investment claim",
+    "no marriage reunion breakup affair or partner-count claim",
+    "no auspiciousness or guaranteed outcome",
+    "no natural-language destiny renderer"
+  ],
+  "claim_boundary_codes": [
+    "base_domain_rule_only",
+    "theme_not_concrete_event",
+    "phase15_reality_override_preserved",
+    "prediction_validity_not_evaluated"
+  ],
+  "required_facets": {
+    "career": ["system_fit", "enterprise_employment", "professional_technical", "management", "entrepreneurship", "freelance", "stability", "growth_space", "pressure_sources", "position_direction"],
+    "wealth": ["earned_income", "variable_income", "income_stability", "risk_preference", "retention", "cashflow", "investment_boundary", "debt_risk", "income_model"],
+    "relationship": ["attraction", "communication", "boundaries", "dependency", "conflict", "stability", "marriage_tendency", "reality_obstacles"]
+  },
+  "rules": [
+    {"rule_id":"career_system_fit","domain":"career","facet_code":"system_fit","theme_any":["rules","responsibility","credentials"],"claim_code":"career_system_fit_active","statement":"规则、责任与资历主题可用于描述体制适配倾向，不等于具体考试结果。","priority":80,"status":"reviewed"},
+    {"rule_id":"career_enterprise_employment","domain":"career","facet_code":"enterprise_employment","theme_any":["delivery","commercial_responsibility","position_pressure"],"claim_code":"career_enterprise_employment_active","statement":"交付、商业责任和职位压力可用于描述企业就业环境倾向。","priority":70,"status":"reviewed"},
+    {"rule_id":"career_professional_technical","domain":"career","facet_code":"professional_technical","theme_any":["learning","credentials","innovation"],"claim_code":"career_professional_technical_active","statement":"学习、资历和创新主题可用于描述专业技术路径。","priority":70,"status":"reviewed"},
+    {"rule_id":"career_management","domain":"career","facet_code":"management","theme_any":["responsibility","resource_management","position_pressure"],"claim_code":"career_management_active","statement":"责任、资源管理和职位压力可用于描述管理职责倾向。","priority":70,"status":"reviewed"},
+    {"rule_id":"career_entrepreneurship","domain":"career","facet_code":"entrepreneurship","theme_any":["innovation","commercial_responsibility","market_expression"],"claim_code":"career_entrepreneurship_active","statement":"创新、市场表达和商业责任可用于描述创业条件，不构成创业建议。","priority":60,"status":"reviewed"},
+    {"rule_id":"career_freelance","domain":"career","facet_code":"freelance","theme_any":["expression","delivery","market_expression"],"claim_code":"career_freelance_active","statement":"表达、交付和市场主题可用于描述自由职业工作方式。","priority":60,"status":"reviewed"},
+    {"rule_id":"career_stability","domain":"career","facet_code":"stability","theme_any":["rules","support_system","responsibility"],"claim_code":"career_stability_active","statement":"规则、支持系统和责任主题可用于描述稳定性条件。","priority":80,"status":"reviewed"},
+    {"rule_id":"career_growth_space","domain":"career","facet_code":"growth_space","theme_any":["learning","innovation","delivery"],"claim_code":"career_growth_space_active","statement":"学习、创新和交付主题可用于描述发展空间。","priority":70,"status":"reviewed"},
+    {"rule_id":"career_pressure_sources","domain":"career","facet_code":"pressure_sources","theme_any":["position_pressure","responsibility","competition_for_resources"],"claim_code":"career_pressure_sources_active","statement":"职位、责任和资源竞争主题用于标记压力来源。","priority":80,"status":"reviewed"},
+    {"rule_id":"career_position_direction","domain":"career","facet_code":"position_direction","theme_any":["credentials","delivery","resource_management","expression"],"claim_code":"career_position_direction_active","statement":"资历、交付、资源管理和表达主题用于描述岗位方向。","priority":60,"status":"reviewed"},
+    {"rule_id":"wealth_earned_income","domain":"wealth","facet_code":"earned_income","theme_any":["cashflow","commercial_responsibility","output_conversion"],"claim_code":"wealth_earned_income_active","statement":"现金流和交付转化主题用于描述劳动与经营所得。","priority":80,"status":"reviewed"},
+    {"rule_id":"wealth_variable_income","domain":"wealth","facet_code":"variable_income","theme_any":["market_expression","monetization","competition_for_resources"],"claim_code":"wealth_variable_income_active","statement":"市场、变现和竞争主题用于描述波动收入条件，不构成收益预测。","priority":70,"status":"reviewed"},
+    {"rule_id":"wealth_income_stability","domain":"wealth","facet_code":"income_stability","theme_any":["cashflow","planning","support_system"],"claim_code":"wealth_income_stability_active","statement":"现金流、规划和支持系统用于描述收入稳定条件。","priority":80,"status":"reviewed"},
+    {"rule_id":"wealth_risk_preference","domain":"wealth","facet_code":"risk_preference","theme_any":["competition_for_resources","market_expression","risk_control"],"claim_code":"wealth_risk_preference_active","statement":"竞争、市场和风控主题用于描述风险偏好边界。","priority":70,"status":"reviewed"},
+    {"rule_id":"wealth_retention","domain":"wealth","facet_code":"retention","theme_any":["asset_management","planning","resource_sharing"],"claim_code":"wealth_retention_active","statement":"资产管理、规划和资源分享主题用于描述守财条件。","priority":70,"status":"reviewed"},
+    {"rule_id":"wealth_cashflow","domain":"wealth","facet_code":"cashflow","theme_any":["cashflow","output_conversion","resource_management"],"claim_code":"wealth_cashflow_active","statement":"现金流、产出转化和资源管理用于描述资金周转结构。","priority":80,"status":"reviewed"},
+    {"rule_id":"wealth_investment_boundary","domain":"wealth","facet_code":"investment_boundary","theme_any":["compliance","risk_control","planning"],"claim_code":"wealth_investment_boundary_active","statement":"合规、风控和规划主题只用于投资边界提醒，不构成投资建议。","priority":90,"status":"reviewed"},
+    {"rule_id":"wealth_debt_risk","domain":"wealth","facet_code":"debt_risk","theme_any":["risk_control","cashflow","distribution_pressure"],"claim_code":"wealth_debt_risk_active","statement":"风控、现金流和分配压力用于标记债务风险输入需求。","priority":90,"status":"reviewed"},
+    {"rule_id":"wealth_income_model","domain":"wealth","facet_code":"income_model","theme_any":["monetization","commercial_responsibility","asset_management"],"claim_code":"wealth_income_model_active","statement":"变现、商业责任和资产管理用于描述收入模式。","priority":70,"status":"reviewed"},
+    {"rule_id":"relationship_attraction","domain":"relationship","facet_code":"attraction","theme_any":["emotional_expression","care_support","practical_exchange"],"claim_code":"relationship_attraction_active","statement":"情绪表达、照顾和现实交换用于描述缘分牵引，不推出复合或婚姻。","priority":70,"status":"reviewed"},
+    {"rule_id":"relationship_communication","domain":"relationship","facet_code":"communication","theme_any":["communication","emotional_expression"],"claim_code":"relationship_communication_active","statement":"沟通与情绪表达用于描述互动方式。","priority":80,"status":"reviewed"},
+    {"rule_id":"relationship_boundaries","domain":"relationship","facet_code":"boundaries","theme_any":["boundary_negotiation","equality_dynamics","commitment_rules","boundary_pressure"],"claim_code":"relationship_boundaries_active","statement":"边界、平等和承诺规则用于描述关系边界。","priority":80,"status":"reviewed"},
+    {"rule_id":"relationship_dependency","domain":"relationship","facet_code":"dependency","theme_any":["care_support","dependency_boundary"],"claim_code":"relationship_dependency_active","statement":"照顾支持与依赖边界用于描述依赖模式。","priority":70,"status":"reviewed"},
+    {"rule_id":"relationship_conflict","domain":"relationship","facet_code":"conflict","theme_any":["boundary_pressure","equality_dynamics","competition_for_resources"],"claim_code":"relationship_conflict_active","statement":"边界压力、平等动态和资源竞争用于标记冲突来源。","priority":80,"status":"reviewed"},
+    {"rule_id":"relationship_stability","domain":"relationship","facet_code":"stability","theme_any":["commitment_rules","care_support","practical_exchange"],"claim_code":"relationship_stability_active","statement":"承诺、照顾和现实交换用于描述稳定条件。","priority":80,"status":"reviewed"},
+    {"rule_id":"relationship_marriage_tendency","domain":"relationship","facet_code":"marriage_tendency","theme_any":["commitment_rules","commitment_resources","practical_exchange"],"claim_code":"relationship_marriage_tendency_active","statement":"承诺与现实资源用于描述婚恋倾向，不构成结婚事件预测。","priority":70,"status":"reviewed"},
+    {"rule_id":"relationship_reality_obstacles","domain":"relationship","facet_code":"reality_obstacles","theme_any":["boundary_pressure","dependency_boundary","competition_for_resources"],"claim_code":"relationship_reality_obstacles_active","statement":"边界、依赖和资源压力用于提示仍需核对现实阻碍。","priority":90,"status":"reviewed"}
+  ]
+}

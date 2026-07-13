@@ -83,6 +83,20 @@ python -m mingli.phase8_cli provenance --expected-root .
 
 公共 API 位于 `mingli.phase8`：`evaluate_rule_set(...)`、`parse_rule_set(...)`、`load_phase8_rules(...)`、`validate_phase8_rules(...)`、`benchmark_phase8(...)` 和 `validate_import_origin(...)`。所有成功输出继续固定 `prediction_validity=not_evaluated`。
 
+Phase 16 消费 P15 的领域判断候选，只为事业、财运、感情建立确定性的基础判断合同。事业、财运、感情分别固定输出 10、9、8 个基础维度；规则只映射 P15 已激活的主题，未匹配维度保持 `unresolved`。合同显式携带置信度分数、支持与限制证据、缺失维度、现实覆盖和边界标志，并提供不包含具体事件的受控白话说明。P15 已确认的现实硬覆盖、冲突、置信度和证据 ID 原样保留，不跨目标或跨领域扩张。
+
+```bash
+python -m mingli.phase16_cli evaluate --phase15-result phase15_result.json
+python -m mingli.phase16_cli query --result phase16_result.json --year 2028 --domain career
+python -m mingli.phase16_cli validate
+python -m mingli.phase16_cli benchmark
+python -m mingli.phase16_cli rules
+python -m mingli.phase16_cli schemas
+python -m mingli.phase16_cli provenance --expected-root .
+```
+
+公共 API 位于 `mingli.phase16`：`evaluate_base_domain_contracts(...)`、`query_base_domain_contracts(...)`、`load_phase16_base_rules(...)`、`validate_phase16_rules(...)` 和 `benchmark_phase16(...)`。P16 不输出升职、录用、收入金额、盈亏、投资建议、结婚、复合、分手、外遇或对象数量等具体事件，也不提供自然语言命理结论；所有成功输出继续固定 `prediction_validity=not_evaluated` 与 `domain_contract_validity=base_rules_only`。
+
 ## 核心约束
 
 - 生产规则检索默认只返回 `reviewed` 与 `verified`，现实规则始终先于普通结构规则，再按优先级降序排列。

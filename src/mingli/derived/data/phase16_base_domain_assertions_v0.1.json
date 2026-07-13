@@ -1,0 +1,25 @@
+{
+  "manifest_version": "phase16-base-domain-assertions@0.1",
+  "matrix_axes": {"day_stems": 10, "month_branches": 12},
+  "minimum_expected_assertions_total": 3600,
+  "required_coverage": [
+    "phase15_hash_validation",
+    "nested_phase15_judgement_digest_validation",
+    "career_rule_coverage",
+    "wealth_rule_coverage",
+    "relationship_rule_coverage",
+    "complete_facet_contract",
+    "reviewed_rule_only",
+    "phase15_confidence_preservation",
+    "phase15_reality_override_preservation",
+    "conflicting_reality_unresolved_preservation",
+    "year_index",
+    "age_index",
+    "domain_index",
+    "query",
+    "deterministic_key_reorder",
+    "blocked_concrete_outputs",
+    "isolated_wheel",
+    "source_install_hash_equality"
+  ]
+}
