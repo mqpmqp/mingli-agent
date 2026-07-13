@@ -1,0 +1,31 @@
+{
+  "manifest_version": "phase12-xiji-role-assertions@0.1",
+  "matrix_axes": {
+    "day_stems": 10,
+    "deterministic_checks_per_chart": 24,
+    "month_branches": 12
+  },
+  "minimum_expected_assertions_total": 2800,
+  "required_coverage": [
+    "five_element_role_partition",
+    "ten_stem_carrier_inheritance",
+    "unique_yongshen_or_explicit_unresolved",
+    "xishen_support_relation",
+    "direct_jishen_from_contradiction",
+    "direct_jishen_from_excess",
+    "choushen_harm_relation",
+    "xianshen_remainder",
+    "equal_top_tie_unresolved",
+    "phase11_unresolved_retained",
+    "nested_candidate_digest_validation",
+    "regulation_hash_validation",
+    "profile_validation",
+    "deterministic_json_reorder",
+    "phase8_evidence_conversion",
+    "prediction_validity_unchanged",
+    "luck_cycle_and_event_boundary",
+    "subprocess_cli",
+    "different_cwd",
+    "wheel_package_data"
+  ]
+}

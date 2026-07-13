@@ -1,0 +1,71 @@
+{
+  "decision_id": "PHASE_12_BAZI_XIJI_ROLE_CLASSIFICATION_R1_APPROVED",
+  "manifest_version": "phase12-xiji-role-profile-manifest@0.1",
+  "profiles": [
+    {
+      "compatibility_version": "phase8@0.1|phase9@0.1|phase10@0.1|phase11@0.1|phase12@0.1",
+      "confidence_ceiling": "0.74",
+      "convention_summary": "Deterministic five-element XiJi role classification consuming the Phase 11 regulation result. A unique eligible top candidate may become YongShen; XiShen, JiShen, ChouShen and XianShen are derived through explicit score, contradiction, excess-risk and five-element relationship rules while unresolved upstream evidence is retained.",
+      "explicit_exclusions": [
+        "no luck-cycle favorable-element judgement",
+        "no annual favorable-element judgement",
+        "no event prediction",
+        "no domain conclusion",
+        "no natural-language renderer",
+        "no stem yin-yang differentiation beyond identity preservation"
+      ],
+      "independence_groups": [
+        "phase11-regulation-contract",
+        "five-element-static-relations"
+      ],
+      "profile_id": "xiji-role-classification-r1@0.1",
+      "reviewed": true,
+      "role_assignment_policy": [
+        "validate_phase11_hash_and_boundary",
+        "retain_phase11_unresolved",
+        "select_unique_yongshen_candidate",
+        "derive_direct_jishen",
+        "derive_xishen_by_support_relation",
+        "derive_choushen_by_harm_relation",
+        "assign_remaining_xianshen",
+        "inherit_element_role_to_stem_carriers",
+        "deterministic_serialization_tiebreak_only"
+      ],
+      "role_priority": [
+        "unresolved",
+        "yongshen",
+        "jishen",
+        "xishen",
+        "choushen",
+        "xianshen"
+      ],
+      "roles": [
+        "yongshen",
+        "xishen",
+        "jishen",
+        "choushen",
+        "xianshen",
+        "unresolved"
+      ],
+      "source_ids": [
+        "regulation-fusion-policy-r1@0.1",
+        "phase11-regulation-assertions@0.1",
+        "phase6-static-mapping-manifest@0.1"
+      ],
+      "thresholds": {
+        "direct_jishen_contradiction": "45.0000",
+        "direct_jishen_excess": "60.0000",
+        "minimum_xishen_score": "20.0000",
+        "minimum_yongshen_score": "60.0000",
+        "top_tie_delta": "0.0000"
+      },
+      "unresolved_conditions": [
+        "equal top candidate score",
+        "Phase 11 unresolved candidate affecting the top role",
+        "missing or invalid Phase 11 provenance",
+        "candidate nested digest mismatch"
+      ],
+      "version": "0.1.0"
+    }
+  ]
+}

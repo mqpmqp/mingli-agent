@@ -24,6 +24,7 @@ mingli-phase8 = "mingli.phase8_cli:main"
 mingli-phase9 = "mingli.phase9_cli:main"
 mingli-phase10 = "mingli.phase10_cli:main"
 mingli-phase11 = "mingli.phase11_cli:main"
+mingli-phase12 = "mingli.phase12_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
