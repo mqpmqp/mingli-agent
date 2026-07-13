@@ -1,0 +1,225 @@
+{
+  "decision_id": "PHASE_15_BAZI_TENGOD_DOMAIN_JUDGEMENT_R1_APPROVED",
+  "manifest_version": "phase15-tengod-domain-profile-manifest@0.1",
+  "profiles": [
+    {
+      "profile_id": "tengod-domain-judgement-r1@0.1",
+      "version": "0.1.0",
+      "reviewed": true,
+      "compatibility_version": "phase7@0.1|phase8@0.1|phase13@0.1|phase14@0.1|phase15@0.1",
+      "convention_summary": "Maps exact dynamic TenGod identities from Phase 13 timing hits into bounded domain-theme activation and judgement candidates, then combines them with Phase 14 temporal tendency evidence. Domain outputs remain candidate-only and do not assert concrete events.",
+      "domains": [
+        "career",
+        "wealth",
+        "relationship",
+        "education",
+        "exam",
+        "startup",
+        "migration"
+      ],
+      "source_ids": [
+        "phase6-reviewed-ten-god-mapping@0.1",
+        "phase13-luck-cycle-role-interaction@0.1",
+        "phase14-temporal-trend-evidence@0.1",
+        "phase8-reality-hard-override-contract@0.1"
+      ],
+      "independence_groups": [
+        "static-ten-god-identity",
+        "temporal-role-interaction",
+        "verified-reality-evidence"
+      ],
+      "explicit_exclusions": [
+        "no concrete promotion or dismissal claim",
+        "no concrete profit or loss claim",
+        "no marriage reunion or breakup claim",
+        "no exam admission claim",
+        "no illness or disaster claim",
+        "no natural-language destiny renderer",
+        "no replacement of Phase 7 timeline",
+        "no deletion of contradictory evidence"
+      ],
+      "claim_boundary_codes": [
+        "domain_tendency_candidate_only",
+        "ten_god_theme_not_event",
+        "reality_scope_does_not_generalize",
+        "prediction_validity_not_evaluated"
+      ],
+      "component_weights": {
+        "dayun": "0.4000",
+        "liunian": "0.6000"
+      },
+      "natal_visible_weights": {
+        "year": "0.6000",
+        "month": "0.9000",
+        "day": "0.4000",
+        "hour": "0.5000"
+      },
+      "natal_hidden_position_weights": {
+        "year": "0.4000",
+        "month": "0.8000",
+        "day": "0.6000",
+        "hour": "0.5000"
+      },
+      "hidden_ordinal_weights": {
+        "1": "1.0000",
+        "2": "0.6000",
+        "3": "0.3000"
+      },
+      "context_weights": {
+        "temporal_trend": "0.5000",
+        "natal_context": "0.2500"
+      },
+      "thresholds": {
+        "activation_min": "0.1500",
+        "support_ratio_min": "0.5500",
+        "conflict_ratio_min": "0.5500",
+        "mixed_secondary_min": "0.2500"
+      },
+      "confidence_policy": {
+        "structural_only_ceiling": "medium",
+        "neutral_ceiling": "low",
+        "unresolved_ceiling": "low",
+        "high_requires_consistent_verified_reality": true
+      },
+      "ten_god_domain_weights": {
+        "peer_same_polarity": {
+          "career": "0.3500",
+          "wealth": "0.2500",
+          "relationship": "0.2500",
+          "education": "0.1500",
+          "exam": "0.2000",
+          "startup": "0.8500",
+          "migration": "0.2500"
+        },
+        "peer_opposite_polarity": {
+          "career": "0.5500",
+          "wealth": "0.5000",
+          "relationship": "0.4000",
+          "education": "0.1500",
+          "exam": "0.3000",
+          "startup": "0.7500",
+          "migration": "0.3000"
+        },
+        "output_same_polarity": {
+          "career": "0.5500",
+          "wealth": "0.5000",
+          "relationship": "0.3500",
+          "education": "0.4500",
+          "exam": "0.3500",
+          "startup": "0.9500",
+          "migration": "0.4000"
+        },
+        "output_opposite_polarity": {
+          "career": "0.6500",
+          "wealth": "0.5500",
+          "relationship": "0.5000",
+          "education": "0.4000",
+          "exam": "0.3000",
+          "startup": "0.9000",
+          "migration": "0.4500"
+        },
+        "wealth_same_polarity": {
+          "career": "0.4500",
+          "wealth": "1.0000",
+          "relationship": "0.6500",
+          "education": "0.1000",
+          "exam": "0.1500",
+          "startup": "0.7500",
+          "migration": "0.2500"
+        },
+        "wealth_opposite_polarity": {
+          "career": "0.5000",
+          "wealth": "0.9500",
+          "relationship": "0.7500",
+          "education": "0.1000",
+          "exam": "0.1500",
+          "startup": "0.7000",
+          "migration": "0.2500"
+        },
+        "authority_same_polarity": {
+          "career": "0.9500",
+          "wealth": "0.3500",
+          "relationship": "0.3000",
+          "education": "0.4000",
+          "exam": "0.8500",
+          "startup": "0.3500",
+          "migration": "0.3000"
+        },
+        "authority_opposite_polarity": {
+          "career": "1.0000",
+          "wealth": "0.3500",
+          "relationship": "0.3500",
+          "education": "0.4500",
+          "exam": "1.0000",
+          "startup": "0.3000",
+          "migration": "0.3000"
+        },
+        "resource_same_polarity": {
+          "career": "0.4000",
+          "wealth": "0.1500",
+          "relationship": "0.2500",
+          "education": "0.9000",
+          "exam": "0.8500",
+          "startup": "0.3000",
+          "migration": "0.5000"
+        },
+        "resource_opposite_polarity": {
+          "career": "0.4500",
+          "wealth": "0.1500",
+          "relationship": "0.2500",
+          "education": "1.0000",
+          "exam": "0.9500",
+          "startup": "0.2500",
+          "migration": "0.5500"
+        }
+      },
+      "family_theme_codes": {
+        "peer": {
+          "career": ["competition", "peer_coordination", "autonomy"],
+          "wealth": ["resource_sharing", "competition_for_resources"],
+          "relationship": ["boundary_negotiation", "equality_dynamics"],
+          "education": ["peer_learning"],
+          "exam": ["candidate_competition"],
+          "startup": ["founder_autonomy", "partner_dynamics"],
+          "migration": ["network_adaptation"]
+        },
+        "output": {
+          "career": ["expression", "delivery", "innovation"],
+          "wealth": ["output_conversion", "market_expression"],
+          "relationship": ["communication", "emotional_expression"],
+          "education": ["knowledge_output", "creative_learning"],
+          "exam": ["answer_execution", "performance_expression"],
+          "startup": ["product_creation", "innovation", "market_testing"],
+          "migration": ["adaptation_expression", "mobility" ]
+        },
+        "wealth": {
+          "career": ["resource_management", "commercial_responsibility"],
+          "wealth": ["cashflow", "asset_management", "monetization"],
+          "relationship": ["practical_exchange", "commitment_resources"],
+          "education": ["education_cost_management"],
+          "exam": ["opportunity_cost"],
+          "startup": ["revenue_model", "capital_use"],
+          "migration": ["relocation_cost", "resource_allocation"]
+        },
+        "authority": {
+          "career": ["rules", "responsibility", "position_pressure"],
+          "wealth": ["compliance", "risk_control"],
+          "relationship": ["commitment_rules", "boundary_pressure"],
+          "education": ["formal_training", "discipline"],
+          "exam": ["qualification", "assessment", "institutional_rules"],
+          "startup": ["regulation", "governance"],
+          "migration": ["policy_constraints", "formal_approval"]
+        },
+        "resource": {
+          "career": ["support_system", "credentials", "learning"],
+          "wealth": ["planning", "information_support"],
+          "relationship": ["care_support", "dependency_boundary"],
+          "education": ["learning", "credentials", "research"],
+          "exam": ["preparation", "knowledge_absorption", "certification"],
+          "startup": ["research", "mentorship", "infrastructure"],
+          "migration": ["documentation", "adaptation_support", "study_route"]
+        }
+      }
+    }
+  ]
+}
