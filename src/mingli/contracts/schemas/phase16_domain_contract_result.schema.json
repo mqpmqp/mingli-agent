@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/phase16_domain_contract_result.schema.json",
+  "title": "Phase 16 Base Domain Contract Result",
+  "type": "object",
+  "required": ["schema_version", "method_id", "prediction_validity", "domain_contract_validity", "phase15_result_hash", "facet_assessments", "domain_contracts", "canonical_hash"],
+  "properties": {
+    "schema_version": {"const": "bazi-base-domain-contract-result@0.1"},
+    "method_id": {"const": "bazi-base-domain-contract@0.1.0"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "domain_contract_validity": {"const": "base_rules_only"},
+    "phase15_result_hash": {"type": "string", "pattern": "^sha256:"},
+    "facet_assessments": {"type": "array", "items": {"type": "object"}},
+    "domain_contracts": {"type": "array", "items": {"type": "object"}},
+    "canonical_hash": {"type": "string", "pattern": "^sha256:"}
+  },
+  "additionalProperties": true
+}

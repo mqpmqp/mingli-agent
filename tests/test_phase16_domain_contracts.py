@@ -8,6 +8,8 @@ import sys
 import tempfile
 import unittest
 
+from jsonschema.validators import Draft202012Validator
+
 from mingli.derived.static_engine import BRANCHES, STEMS
 from mingli.phase15 import build_phase15_fixture, evaluate_bazi_tengod_domains
 from mingli.phase16 import (
@@ -18,6 +20,7 @@ from mingli.phase16 import (
     build_phase16_fixture,
     evaluate_base_domain_contracts,
     load_phase16_base_rules,
+    load_phase16_result_schema,
     query_base_domain_contracts,
     validate_phase16_rules,
 )
@@ -27,6 +30,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Phase16EvaluationTests(unittest.TestCase):
+    def test_formal_result_schema_accepts_runtime_output(self) -> None:
+        schema = load_phase16_result_schema()
+        self.assertEqual("object", schema["type"])
+        Draft202012Validator(schema).validate(
+            evaluate_base_domain_contracts(build_phase16_fixture(STEMS[0], BRANCHES[2])).to_dict()
+        )
+
     def test_rule_manifest_and_large_assertion_matrix_pass(self) -> None:
         self.assertEqual(set(BASE_DOMAINS), set(load_phase16_base_rules()["domains"]))
         self.assertEqual((), validate_phase16_rules())

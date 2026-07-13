@@ -5,6 +5,8 @@ import json
 from importlib.resources import files
 from typing import Mapping, Sequence
 
+from jsonschema.validators import Draft202012Validator
+
 from .contracts.serialization import digest
 from .derived.static_engine import BRANCHES, STEMS
 from .phase8_engine import validate_import_origin
@@ -29,6 +31,7 @@ from .phase16_contracts import (
 DEFAULT_PHASE16_PROFILE_ID = "base-domain-contract-r1@0.1"
 RULE_RESOURCE = "phase16_base_domain_rules_v0.1.json"
 ASSERTION_RESOURCE = "phase16_base_domain_assertions_v0.1.json"
+SCHEMA_RESOURCE = "phase16_domain_contract_result.schema.json"
 METADATA_FIELDS = {
     "canonical_hash",
     "schema_version",
@@ -70,6 +73,14 @@ def load_phase16_base_rules() -> dict[str, object]:
     return _resource(RULE_RESOURCE, "Phase 16 base-domain rule manifest")
 
 
+def load_phase16_result_schema() -> dict[str, object]:
+    value = json.loads(files("mingli.contracts.schemas").joinpath(SCHEMA_RESOURCE).read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("type") != "object":
+        raise ValueError("Phase 16 result schema must be an object schema")
+    Draft202012Validator.check_schema(value)
+    return value
+
+
 def load_phase16_assertions() -> dict[str, object]:
     return _resource(ASSERTION_RESOURCE, "Phase 16 assertion manifest")
 
@@ -90,6 +101,7 @@ def validate_phase16_rules() -> tuple[str, ...]:
     issues: list[str] = []
     try:
         profile = get_phase16_rule_profile()
+        load_phase16_result_schema()
         if profile.get("decision_id") != PHASE16_DECISION_ID:
             issues.append("decision_id is invalid")
         if profile.get("reviewed") is not True:
@@ -158,6 +170,7 @@ def phase16_schema_summary() -> dict[str, object]:
         "domain_contract_validity": "base_rules_only",
         "domains": list(BASE_DOMAINS),
         "judgement_labels": list(JUDGEMENT_LABELS),
+        "schema_resource": SCHEMA_RESOURCE,
         "output_boundary": "career_wealth_relationship_base_contract_no_concrete_event_prediction",
     }
 
