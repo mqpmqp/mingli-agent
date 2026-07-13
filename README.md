@@ -148,6 +148,13 @@ Phase 23 提供单进程、无网络、无外部模型的端到端 Runtime，按
 python -m mingli.phase23_cli run --input runtime.json
 python -m mingli.phase23_cli benchmark
 ```
+
+Phase 24 汇总 P16—P23 基准并区分“本地技术 RC”与“产品可发布”。本地全部确定性门禁通过才形成技术候选；完整歌诀来源、真实案例阈值、全仓云端 CI/隔离安装后验未完成前，产品发布保持 hold。
+
+```bash
+python -m mingli.phase24_cli assess
+python -m mingli.phase24_cli benchmark
+```
 ```
 
 ## 核心约束
