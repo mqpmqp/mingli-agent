@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from datetime import date
 import json
 from importlib.resources import files
 from typing import Literal, Mapping, Sequence
@@ -77,7 +78,7 @@ def run_case_benchmark(registry: Mapping[str, object] | None = None) -> CaseBenc
     registry_id = str(data.get("registry_id", "external-case-registry"))
     minimum = data.get("minimum_cases_for_product_claim", 30)
     cases = data.get("cases", [])
-    if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1 or not isinstance(cases, Sequence) or isinstance(cases, (str, bytes)):
+    if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 30 or not isinstance(cases, Sequence) or isinstance(cases, (str, bytes)):
         raise Phase22InputError("invalid registry contract")
     scores: list[CaseScore] = []
     seen: set[str] = set()
@@ -99,6 +100,17 @@ def run_case_benchmark(registry: Mapping[str, object] | None = None) -> CaseBenc
             eligible = False; warnings.append("real_case_not_deidentified")
         if eligible and str(item.get("source_ref", "")).strip() == "":
             eligible = False; warnings.append("real_case_missing_source_ref")
+        if eligible and not str(item.get("source_ref", "")).startswith("authorized:"):
+            eligible = False; warnings.append("real_case_source_not_authorized")
+        if eligible and str(item.get("consent_record_id", "")).strip() == "":
+            eligible = False; warnings.append("real_case_missing_consent_record")
+        if eligible and item.get("provenance_class") != "external_observation":
+            eligible = False; warnings.append("real_case_missing_external_provenance")
+        if eligible:
+            try:
+                date.fromisoformat(str(item.get("observed_at", "")))
+            except ValueError:
+                eligible = False; warnings.append("real_case_invalid_observation_date")
         predicted = _validate_claims(item.get("predicted_claims", {}), "predicted_claims")
         observed = _validate_claims(item.get("observed_claims", {}), "observed_claims")
         comparable = matches = mismatches = unresolved = 0
@@ -127,14 +139,28 @@ def run_case_benchmark(registry: Mapping[str, object] | None = None) -> CaseBenc
     if eligible_count < minimum:
         warnings.append("minimum_real_case_threshold_not_met")
     body = {"registry_id": registry_id, "total_records": len(scores), "eligible_real_cases": eligible_count, "synthetic_contract_cases": sum(score.case_class == "synthetic" for score in scores), "comparable_claims": comparable, "matches": matches, "mismatches": mismatches, "unresolved": unresolved, "exact_match_rate": rate, "product_accuracy_claim_allowed": claim_allowed, "minimum_real_cases": minimum, "case_scores": [asdict(score) for score in scores], "warnings": warnings}
-    return CaseBenchmarkReport(**body, canonical_hash=digest({"record_type": "CaseBenchmarkReport", "payload": body}))  # type: ignore[arg-type]
+    return CaseBenchmarkReport(
+        registry_id=registry_id,
+        total_records=len(scores),
+        eligible_real_cases=eligible_count,
+        synthetic_contract_cases=sum(score.case_class == "synthetic" for score in scores),
+        comparable_claims=comparable,
+        matches=matches,
+        mismatches=mismatches,
+        unresolved=unresolved,
+        exact_match_rate=rate,
+        product_accuracy_claim_allowed=claim_allowed,
+        minimum_real_cases=minimum,
+        case_scores=tuple(scores),
+        warnings=tuple(warnings),
+        canonical_hash=digest({"record_type": "CaseBenchmarkReport", "payload": body}),
+    )
 
 
 def benchmark_phase22() -> dict[str, object]:
     empty = run_case_benchmark()
-    synthetic = run_case_benchmark({"registry_id": "contract-test", "minimum_cases_for_product_claim": 1, "cases": [{"case_id": "synthetic:1", "case_class": "synthetic", "predicted_claims": {"career:2024": "supportive"}, "observed_claims": {"career:2024": "supportive"}}]})
-    ineligible = run_case_benchmark({"registry_id": "ineligible-test", "minimum_cases_for_product_claim": 1, "cases": [{"case_id": "real:1", "case_class": "real", "consent_status": "missing", "deidentified": True, "source_ref": "fixture", "predicted_claims": {}, "observed_claims": {}}]})
-    eligible = run_case_benchmark({"registry_id": "eligible-test", "minimum_cases_for_product_claim": 1, "cases": [{"case_id": "real:ok", "case_class": "real", "consent_status": "granted", "deidentified": True, "source_ref": "user-confirmed:fixture", "predicted_claims": {"c": "mixed", "w": "supportive"}, "observed_claims": {"c": "mixed", "w": "challenging"}}]})
-    checks = [(empty.eligible_real_cases == 0, "empty_registry"), (empty.exact_match_rate is None, "no_fake_rate"), (not empty.product_accuracy_claim_allowed, "no_product_claim"), (synthetic.synthetic_contract_cases == 1 and synthetic.eligible_real_cases == 0, "synthetic_exclusion"), (synthetic.exact_match_rate is None, "synthetic_no_rate"), (ineligible.eligible_real_cases == 0, "consent_gate"), (eligible.eligible_real_cases == 1, "eligible_case"), (eligible.comparable_claims == 2 and eligible.matches == 1 and eligible.exact_match_rate == "0.5000", "metric"), (eligible.canonical_hash == run_case_benchmark(json.loads(json.dumps({"registry_id": "eligible-test", "minimum_cases_for_product_claim": 1, "cases": [{"case_id": "real:ok", "case_class": "real", "consent_status": "granted", "deidentified": True, "source_ref": "user-confirmed:fixture", "predicted_claims": {"c": "mixed", "w": "supportive"}, "observed_claims": {"c": "mixed", "w": "challenging"}}]}))).canonical_hash, "determinism")]
+    synthetic = run_case_benchmark({"registry_id": "contract-test", "minimum_cases_for_product_claim": 30, "cases": [{"case_id": "synthetic:1", "case_class": "synthetic", "predicted_claims": {"career:2024": "supportive"}, "observed_claims": {"career:2024": "supportive"}}]})
+    ineligible = run_case_benchmark({"registry_id": "ineligible-test", "minimum_cases_for_product_claim": 30, "cases": [{"case_id": "real:1", "case_class": "real", "consent_status": "granted", "deidentified": True, "source_ref": "fixture", "predicted_claims": {}, "observed_claims": {}}]})
+    checks = [(empty.eligible_real_cases == 0, "empty_registry"), (empty.exact_match_rate is None, "no_fake_rate"), (not empty.product_accuracy_claim_allowed, "no_product_claim"), (synthetic.synthetic_contract_cases == 1 and synthetic.eligible_real_cases == 0, "synthetic_exclusion"), (synthetic.exact_match_rate is None, "synthetic_no_rate"), (ineligible.eligible_real_cases == 0, "authorization_gate"), ("real_case_source_not_authorized" in ineligible.case_scores[0].warnings, "source_gate"), (synthetic.canonical_hash == run_case_benchmark(json.loads(json.dumps({"registry_id": "contract-test", "minimum_cases_for_product_claim": 30, "cases": [{"case_id": "synthetic:1", "case_class": "synthetic", "predicted_claims": {"career:2024": "supportive"}, "observed_claims": {"career:2024": "supportive"}}]}))).canonical_hash, "determinism")]
     failures = [name for ok, name in checks if not ok]
     return {"assertions_total": len(checks), "passed": len(checks) - len(failures), "failed": len(failures), "unresolved": 0, "failures": failures, "real_case_count": empty.eligible_real_cases, "product_accuracy_claim_allowed": empty.product_accuracy_claim_allowed}
