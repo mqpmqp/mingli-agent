@@ -316,7 +316,7 @@ def benchmark_phase23() -> dict[str, object]:
             "source_type": "reality", "source_id": "user", "direction": "contradict",
             "weight": 0, "priority": 100, "verified": True,
         }],
-        "annual_evidence": [{"evidence_id": "c28", "year": 2028, "domain": "career", "signal": 2}],
+        "annual_evidence": [{"evidence_id": "c28", "year": 2028, "domain": "career", "signal": 2, "source_type":"timing", "source_id":"phase14"}],
         "overall_status": "mixed",
         "advice_codes": ["verify_reality"],
     }
