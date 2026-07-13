@@ -57,6 +57,23 @@ jobs:
           python -m mingli.cli chart-validate --strict
           python -m mingli.cli chart-benchmark --independent-only
 
+      - name: Verify Phase 12 source and isolated wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m mingli.phase12_cli validate
+          python -m mingli.phase12_cli benchmark
+          source_hash="$(python -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase12 import build_xiji_fixture, evaluate_bazi_xiji_roles; print(evaluate_bazi_xiji_roles(build_xiji_fixture(STEMS[0], BRANCHES[2])).canonical_hash)')"
+          python -m build
+          wheel_venv="$(mktemp -d)/venv"
+          python -m venv "$wheel_venv"
+          "$wheel_venv/bin/python" -m pip install --disable-pip-version-check dist/*.whl
+          "$wheel_venv/bin/python" -I -m mingli.phase12_cli validate
+          "$wheel_venv/bin/python" -I -m mingli.phase12_cli benchmark
+          installed_hash="$("$wheel_venv/bin/python" -I -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase12 import build_xiji_fixture, evaluate_bazi_xiji_roles; print(evaluate_bazi_xiji_roles(build_xiji_fixture(STEMS[0], BRANCHES[2])).canonical_hash)')"
+          test "$source_hash" = "$installed_hash"
+          printf 'phase12_source_hash=%s\nphase12_installed_hash=%s\n' "$source_hash" "$installed_hash"
+
       - name: Verify pilot import and rollback
         run: |
           temp_dir="$(mktemp -d)"

@@ -34,6 +34,7 @@ Implemented boundaries:
 - `src/mingli/derived/data/phase12_xiji_role_assertions_v0.1.json`
 - `tests/test_phase12_bazi_xiji_role_classification.py`
 - `pyproject.toml`
+- `.github/workflows/test.yml`
 
 ## Deterministic policy
 
@@ -48,11 +49,39 @@ Implemented boundaries:
 9. Partition all five elements into exactly one role.
 10. Preserve all ten stem identities without claiming Yin/Yang equivalence.
 
-## Verification target
+## Benchmark
 
-- Phase 12 benchmark minimum: 2,800 deterministic assertions.
-- Full unittest and pytest regression.
-- Phase 12 CLI `validate`, `benchmark`, `profiles`, `schemas`, `provenance`, and `evaluate`.
-- Package build and isolated wheel import.
-- `spec/` and `knowledge/` remain unchanged.
-- No prediction surface is added.
+Phase 12 benchmark result:
+
+- `assertions_total`: 2883
+- `passed`: 2883
+- `failed`: 0
+- `unresolved`: 0
+- `schema_failures`: 0
+- `provenance_failures`: 0
+- `hash_mismatches`: 0
+- `role_partition_failures`: 0
+- `role_collision_failures`: 0
+- `carrier_failures`: 0
+- `prediction_boundary_failures`: 0
+
+The matrix covers ten day stems by twelve month branches with twenty-four deterministic checks per chart, plus explicit outer-hash, nested-candidate-digest, and blocked-prediction checks.
+
+## Verification
+
+The Core Runtime Verification workflow executes:
+
+- `python -m compileall src tests`
+- `python -m unittest discover -v`
+- `python -m pytest -q`
+- all existing spec, rule, static benchmark, knowledge, chart, import and rollback gates
+- `python -m mingli.phase12_cli validate`
+- `python -m mingli.phase12_cli benchmark`
+- `python -m build`
+- fresh temporary virtual-environment installation from the generated wheel
+- installed-wheel Phase 12 validation and benchmark with `python -I`
+- source/install canonical-hash equality check
+- `git diff --check`
+- unchanged `spec/` and `knowledge/` gates
+
+All successful Phase 12 results retain `prediction_validity = not_evaluated`; no luck-cycle, annual, event, domain, or renderer prediction surface is introduced.
