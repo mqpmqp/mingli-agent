@@ -141,6 +141,13 @@ python -m mingli.phase22_cli run
 python -m mingli.phase22_cli run --registry cases.json
 python -m mingli.phase22_cli benchmark
 ```
+
+Phase 23 提供单进程、无网络、无外部模型的端到端 Runtime，按固定顺序执行八字排盘、P19 称骨、P18 现实证据融合、P21 五年趋势与 P20 八段渲染。领域基础状态必须由已批准上游传入；Runtime 只允许已核验现实证据在 `runtime:baseline` 范围内覆盖对应领域。
+
+```bash
+python -m mingli.phase23_cli run --input runtime.json
+python -m mingli.phase23_cli benchmark
+```
 ```
 
 ## 核心约束
