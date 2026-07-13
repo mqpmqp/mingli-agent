@@ -97,6 +97,14 @@ python -m mingli.phase16_cli provenance --expected-root .
 
 公共 API 位于 `mingli.phase16`：`evaluate_base_domain_contracts(...)`、`query_base_domain_contracts(...)`、`load_phase16_base_rules(...)`、`validate_phase16_rules(...)` 和 `benchmark_phase16(...)`。P16 不输出升职、录用、收入金额、盈亏、投资建议、结婚、复合、分手、外遇或对象数量等具体事件，也不提供自然语言命理结论；所有成功输出继续固定 `prediction_validity=not_evaluated` 与 `domain_contract_validity=base_rules_only`。
 
+Phase 17 在 P16 上提供考公考编与复合特殊场景的四层合同。考公严格拆分体制适配、上岸条件、岗位方向、备考策略；复合严格拆分缘分牵引、复联、复合、稳定。现实硬条件只覆盖对应层，不会被盘面结构抵消。
+
+```bash
+python -m mingli.phase17_cli evaluate --phase16-result phase16.json --scenario career_exam --target-id TARGET --reality reality.json
+python -m mingli.phase17_cli validate
+python -m mingli.phase17_cli benchmark
+```
+
 ## 核心约束
 
 - 生产规则检索默认只返回 `reviewed` 与 `verified`，现实规则始终先于普通结构规则，再按优先级降序排列。
