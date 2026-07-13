@@ -33,7 +33,18 @@ jobs:
         run: python -m compileall src tests
 
       - name: Run unittest
-        run: python -m unittest discover -v
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -v 2>&1 | tee unittest.log
+
+      - name: Upload Phase 14 unittest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase14-unittest-diagnostics
+          path: unittest.log
+          if-no-files-found: error
 
       - name: Run pytest
         run: python -m pytest -q
