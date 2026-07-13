@@ -3,7 +3,7 @@
 ## 可直接执行
 
 - 全仓 CI：`python -m pytest && python -m build`
-- 隔离 wheel 后验：安装构建产物，依次运行 `mingli-phase16 benchmark` 至 `mingli-phase24 benchmark`，核对源树/安装包输出哈希。
+- 隔离 wheel 后验：本地已完成 P19—P23；在完整环境补跑 P16—P18 与 P24，并核对源树/安装包输出哈希。
 - 推送分支：`git push -u origin agent/phase16-domain-contracts-base-rules-v1`
 - 创建 draft PR：范围 P16—P24，附 `PHASE_16*` 至 `PHASE_24*` 报告。
 
