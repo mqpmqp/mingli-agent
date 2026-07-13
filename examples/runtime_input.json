@@ -1,0 +1,27 @@
+{
+  "run_id": "example-v2",
+  "chart_input": {
+    "gender": "male",
+    "calendar": "solar",
+    "birth_date": "1990-03-15",
+    "birth_time": "10:30",
+    "timezone": "Asia/Shanghai",
+    "birth_location": {"longitude": 121.47, "latitude": 31.23},
+    "true_solar_time": false
+  },
+  "anchor_year": 2028,
+  "reality": {"cash_runway_months": 2},
+  "fusion_evidence": [
+    {
+      "evidence_id": "example-wealth-reality",
+      "claim_id": "wealth",
+      "scope": "runtime:baseline",
+      "source_type": "reality",
+      "source_id": "user-confirmed-example",
+      "direction": "contradict",
+      "weight": 0,
+      "priority": 100,
+      "verified": true
+    }
+  ]
+}
