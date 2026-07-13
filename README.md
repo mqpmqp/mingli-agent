@@ -83,7 +83,7 @@ python -m mingli.phase8_cli provenance --expected-root .
 
 公共 API 位于 `mingli.phase8`：`evaluate_rule_set(...)`、`parse_rule_set(...)`、`load_phase8_rules(...)`、`validate_phase8_rules(...)`、`benchmark_phase8(...)` 和 `validate_import_origin(...)`。所有成功输出继续固定 `prediction_validity=not_evaluated`。
 
-Phase 16 消费 P15 的领域判断候选，只为事业、财运、感情建立确定性的基础判断合同。每个领域固定输出四个基础维度；规则只映射 P15 已激活的主题，未匹配维度保持 `unresolved`。P15 已确认的现实硬覆盖、冲突、置信度和证据 ID 原样保留，不跨目标或跨领域扩张。
+Phase 16 消费 P15 的领域判断候选，只为事业、财运、感情建立确定性的基础判断合同。事业、财运、感情分别固定输出 10、9、8 个基础维度；规则只映射 P15 已激活的主题，未匹配维度保持 `unresolved`。合同显式携带置信度分数、支持与限制证据、缺失维度、现实覆盖和边界标志，并提供不包含具体事件的受控白话说明。P15 已确认的现实硬覆盖、冲突、置信度和证据 ID 原样保留，不跨目标或跨领域扩张。
 
 ```bash
 python -m mingli.phase16_cli evaluate --phase15-result phase15_result.json

@@ -60,6 +60,7 @@ class DomainFacetAssessment:
     rule_match_ids: tuple[str, ...]
     source_judgement_id: str
     evidence_status: Literal["matched", "unresolved"]
+    plain_language_explanation: str
     canonical_digest: str
 
     def to_dict(self) -> dict[str, object]:
@@ -80,6 +81,13 @@ class BaseDomainContract:
     end_instant_utc: str
     judgement_label: str
     confidence: Literal["high", "medium", "low"]
+    confidence_score: int
+    supporting_evidence_ids: tuple[str, ...]
+    limiting_evidence_ids: tuple[str, ...]
+    missing_inputs: tuple[str, ...]
+    reality_override: bool
+    boundary_flags: tuple[str, ...]
+    plain_language_explanation: str
     facet_assessment_ids: tuple[str, ...]
     matched_rule_ids: tuple[str, ...]
     active_theme_codes: tuple[str, ...]

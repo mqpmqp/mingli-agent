@@ -19,11 +19,13 @@ Phase 16 在 P15 动态十神领域判断候选之上，新增事业、财运、
 ## 实现内容
 
 - P16 版本化合同、记录摘要和 canonical hash
-- 12 条 reviewed 基础规则，每个领域 4 条
+- 27 条 reviewed 基础规则，覆盖事业 10、财运 9、感情 8 个固定维度
 - P15 顶层哈希与嵌套领域判断摘要校验
 - 基于 P15 `active_theme_codes` 的确定性规则匹配
 - 完整基础维度分区；无匹配证据的维度保持 `unresolved`
 - P15 判断标签、置信度、现实硬覆盖方向和证据 ID 原样继承
+- 显式置信度分数、支持/限制证据、缺失维度、现实覆盖标志和边界标志
+- 每个领域合同与 facet 都提供受控白话说明，不生成具体事件
 - 年份、年龄、目标和领域索引及查询
 - CLI：`evaluate`、`query`、`validate`、`benchmark`、`rules`、`schemas`、`provenance`
 - 源码与隔离 wheel 的 P16 校验、基准和 canonical hash 一致性检查

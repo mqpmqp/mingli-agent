@@ -67,6 +67,25 @@ class Phase16EvaluationTests(unittest.TestCase):
         self.assertTrue(all(item.evidence_status in {"matched", "unresolved"} for item in result.facet_assessments))
         self.assertTrue(all(item.confidence == "low" for item in result.facet_assessments if item.evidence_status == "unresolved"))
 
+    def test_domain_contract_exposes_auditable_confidence_and_plain_language(self) -> None:
+        result = evaluate_base_domain_contracts(build_phase16_fixture(STEMS[0], BRANCHES[2]))
+        expected_facets = {
+            "career": {"system_fit", "enterprise_employment", "professional_technical", "management", "entrepreneurship", "freelance", "stability", "growth_space", "pressure_sources", "position_direction"},
+            "wealth": {"earned_income", "variable_income", "income_stability", "risk_preference", "retention", "cashflow", "investment_boundary", "debt_risk", "income_model"},
+            "relationship": {"attraction", "communication", "boundaries", "dependency", "conflict", "stability", "marriage_tendency", "reality_obstacles"},
+        }
+        self.assertEqual(expected_facets, {key: set(value) for key, value in load_phase16_base_rules()["required_facets"].items()})
+        for contract in result.domain_contracts:
+            self.assertIn(contract.confidence_score, {30, 60, 85})
+            self.assertEqual(bool(contract.reality_override_direction), contract.reality_override)
+            self.assertEqual(contract.claim_boundary_codes, contract.boundary_flags)
+            self.assertTrue(contract.plain_language_explanation.endswith("该结果不表示具体事件会发生。"))
+            self.assertTrue(set(contract.supporting_evidence_ids).isdisjoint(contract.limiting_evidence_ids))
+            self.assertEqual(
+                {f"facet:{item.facet_code}" for item in result.facet_assessments if item.target_id == contract.target_id and item.domain == contract.domain and item.evidence_status == "unresolved"},
+                set(contract.missing_inputs),
+            )
+
     def test_phase15_reality_override_and_conflict_are_preserved(self) -> None:
         graph, interaction, trend = build_phase15_fixture(STEMS[0], BRANCHES[2])
         baseline = evaluate_bazi_tengod_domains(graph, interaction, trend)

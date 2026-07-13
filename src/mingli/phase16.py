@@ -268,6 +268,11 @@ def _build_facets(
             "rule_match_ids": [item.match_id for item in facet_matches],
             "source_judgement_id": str(judgement["judgement_id"]),
             "evidence_status": "matched" if matched else "unresolved",
+            "plain_language_explanation": (
+                "该维度已有上游结构主题和受审规则支持，仅表示倾向，不代表具体事件。"
+                if matched
+                else "该维度缺少足够的上游结构主题，当前保持未决。"
+            ),
         }
         records.append(DomainFacetAssessment(
             assessment_id=payload["assessment_id"],
@@ -280,6 +285,7 @@ def _build_facets(
             rule_match_ids=tuple(payload["rule_match_ids"]),
             source_judgement_id=payload["source_judgement_id"],
             evidence_status=payload["evidence_status"],  # type: ignore[arg-type]
+            plain_language_explanation=payload["plain_language_explanation"],
             canonical_digest=record_digest("DomainFacetAssessment", payload),
         ))
     return tuple(records)
@@ -295,6 +301,31 @@ def _build_contract(
         [str(value) for value in judgement.get("claim_boundary_codes", [])]
         + [str(value) for value in profile["claim_boundary_codes"]]
     ))
+    confidence = str(judgement["confidence"])
+    confidence_score = {"high": 85, "medium": 60, "low": 30}[confidence]
+    reality_direction = judgement.get("reality_override_direction")
+    reality_ids = sorted({str(value) for value in judgement.get("reality_evidence_ids", [])})
+    rule_evidence_ids = sorted({item.match_id for item in matches})
+    supporting_ids = list(rule_evidence_ids)
+    limiting_ids: list[str] = []
+    if reality_direction == "support":
+        supporting_ids.extend(reality_ids)
+    elif reality_direction == "contradict":
+        limiting_ids.extend(reality_ids)
+    unresolved_facets = sorted(item.facet_code for item in facets if item.evidence_status == "unresolved")
+    domain_name = {"career": "事业", "wealth": "财运", "relationship": "感情"}[str(judgement["domain"])]
+    label_text = {
+        "support_tendency": "支持倾向",
+        "conflict_tendency": "限制倾向",
+        "mixed_tendency": "支持与限制并存",
+        "neutral_tendency": "中性倾向",
+        "unresolved": "暂无法判断",
+    }[str(judgement["judgement_label"])]
+    explanation = (
+        f"{domain_name}基础合同当前为{label_text}；"
+        f"{len(facets) - len(unresolved_facets)} 个维度有结构证据，"
+        f"{len(unresolved_facets)} 个维度保持未决。该结果不表示具体事件会发生。"
+    )
     payload = {
         "contract_id": f"base-domain-contract:{judgement['target_id']}:{judgement['domain']}",
         "target_id": str(judgement["target_id"]),
@@ -307,7 +338,14 @@ def _build_contract(
         "start_instant_utc": str(judgement["start_instant_utc"]),
         "end_instant_utc": str(judgement["end_instant_utc"]),
         "judgement_label": str(judgement["judgement_label"]),
-        "confidence": str(judgement["confidence"]),
+        "confidence": confidence,
+        "confidence_score": confidence_score,
+        "supporting_evidence_ids": sorted(set(supporting_ids)),
+        "limiting_evidence_ids": limiting_ids,
+        "missing_inputs": [f"facet:{value}" for value in unresolved_facets],
+        "reality_override": reality_direction in {"support", "contradict"},
+        "boundary_flags": boundary_codes,
+        "plain_language_explanation": explanation,
         "facet_assessment_ids": [item.assessment_id for item in facets],
         "matched_rule_ids": sorted({item.rule_id for item in matches}),
         "active_theme_codes": sorted({str(value) for value in judgement.get("active_theme_codes", [])}),
@@ -332,6 +370,13 @@ def _build_contract(
         end_instant_utc=payload["end_instant_utc"],
         judgement_label=payload["judgement_label"],
         confidence=payload["confidence"],  # type: ignore[arg-type]
+        confidence_score=payload["confidence_score"],
+        supporting_evidence_ids=tuple(payload["supporting_evidence_ids"]),
+        limiting_evidence_ids=tuple(payload["limiting_evidence_ids"]),
+        missing_inputs=tuple(payload["missing_inputs"]),
+        reality_override=payload["reality_override"],
+        boundary_flags=tuple(payload["boundary_flags"]),
+        plain_language_explanation=payload["plain_language_explanation"],
         facet_assessment_ids=tuple(payload["facet_assessment_ids"]),
         matched_rule_ids=tuple(payload["matched_rule_ids"]),
         active_theme_codes=tuple(payload["active_theme_codes"]),
