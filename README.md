@@ -105,6 +105,14 @@ python -m mingli.phase17_cli validate
 python -m mingli.phase17_cli benchmark
 ```
 
+Phase 18 统一现实字段别名、校验和 canonical hash，并按 claim + scope 编排 chart/timing/rule/case/reality 证据。已核验现实证据为 scoped hard override；相反证据仍保留，现实证据自身冲突时保持 unresolved。
+
+```bash
+python -m mingli.phase18_cli normalize --reality reality.json
+python -m mingli.phase18_cli fuse --reality reality.json --evidence evidence.json
+python -m mingli.phase18_cli benchmark
+```
+
 ## 核心约束
 
 - 生产规则检索默认只返回 `reviewed` 与 `verified`，现实规则始终先于普通结构规则，再按优先级降序排列。
