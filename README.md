@@ -111,6 +111,14 @@ Phase 18 统一现实字段别名、校验和 canonical hash，并按 claim + sc
 python -m mingli.phase18_cli normalize --reality reality.json
 python -m mingli.phase18_cli fuse --reality reality.json --evidence evidence.json
 python -m mingli.phase18_cli benchmark
+
+Phase 19 冻结 `chenggu-common-table-r1@0.1` 称骨权重表，使用整数“钱”完成年、农历月、农历日、民用时辰四项确定性求和。阳历输入会先转换为农历；闰月沿用同月权重并明确告警。该传统文化算法不具科学预测效力；当前版本没有通过完整来源核验的歌诀，因此不伪造歌诀内容。
+
+```bash
+python -m mingli.phase19_cli calculate --input birth.json
+python -m mingli.phase19_cli validate
+python -m mingli.phase19_cli benchmark
+```
 ```
 
 ## 核心约束
