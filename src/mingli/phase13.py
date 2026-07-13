@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from functools import lru_cache
 import json
 from importlib.resources import files
 from typing import Mapping, Sequence
 
+from .bazi import DeterministicBaziEngine
 from .contracts.serialization import digest
 from .derived.static_engine import BRANCHES, HIDDEN_STEMS, STEMS, STEM_ELEMENT
-from .phase7 import branch_pair_relation, stem_pair_relation
+from .phase7 import build_bazi_fact_graph, branch_pair_relation, stem_pair_relation
 from .phase8_engine import validate_import_origin
-from .phase11 import build_regulation_fixture_inputs, evaluate_bazi_regulation
+from .phase9 import calculate_day_master_strength
+from .phase10 import build_pattern_fixture_inputs, evaluate_bazi_pattern
+from .phase11 import evaluate_bazi_regulation
 from .phase12 import evaluate_bazi_xiji_roles
 from .phase12_contracts import record_digest as phase12_record_digest
 from .phase13_contracts import (
@@ -44,6 +48,7 @@ BLOCKED_OUTPUTS = {
     "health_prediction",
     "natural_language_renderer",
 }
+ELEMENTS = {"wood", "fire", "earth", "metal", "water"}
 
 
 def _decimal(value: object, name: str) -> Decimal:
@@ -76,17 +81,17 @@ def load_phase13_interaction_assertions() -> dict[str, object]:
 
 
 def get_interaction_profile(profile_id: str = DEFAULT_PHASE13_PROFILE_ID) -> dict[str, object]:
-    profiles = load_phase13_interaction_profiles().get("profiles")
-    if not isinstance(profiles, list):
+    raw_profiles = load_phase13_interaction_profiles().get("profiles")
+    if not isinstance(raw_profiles, list):
         raise ValueError("profiles must be an array")
-    for item in profiles:
-        if isinstance(item, dict) and item.get("profile_id") == profile_id:
-            result = dict(item)
-            result["canonical_hash"] = digest({
+    for raw in raw_profiles:
+        if isinstance(raw, dict) and raw.get("profile_id") == profile_id:
+            profile = dict(raw)
+            profile["canonical_hash"] = digest({
                 "record_type": "LuckCycleInteractionProfile",
-                "payload": {key: value for key, value in result.items() if key != "canonical_hash"},
+                "payload": {key: value for key, value in profile.items() if key != "canonical_hash"},
             })
-            return result
+            return profile
     raise ValueError(f"unsupported Phase 13 profile: {profile_id}")
 
 
@@ -94,11 +99,12 @@ def validate_phase13_profiles() -> tuple[str, ...]:
     issues: list[str] = []
     try:
         profile = get_interaction_profile()
+        expected_roles = {"yongshen", "xishen", "jishen", "choushen", "xianshen", "unresolved"}
         if profile.get("reviewed") is not True:
             issues.append("reviewed must be true")
-        if set(profile.get("role_directions", {})) != {"yongshen", "xishen", "jishen", "choushen", "xianshen", "unresolved"}:
+        if set(profile.get("role_directions", {})) != expected_roles:
             issues.append("role_directions must cover all Phase 12 roles")
-        if set(profile.get("role_multipliers", {})) != {"yongshen", "xishen", "jishen", "choushen", "xianshen", "unresolved"}:
+        if set(profile.get("role_multipliers", {})) != expected_roles:
             issues.append("role_multipliers must cover all Phase 12 roles")
         if set(profile.get("source_weights", {})) != {"stem", "branch_primary", "branch_secondary", "branch_tertiary"}:
             issues.append("source_weights are incomplete")
@@ -107,9 +113,9 @@ def validate_phase13_profiles() -> tuple[str, ...]:
         if set(profile.get("window_weights", {})) != {"dayun", "liunian"}:
             issues.append("window_weights are incomplete")
         for field_name in ("role_multipliers", "source_weights", "state_thresholds", "window_weights"):
-            raw = profile.get(field_name)
-            if isinstance(raw, Mapping):
-                for key, value in raw.items():
+            values = profile.get(field_name)
+            if isinstance(values, Mapping):
+                for key, value in values.items():
                     if _decimal(value, f"{field_name}.{key}") < 0:
                         issues.append(f"{field_name}.{key} must be non-negative")
         window_weights = profile.get("window_weights")
@@ -154,6 +160,10 @@ def _verify_fact_graph(value: Mapping[str, object]) -> str:
     timeline = value.get("timeline")
     if not isinstance(timeline, Mapping):
         raise Phase13InputError("Phase 7 Fact Graph timeline is required")
+    dayun = timeline.get("dayun_periods")
+    liunian = timeline.get("liunian_periods")
+    if not isinstance(dayun, list) or not dayun or not isinstance(liunian, list) or not liunian:
+        raise Phase13InputError("Phase 7 Fact Graph timeline periods are required")
     if int(timeline.get("interval_gaps", 0)) != 0 or int(timeline.get("interval_overlaps", 0)) != 0:
         raise Phase13InputError("Phase 7 timeline contains gaps or overlaps")
     return found
@@ -193,26 +203,27 @@ def _role_assignments(xiji: Mapping[str, object]) -> dict[str, Mapping[str, obje
         if element in result:
             raise Phase13InputError("duplicate Phase 12 element assignment")
         result[element] = item
-    if set(result) != {"wood", "fire", "earth", "metal", "water"}:
+    if set(result) != ELEMENTS:
         raise Phase13InputError("Phase 12 assignments must cover five elements")
     return result
 
 
 def _natal_pillars(graph: Mapping[str, object]) -> tuple[tuple[str, str, str], ...]:
-    raw = graph.get("nodes")
-    if not isinstance(raw, list):
+    nodes = graph.get("nodes")
+    if not isinstance(nodes, list):
         raise Phase13InputError("Fact Graph nodes are required")
+    positions = ("year", "month", "day", "hour")
     records: list[tuple[str, str, str]] = []
-    for node in raw:
+    for node in nodes:
         if isinstance(node, Mapping) and node.get("node_type") == "Pillar":
             position = str(node.get("position"))
             stem = str(node.get("stem"))
             branch = str(node.get("branch"))
-            if position in {"year", "month", "day", "hour"} and stem in STEMS and branch in BRANCHES:
+            if position in positions and stem in STEMS and branch in BRANCHES:
                 records.append((position, stem, branch))
-    if {position for position, _, _ in records} != {"year", "month", "day", "hour"}:
+    if {item[0] for item in records} != set(positions):
         raise Phase13InputError("Fact Graph must contain four natal pillars")
-    return tuple(sorted(records, key=lambda item: ("year", "month", "day", "hour").index(item[0])))
+    return tuple(sorted(records, key=lambda item: positions.index(item[0])))
 
 
 def _state(profile: Mapping[str, object], support: Decimal, conflict: Decimal, unresolved_count: int) -> str:
@@ -247,7 +258,6 @@ def _role_hit(
     assert isinstance(directions, Mapping) and isinstance(multipliers, Mapping)
     direction = str(directions[role])
     multiplier = _decimal(multipliers[role], f"role_multiplier.{role}")
-    weighted = base_weight * multiplier
     payload = {
         "hit_id": f"hit:{period_id}:{source_type}:{ordinal}:{symbol}",
         "period_id": period_id,
@@ -259,7 +269,7 @@ def _role_hit(
         "direction": direction,
         "base_weight": _score(base_weight),
         "role_multiplier": _score(multiplier),
-        "weighted_score": _score(weighted),
+        "weighted_score": _score(base_weight * multiplier),
         "source_assignment_id": str(assignment.get("assignment_id")),
     }
     return CycleRoleHit(canonical_digest=record_digest("CycleRoleHit", payload), **payload)  # type: ignore[arg-type]
@@ -268,50 +278,31 @@ def _role_hit(
 def _natal_relations(period_id: str, stem: str, branch: str, natal: tuple[tuple[str, str, str], ...]) -> tuple[NatalRelationRecord, ...]:
     records: list[NatalRelationRecord] = []
     for position, natal_stem, natal_branch in natal:
-        stem_facts = stem_pair_relation(stem, natal_stem)
-        stem_payload = {
-            "relation_id": f"relation:{period_id}:stem:{position}",
-            "period_id": period_id,
-            "source_symbol_type": "stem",
-            "source_symbol": stem,
-            "natal_position": position,
-            "natal_symbol": natal_stem,
-            "relation_types": sorted(fact.relation_type for fact in stem_facts),
-            "relation_statuses": sorted({status for fact in stem_facts for status in fact.status}),
-        }
-        records.append(NatalRelationRecord(
-            relation_id=stem_payload["relation_id"],
-            period_id=period_id,
-            source_symbol_type="stem",
-            source_symbol=stem,
-            natal_position=position,
-            natal_symbol=natal_stem,
-            relation_types=tuple(stem_payload["relation_types"]),
-            relation_statuses=tuple(stem_payload["relation_statuses"]),
-            canonical_digest=record_digest("NatalRelationRecord", stem_payload),
-        ))
-        branch_facts = branch_pair_relation(branch, natal_branch)
-        branch_payload = {
-            "relation_id": f"relation:{period_id}:branch:{position}",
-            "period_id": period_id,
-            "source_symbol_type": "branch",
-            "source_symbol": branch,
-            "natal_position": position,
-            "natal_symbol": natal_branch,
-            "relation_types": sorted(fact.relation_type for fact in branch_facts),
-            "relation_statuses": sorted({status for fact in branch_facts for status in fact.status}),
-        }
-        records.append(NatalRelationRecord(
-            relation_id=branch_payload["relation_id"],
-            period_id=period_id,
-            source_symbol_type="branch",
-            source_symbol=branch,
-            natal_position=position,
-            natal_symbol=natal_branch,
-            relation_types=tuple(branch_payload["relation_types"]),
-            relation_statuses=tuple(branch_payload["relation_statuses"]),
-            canonical_digest=record_digest("NatalRelationRecord", branch_payload),
-        ))
+        for symbol_type, source_symbol, natal_symbol, facts in (
+            ("stem", stem, natal_stem, stem_pair_relation(stem, natal_stem)),
+            ("branch", branch, natal_branch, branch_pair_relation(branch, natal_branch)),
+        ):
+            payload = {
+                "relation_id": f"relation:{period_id}:{symbol_type}:{position}",
+                "period_id": period_id,
+                "source_symbol_type": symbol_type,
+                "source_symbol": source_symbol,
+                "natal_position": position,
+                "natal_symbol": natal_symbol,
+                "relation_types": sorted(fact.relation_type for fact in facts),
+                "relation_statuses": sorted({status for fact in facts for status in fact.status}),
+            }
+            records.append(NatalRelationRecord(
+                relation_id=payload["relation_id"],
+                period_id=period_id,
+                source_symbol_type=symbol_type,  # type: ignore[arg-type]
+                source_symbol=source_symbol,
+                natal_position=position,
+                natal_symbol=natal_symbol,
+                relation_types=tuple(payload["relation_types"]),
+                relation_statuses=tuple(payload["relation_statuses"]),
+                canonical_digest=record_digest("NatalRelationRecord", payload),
+            ))
     return tuple(sorted(records, key=lambda item: item.relation_id))
 
 
@@ -333,11 +324,29 @@ def _period_interaction(
     assert isinstance(weights, Mapping)
     hits: list[CycleRoleHit] = []
     stem_element = STEM_ELEMENT[stem]
-    hits.append(_role_hit(period_id, "stem", stem, 0, stem_element, assignments[stem_element], _decimal(weights["stem"], "stem_weight"), profile))
+    hits.append(_role_hit(
+        period_id,
+        "stem",
+        stem,
+        0,
+        stem_element,
+        assignments[stem_element],
+        _decimal(weights["stem"], "stem_weight"),
+        profile,
+    ))
     for ordinal, hidden_stem in enumerate(HIDDEN_STEMS[branch], 1):
         weight_key = "branch_primary" if ordinal == 1 else "branch_secondary" if ordinal == 2 else "branch_tertiary"
         element = STEM_ELEMENT[hidden_stem]
-        hits.append(_role_hit(period_id, "branch_hidden", hidden_stem, ordinal, element, assignments[element], _decimal(weights[weight_key], weight_key), profile))
+        hits.append(_role_hit(
+            period_id,
+            "branch_hidden",
+            hidden_stem,
+            ordinal,
+            element,
+            assignments[element],
+            _decimal(weights[weight_key], weight_key),
+            profile,
+        ))
     support = sum((_decimal(hit.weighted_score, "hit_score") for hit in hits if hit.direction == "support"), Decimal("0"))
     conflict = sum((_decimal(hit.weighted_score, "hit_score") for hit in hits if hit.direction == "conflict"), Decimal("0"))
     neutral = sum((_decimal(hit.weighted_score, "hit_score") for hit in hits if hit.direction == "neutral"), Decimal("0"))
@@ -398,9 +407,9 @@ def _combined_window(dayun: PeriodRoleInteraction, liunian: PeriodRoleInteractio
     support = _decimal(dayun.support_score, "dayun.support") * dayun_weight + _decimal(liunian.support_score, "liunian.support") * liunian_weight
     conflict = _decimal(dayun.conflict_score, "dayun.conflict") * dayun_weight + _decimal(liunian.conflict_score, "liunian.conflict") * liunian_weight
     neutral = _decimal(dayun.neutral_score, "dayun.neutral") * dayun_weight + _decimal(liunian.neutral_score, "liunian.neutral") * liunian_weight
+    unresolved_count = dayun.unresolved_count + liunian.unresolved_count
     stem_relations = tuple(sorted(fact.relation_type for fact in stem_pair_relation(dayun.stem, liunian.stem)))
     branch_relations = tuple(sorted(fact.relation_type for fact in branch_pair_relation(dayun.branch, liunian.branch)))
-    unresolved_count = dayun.unresolved_count + liunian.unresolved_count
     payload = {
         "window_id": f"window:{dayun.period_id}:{liunian.period_id}",
         "dayun_period_id": dayun.period_id,
@@ -456,24 +465,17 @@ def evaluate_luck_cycle_role_interactions(
     natal = _natal_pillars(fact_graph)
     timeline = fact_graph["timeline"]
     assert isinstance(timeline, Mapping)
-    raw_dayun = timeline.get("dayun_periods")
-    raw_liunian = timeline.get("liunian_periods")
-    if not isinstance(raw_dayun, list) or not raw_dayun:
-        raise Phase13InputError("Phase 7 timeline dayun_periods are required")
-    if not isinstance(raw_liunian, list) or not raw_liunian:
-        raise Phase13InputError("Phase 7 timeline liunian_periods are required")
-    dayun = tuple(
-        sorted(
-            (_period_interaction(item, "dayun", assignments, natal, graph_hash, xiji_hash, profile) for item in raw_dayun if isinstance(item, Mapping)),
-            key=lambda item: item.sequence_index or 0,
-        )
-    )
-    liunian = tuple(
-        sorted(
-            (_period_interaction(item, "liunian", assignments, natal, graph_hash, xiji_hash, profile) for item in raw_liunian if isinstance(item, Mapping)),
-            key=lambda item: item.label_year or 0,
-        )
-    )
+    raw_dayun = timeline["dayun_periods"]
+    raw_liunian = timeline["liunian_periods"]
+    assert isinstance(raw_dayun, list) and isinstance(raw_liunian, list)
+    dayun = tuple(sorted(
+        (_period_interaction(item, "dayun", assignments, natal, graph_hash, xiji_hash, profile) for item in raw_dayun if isinstance(item, Mapping)),
+        key=lambda item: item.sequence_index or 0,
+    ))
+    liunian = tuple(sorted(
+        (_period_interaction(item, "liunian", assignments, natal, graph_hash, xiji_hash, profile) for item in raw_liunian if isinstance(item, Mapping)),
+        key=lambda item: item.label_year or 0,
+    ))
     dayun_by_id = {item.period_id: item for item in dayun}
     windows: list[CombinedCycleWindow] = []
     unresolved: list[dict[str, object]] = []
@@ -489,13 +491,14 @@ def evaluate_luck_cycle_role_interactions(
         for hit in interaction.role_hits:
             if hit.direction not in {"support", "conflict"}:
                 continue
+            direction = "support" if hit.direction == "support" else "contradict"
             payload = {
                 "evidence_id": f"evidence:{hit.hit_id}",
                 "period_id": interaction.period_id,
                 "element": hit.element,
                 "role": hit.role,
                 "evidence_type": "cycle_role_support" if hit.direction == "support" else "cycle_role_conflict",
-                "direction": "support" if hit.direction == "support" else "contradict",
+                "direction": direction,
                 "contribution": hit.weighted_score,
                 "priority": 85 if hit.source_type == "stem" else 75,
                 "source_result_hashes": [graph_hash, xiji_hash],
@@ -507,7 +510,7 @@ def evaluate_luck_cycle_role_interactions(
                 element=hit.element,
                 role=hit.role,
                 evidence_type=payload["evidence_type"],
-                direction=payload["direction"],  # type: ignore[arg-type]
+                direction=direction,  # type: ignore[arg-type]
                 contribution=hit.weighted_score,
                 priority=payload["priority"],
                 source_result_hashes=(graph_hash, xiji_hash),
@@ -586,8 +589,50 @@ def interaction_result_to_phase8_evidence(result: BaziLuckCycleRoleInteractionRe
     return tuple(item.to_phase8_evidence() for item in sorted(records, key=lambda value: value.evidence_id))
 
 
+@lru_cache(maxsize=1)
+def _phase7_timeline_template() -> dict[str, object]:
+    base = DeterministicBaziEngine().calculate({
+        "birth_date": "2000-01-07",
+        "birth_time": "12:00",
+        "timezone": "+08:00",
+        "gender": "male",
+        "calendar": "solar",
+        "longitude": 121.4737,
+        "latitude": 31.2304,
+        "true_solar_time": False,
+    })
+    return build_bazi_fact_graph(base).to_dict()
+
+
+def _fixture_graph(day_stem: str, month_branch: str) -> dict[str, object]:
+    structural_graph, _ = build_pattern_fixture_inputs(day_stem, month_branch)
+    template = _phase7_timeline_template()
+    graph = json.loads(json.dumps(structural_graph, ensure_ascii=False))
+    graph["base_chart_ref"] = dict(template["base_chart_ref"])
+    graph["derived_structure_ref"] = dict(template["derived_structure_ref"])
+    graph["profiles"] = list(template["profiles"])
+    graph["timeline"] = dict(template["timeline"])
+    graph["provenance_index"] = {
+        "fixture": "phase13-matrix",
+        "timeline_source_hash": template["canonical_hash"],
+        "day_stem": day_stem,
+        "month_branch": month_branch,
+    }
+    graph["warnings"] = ["phase13_fixture_uses_reviewed_phase7_timeline_template"]
+    graph["unresolved"] = []
+    graph["schema_version"] = "bazi-fact-graph-result@0.1"
+    graph["method_id"] = "bazi-deterministic-fact-graph@0.1.0"
+    graph["calculation_version"] = "0.1.0"
+    graph["prediction_validity"] = "not_evaluated"
+    body = {key: value for key, value in graph.items() if key not in METADATA_FIELDS}
+    graph["canonical_hash"] = digest({"record_type": "BaziFactGraphResult", "payload": body})
+    return graph
+
+
 def build_phase13_fixture(day_stem: str, month_branch: str) -> tuple[dict[str, object], dict[str, object]]:
-    graph, strength, pattern = build_regulation_fixture_inputs(day_stem, month_branch)
+    graph = _fixture_graph(day_stem, month_branch)
+    strength = calculate_day_master_strength(graph).to_dict()
+    pattern = evaluate_bazi_pattern(graph, strength).to_dict()
     regulation = evaluate_bazi_regulation(graph, strength, pattern).to_dict()
     xiji = evaluate_bazi_xiji_roles(regulation).to_dict()
     return graph, xiji
@@ -616,6 +661,8 @@ def benchmark_phase13() -> Phase13BenchmarkResult:
             )
             payload = result.to_dict()
             all_periods = (*result.dayun_interactions, *result.liunian_interactions)
+            dayun_ids = {item.period_id for item in result.dayun_interactions}
+            liunian_ids = {item.period_id for item in result.liunian_interactions}
             checks = (
                 result.schema_version == PHASE13_SCHEMA_VERSION,
                 result.method_id == PHASE13_METHOD_ID,
@@ -641,8 +688,8 @@ def benchmark_phase13() -> Phase13BenchmarkResult:
                 all(item.source_result_hashes == (graph["canonical_hash"], xiji["canonical_hash"]) for item in all_periods),
                 result.profile_id == DEFAULT_PHASE13_PROFILE_ID,
                 len(result.combined_windows) <= len(result.liunian_interactions),
-                all(window.dayun_period_id in {item.period_id for item in result.dayun_interactions} for window in result.combined_windows),
-                all(window.liunian_period_id in {item.period_id for item in result.liunian_interactions} for window in result.combined_windows),
+                all(window.dayun_period_id in dayun_ids for window in result.combined_windows),
+                all(window.liunian_period_id in liunian_ids for window in result.combined_windows),
                 sum(result.state_counts.values()) == len(all_periods) + len(result.combined_windows),
                 all(item.canonical_digest.startswith("sha256:") for item in all_periods),
                 all(item.canonical_digest.startswith("sha256:") for item in result.combined_windows),
