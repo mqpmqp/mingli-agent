@@ -1,0 +1,42 @@
+{
+  "decision_id": "PHASE_16_DOMAIN_CONTRACT_BASE_RULES_R1_APPROVED",
+  "manifest_version": "phase16-base-domain-rules@0.1",
+  "profile_id": "base-domain-contract-r1@0.1",
+  "version": "0.1.0",
+  "reviewed": true,
+  "compatibility_version": "phase15@0.1|phase16@0.1",
+  "domains": ["career", "wealth", "relationship"],
+  "source_ids": ["phase15-tengod-domain-judgement@0.1"],
+  "explicit_exclusions": [
+    "no promotion dismissal or job-offer claim",
+    "no profit loss income amount or investment claim",
+    "no marriage reunion breakup affair or partner-count claim",
+    "no auspiciousness or guaranteed outcome",
+    "no natural-language destiny renderer"
+  ],
+  "claim_boundary_codes": [
+    "base_domain_rule_only",
+    "theme_not_concrete_event",
+    "phase15_reality_override_preserved",
+    "prediction_validity_not_evaluated"
+  ],
+  "required_facets": {
+    "career": ["role_structure", "delivery_path", "qualification_support", "commercial_execution"],
+    "wealth": ["income_conversion", "resource_management", "risk_discipline", "distribution_pressure"],
+    "relationship": ["communication", "boundaries_commitment", "practical_exchange", "care_dependency"]
+  },
+  "rules": [
+    {"rule_id":"career_authority_structure","domain":"career","facet_code":"role_structure","theme_any":["rules","responsibility","position_pressure"],"claim_code":"career_role_structure_active","statement":"规则、责任与职位压力是当前事业判断的基础主题。","priority":80,"status":"reviewed"},
+    {"rule_id":"career_output_delivery","domain":"career","facet_code":"delivery_path","theme_any":["delivery","expression","innovation"],"claim_code":"career_delivery_path_active","statement":"表达、交付与创新是当前事业判断的基础主题。","priority":70,"status":"reviewed"},
+    {"rule_id":"career_resource_support","domain":"career","facet_code":"qualification_support","theme_any":["support_system","credentials","learning"],"claim_code":"career_qualification_support_active","statement":"平台支持、资历与学习是当前事业判断的基础主题。","priority":70,"status":"reviewed"},
+    {"rule_id":"career_commercial_execution","domain":"career","facet_code":"commercial_execution","theme_any":["resource_management","commercial_responsibility"],"claim_code":"career_commercial_execution_active","statement":"资源管理与商业责任是当前事业判断的基础主题。","priority":60,"status":"reviewed"},
+    {"rule_id":"wealth_income_conversion","domain":"wealth","facet_code":"income_conversion","theme_any":["cashflow","monetization","output_conversion","market_expression"],"claim_code":"wealth_income_conversion_active","statement":"现金流与产出转化是当前财运判断的基础主题。","priority":80,"status":"reviewed"},
+    {"rule_id":"wealth_resource_management","domain":"wealth","facet_code":"resource_management","theme_any":["asset_management","planning","information_support"],"claim_code":"wealth_resource_management_active","statement":"资产管理、规划与信息支持是当前财运判断的基础主题。","priority":70,"status":"reviewed"},
+    {"rule_id":"wealth_risk_discipline","domain":"wealth","facet_code":"risk_discipline","theme_any":["compliance","risk_control"],"claim_code":"wealth_risk_discipline_active","statement":"合规与风险控制是当前财运判断的基础主题。","priority":80,"status":"reviewed"},
+    {"rule_id":"wealth_distribution_pressure","domain":"wealth","facet_code":"distribution_pressure","theme_any":["resource_sharing","competition_for_resources"],"claim_code":"wealth_distribution_pressure_active","statement":"资源分配与竞争压力是当前财运判断的基础主题。","priority":60,"status":"reviewed"},
+    {"rule_id":"relationship_communication","domain":"relationship","facet_code":"communication","theme_any":["communication","emotional_expression"],"claim_code":"relationship_communication_active","statement":"沟通与情绪表达是当前感情判断的基础主题。","priority":80,"status":"reviewed"},
+    {"rule_id":"relationship_boundaries_commitment","domain":"relationship","facet_code":"boundaries_commitment","theme_any":["boundary_negotiation","equality_dynamics","commitment_rules","boundary_pressure"],"claim_code":"relationship_boundaries_commitment_active","statement":"边界、平等与承诺规则是当前感情判断的基础主题。","priority":80,"status":"reviewed"},
+    {"rule_id":"relationship_practical_exchange","domain":"relationship","facet_code":"practical_exchange","theme_any":["practical_exchange","commitment_resources"],"claim_code":"relationship_practical_exchange_active","statement":"现实交换与共同资源是当前感情判断的基础主题。","priority":70,"status":"reviewed"},
+    {"rule_id":"relationship_care_dependency","domain":"relationship","facet_code":"care_dependency","theme_any":["care_support","dependency_boundary"],"claim_code":"relationship_care_dependency_active","statement":"照顾支持与依赖边界是当前感情判断的基础主题。","priority":70,"status":"reviewed"}
+  ]
+}

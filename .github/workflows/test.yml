@@ -57,7 +57,7 @@ jobs:
           python -m mingli.cli chart-validate --strict
           python -m mingli.cli chart-benchmark --independent-only
 
-      - name: Verify Phase 12-15 source and isolated wheel
+      - name: Verify Phase 12-16 source and isolated wheel
         shell: bash
         run: |
           set -euo pipefail
@@ -69,10 +69,13 @@ jobs:
           python -m mingli.phase14_cli benchmark
           python -m mingli.phase15_cli validate
           python -m mingli.phase15_cli benchmark
+          python -m mingli.phase16_cli validate
+          python -m mingli.phase16_cli benchmark
           source_phase12_hash="$(python -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase12 import build_xiji_fixture, evaluate_bazi_xiji_roles; print(evaluate_bazi_xiji_roles(build_xiji_fixture(STEMS[0], BRANCHES[2])).canonical_hash)')"
           source_phase13_hash="$(python -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase13 import build_phase13_fixture, evaluate_luck_cycle_role_interactions; graph, xiji = build_phase13_fixture(STEMS[0], BRANCHES[2]); print(evaluate_luck_cycle_role_interactions(graph, xiji).canonical_hash)')"
           source_phase14_hash="$(python -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase14 import build_phase14_fixture, evaluate_bazi_temporal_trends; graph, interaction = build_phase14_fixture(STEMS[0], BRANCHES[2]); print(evaluate_bazi_temporal_trends(graph, interaction).canonical_hash)')"
           source_phase15_hash="$(python -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase15 import build_phase15_fixture, evaluate_bazi_tengod_domains; graph, interaction, trend = build_phase15_fixture(STEMS[0], BRANCHES[2]); print(evaluate_bazi_tengod_domains(graph, interaction, trend).canonical_hash)')"
+          source_phase16_hash="$(python -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase16 import build_phase16_fixture, evaluate_base_domain_contracts; print(evaluate_base_domain_contracts(build_phase16_fixture(STEMS[0], BRANCHES[2])).canonical_hash)')"
           python -m build
           wheel_venv="$(mktemp -d)/venv"
           python -m venv "$wheel_venv"
@@ -85,15 +88,19 @@ jobs:
           "$wheel_venv/bin/python" -I -m mingli.phase14_cli benchmark
           "$wheel_venv/bin/python" -I -m mingli.phase15_cli validate
           "$wheel_venv/bin/python" -I -m mingli.phase15_cli benchmark
+          "$wheel_venv/bin/python" -I -m mingli.phase16_cli validate
+          "$wheel_venv/bin/python" -I -m mingli.phase16_cli benchmark
           installed_phase12_hash="$("$wheel_venv/bin/python" -I -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase12 import build_xiji_fixture, evaluate_bazi_xiji_roles; print(evaluate_bazi_xiji_roles(build_xiji_fixture(STEMS[0], BRANCHES[2])).canonical_hash)')"
           installed_phase13_hash="$("$wheel_venv/bin/python" -I -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase13 import build_phase13_fixture, evaluate_luck_cycle_role_interactions; graph, xiji = build_phase13_fixture(STEMS[0], BRANCHES[2]); print(evaluate_luck_cycle_role_interactions(graph, xiji).canonical_hash)')"
           installed_phase14_hash="$("$wheel_venv/bin/python" -I -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase14 import build_phase14_fixture, evaluate_bazi_temporal_trends; graph, interaction = build_phase14_fixture(STEMS[0], BRANCHES[2]); print(evaluate_bazi_temporal_trends(graph, interaction).canonical_hash)')"
           installed_phase15_hash="$("$wheel_venv/bin/python" -I -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase15 import build_phase15_fixture, evaluate_bazi_tengod_domains; graph, interaction, trend = build_phase15_fixture(STEMS[0], BRANCHES[2]); print(evaluate_bazi_tengod_domains(graph, interaction, trend).canonical_hash)')"
+          installed_phase16_hash="$("$wheel_venv/bin/python" -I -c 'from mingli.derived.static_engine import BRANCHES, STEMS; from mingli.phase16 import build_phase16_fixture, evaluate_base_domain_contracts; print(evaluate_base_domain_contracts(build_phase16_fixture(STEMS[0], BRANCHES[2])).canonical_hash)')"
           test "$source_phase12_hash" = "$installed_phase12_hash"
           test "$source_phase13_hash" = "$installed_phase13_hash"
           test "$source_phase14_hash" = "$installed_phase14_hash"
           test "$source_phase15_hash" = "$installed_phase15_hash"
-          printf 'phase12_source_hash=%s\nphase12_installed_hash=%s\nphase13_source_hash=%s\nphase13_installed_hash=%s\nphase14_source_hash=%s\nphase14_installed_hash=%s\nphase15_source_hash=%s\nphase15_installed_hash=%s\n' "$source_phase12_hash" "$installed_phase12_hash" "$source_phase13_hash" "$installed_phase13_hash" "$source_phase14_hash" "$installed_phase14_hash" "$source_phase15_hash" "$installed_phase15_hash"
+          test "$source_phase16_hash" = "$installed_phase16_hash"
+          printf 'phase12_source_hash=%s\nphase12_installed_hash=%s\nphase13_source_hash=%s\nphase13_installed_hash=%s\nphase14_source_hash=%s\nphase14_installed_hash=%s\nphase15_source_hash=%s\nphase15_installed_hash=%s\nphase16_source_hash=%s\nphase16_installed_hash=%s\n' "$source_phase12_hash" "$installed_phase12_hash" "$source_phase13_hash" "$installed_phase13_hash" "$source_phase14_hash" "$installed_phase14_hash" "$source_phase15_hash" "$installed_phase15_hash" "$source_phase16_hash" "$installed_phase16_hash"
 
       - name: Verify pilot import and rollback
         run: |
