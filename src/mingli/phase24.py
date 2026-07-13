@@ -131,14 +131,14 @@ def _phase21_check() -> PhaseGate:
     result = generate_five_year_outlook({
         "anchor_year":2028,
         "baseline_domains":{"career":"mixed","wealth":"challenging","relationship":"unresolved"},
-        "annual_evidence":[{"evidence_id":"r","year":2028,"domain":"career","signal":0,"verified_reality":"support"}],
+        "annual_evidence":[{"evidence_id":"r","year":2028,"domain":"career","signal":0,"verified_reality":"support","source_type":"reality","source_id":"confirmed","verified":True}],
     })
     rejected = False
     try:
         generate_five_year_outlook({
             "anchor_year":2028,
             "baseline_domains":{"career":"mixed","wealth":"mixed","relationship":"mixed"},
-            "annual_evidence":[{"year":2028,"domain":"career","signal":1,"event":"promotion"}],
+            "annual_evidence":[{"evidence_id":"forbidden","year":2028,"domain":"career","signal":1,"event":"promotion","source_type":"rule","source_id":"test"}],
         })
     except Phase21InputError:
         rejected = True
