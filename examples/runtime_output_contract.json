@@ -1,0 +1,20 @@
+{
+  "schema_version": "mingli-agent-runtime-result@0.2",
+  "method_id": "deterministic-mingli-agent-runtime@0.2.0",
+  "prediction_validity": "not_evaluated",
+  "required_top_level_fields": [
+    "run_id",
+    "stages",
+    "chart",
+    "artifacts",
+    "scenario_assessment",
+    "chenggu",
+    "evidence_fusion",
+    "five_year",
+    "renderer",
+    "final_answer",
+    "effective_domain_statuses",
+    "canonical_hash"
+  ],
+  "final_answer_last_line": "仅供文化研究与娱乐参考。"
+}

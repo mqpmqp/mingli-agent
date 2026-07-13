@@ -1,5 +1,13 @@
 # MingLi Agent Core Runtime
 
+## V2.0 Release Candidate 范围
+
+V2.0 技术候选版把确定性排盘、Fact Graph、P9–P16 结构规则、现实证据融合、特殊场景门禁、五年趋势和 Yuan 固定八段 Renderer 串成一个可审计的单进程流水线。调用入口是 `mingli.phase23.run_mingli_agent(...)` 或 `python -m mingli.phase23_cli run --input runtime.json`。
+
+运行时不会接受调用方伪造的 `baseline_domains`；三个领域的基础状态必须来自 P16 合同。已核验现实证据可在同一 claim 与 scope 内覆盖结构结果，冲突和缺源会降低置信度。所有结果固定保留 `prediction_validity=not_evaluated`，最终答案只在末行出现一次“仅供文化研究与娱乐参考。”。
+
+当前状态是 `technical_rc_only_product_hold`。完整称骨歌诀尚未通过来源与授权审核，合格真实案例仍为 0，因此没有补写歌诀、没有产品准确率，也不允许宣称产品已验证。详见 `ARCHITECTURE.md`、`RUNBOOK.md`、`RELEASE_CHECKLIST.md` 和 `PHASE16_24_IMPLEMENTATION_REPORT.md`。
+
 MingLi Agent Core Runtime v0.1 是一个纯确定性的 Python 核心库。它把 `spec/` 中可验证的部分落成数据模型、规范校验、规则加载、证据融合、现实校正、置信度门禁、意图路由、中文渲染和静态策略检查。
 
 Phase 9 adds an independent deterministic Bazi strength quantification layer:
@@ -111,6 +119,7 @@ Phase 18 统一现实字段别名、校验和 canonical hash，并按 claim + sc
 python -m mingli.phase18_cli normalize --reality reality.json
 python -m mingli.phase18_cli fuse --reality reality.json --evidence evidence.json
 python -m mingli.phase18_cli benchmark
+```
 
 Phase 19 冻结 `chenggu-common-table-r1@0.1` 称骨权重表，使用整数“钱”完成年、农历月、农历日、民用时辰四项确定性求和。阳历输入会先转换为农历；闰月沿用同月权重并明确告警。该传统文化算法不具科学预测效力；当前版本没有通过完整来源核验的歌诀，因此不伪造歌诀内容。
 
@@ -154,7 +163,6 @@ Phase 24 汇总 P16—P23 基准并区分“本地技术 RC”与“产品可发
 ```bash
 python -m mingli.phase24_cli assess
 python -m mingli.phase24_cli benchmark
-```
 ```
 
 ## 核心约束
