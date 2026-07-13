@@ -47,11 +47,41 @@ Implemented outputs:
 9. Preserve missing active-DaYun and upstream unresolved conditions explicitly.
 10. Refuse all prediction and domain-output requests.
 
-## Verification target
+## Benchmark
 
-- Phase 13 benchmark: at least 3,600 deterministic assertions.
-- Full unittest and pytest regression.
-- Phase 13 CLI validate, benchmark, profiles, schemas, provenance and evaluate.
-- Isolated wheel installation under `python -I`.
-- Source/install canonical-hash equality.
-- No changes to `spec/` or `knowledge/`.
+Phase 13 benchmark result:
+
+- `assertions_total`: 3604
+- `passed`: 3604
+- `failed`: 0
+- `unresolved`: 0
+- `schema_failures`: 0
+- `provenance_failures`: 0
+- `hash_mismatches`: 0
+- `timeline_failures`: 0
+- `partition_failures`: 0
+- `relation_failures`: 0
+- `prediction_boundary_failures`: 0
+
+The matrix covers ten day stems by twelve month branches with thirty deterministic checks per chart, plus explicit Phase 7 hash, Phase 12 hash, nested assignment-digest, and blocked-prediction checks.
+
+## Verification
+
+The final Core Runtime Verification workflow executes successfully:
+
+- `python -m compileall src tests`
+- `python -m unittest discover -v`
+- `python -m pytest -q`
+- existing spec, rule, static benchmark, knowledge, chart, import and rollback gates
+- `python -m mingli.phase12_cli validate`
+- `python -m mingli.phase12_cli benchmark`
+- `python -m mingli.phase13_cli validate`
+- `python -m mingli.phase13_cli benchmark`
+- `python -m build`
+- fresh temporary virtual-environment installation from the generated wheel
+- installed-wheel Phase 12 and Phase 13 validation and benchmarks under `python -I`
+- source/install canonical-hash equality for Phase 12 and Phase 13
+- `git diff --check`
+- unchanged `spec/` and `knowledge/` gates
+
+All successful outputs retain `prediction_validity = not_evaluated`; no auspiciousness, good/bad fortune, event, domain, or renderer surface is introduced.
