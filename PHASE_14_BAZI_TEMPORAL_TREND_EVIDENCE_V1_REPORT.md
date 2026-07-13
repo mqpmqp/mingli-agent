@@ -56,11 +56,39 @@ Implemented outputs:
 10. Build ordered transitions and deterministic year/age indexes.
 11. Refuse all prediction, domain-conclusion and renderer requests.
 
-## Verification target
+## Benchmark
 
-- Phase 14 benchmark: at least 4,300 deterministic assertions.
-- Full unittest and pytest regression.
-- Phase 14 CLI evaluate, query, validate, benchmark, profiles, schemas and provenance.
-- Isolated wheel installation under `python -I`.
-- Source/install canonical-hash equality for Phase 12, Phase 13 and Phase 14.
-- No changes to `spec/` or `knowledge/`.
+Phase 14 benchmark result:
+
+- `assertions_total`: 4332
+- `passed`: 4332
+- `failed`: 0
+- `unresolved`: 0
+- `schema_failures`: 0
+- `provenance_failures`: 0
+- `hash_mismatches`: 0
+- `partition_failures`: 0
+- `query_failures`: 0
+- `transition_failures`: 0
+- `reality_override_failures`: 0
+- `prediction_boundary_failures`: 0
+
+The matrix covers ten day stems by twelve month branches with thirty-six deterministic checks per chart, plus verified-reality override, conflicting-reality, unverified-reality, year query, age query, top-level hash, nested-digest and blocked-prediction checks.
+
+## Verification
+
+The successful Core Runtime Verification workflow executes:
+
+- `python -m compileall src tests`
+- `python -m unittest discover -v`
+- `python -m pytest -q`
+- all existing spec, rule, static benchmark, knowledge, chart, pilot import and rollback gates
+- Phase 12, Phase 13 and Phase 14 profile validation and complete benchmarks
+- `python -m build`
+- fresh temporary virtual-environment installation from the generated wheel
+- installed-wheel Phase 12, Phase 13 and Phase 14 validation and benchmarks under `python -I`
+- source/install canonical-hash equality for Phase 12, Phase 13 and Phase 14
+- `git diff --check`
+- unchanged `spec/` and `knowledge/` gates
+
+All successful outputs retain `prediction_validity = not_evaluated`; no auspiciousness, good/bad fortune, event, domain, or renderer surface is introduced.
