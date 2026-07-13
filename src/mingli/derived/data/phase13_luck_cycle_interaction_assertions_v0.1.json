@@ -1,0 +1,34 @@
+{
+  "manifest_version": "phase13-luck-cycle-interaction-assertions@0.1",
+  "matrix_axes": {
+    "day_stems": 10,
+    "month_branches": 12,
+    "checks_per_chart": 30
+  },
+  "minimum_expected_assertions_total": 3600,
+  "required_coverage": [
+    "phase7_hash_validation",
+    "phase12_hash_validation",
+    "phase12_assignment_digest_validation",
+    "ten_dayun_periods",
+    "ten_liunian_periods",
+    "combined_dayun_liunian_windows",
+    "stem_role_hits",
+    "branch_hidden_role_hits",
+    "natal_stem_relations",
+    "natal_branch_relations",
+    "aligned_state",
+    "mixed_state",
+    "opposed_state",
+    "neutral_state",
+    "unresolved_state",
+    "role_partition_preserved",
+    "period_order_independence",
+    "json_key_reorder",
+    "phase8_evidence_conversion",
+    "prediction_validity_unchanged",
+    "no_auspiciousness_or_event_output",
+    "subprocess_cli",
+    "isolated_wheel_install"
+  ]
+}
