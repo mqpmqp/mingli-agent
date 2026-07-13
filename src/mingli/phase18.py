@@ -46,7 +46,9 @@ class FusionEvidence:
 class FusedClaim:
     claim_id: str; scope: str; status: str; support_score: str; contradict_score: str
     hard_override_direction: Literal["support","contradict"]|None; evidence_ids: tuple[str,...]
-    winning_evidence_ids: tuple[str,...]; conflicting_evidence_ids: tuple[str,...]; confidence: Literal["high","medium","low"]; canonical_digest: str
+    winning_evidence_ids: tuple[str,...]; conflicting_evidence_ids: tuple[str,...]
+    confidence: Literal["high","medium","low"]; confidence_score: int
+    missing_source_penalty: int; contradiction_penalty: int; canonical_digest: str
     def to_dict(self)->dict[str,object]: return _plain(self)
 
 @dataclass(frozen=True)
@@ -108,7 +110,13 @@ def orchestrate_evidence_fusion(reality: UnifiedRealityContext|Mapping[str,objec
             elif leaders: status="resolved_by_priority"; confidence="medium"; winning=[x.evidence_id for x in leaders]; conflicting=[x.evidence_id for x in group if x.direction!=leaders[0].direction]
             else: status="no_evidence"; confidence="low"
         if status=="unresolved_conflict": unresolved.append({"claim_id":claim_id,"scope":scope,"code":"evidence_conflict_unresolved"})
-        payload={"claim_id":claim_id,"scope":scope,"status":status,"support_score":format(support,".4f"),"contradict_score":format(contradict,".4f"),"hard_override_direction":hard,"evidence_ids":[x.evidence_id for x in group],"winning_evidence_ids":sorted(winning),"conflicting_evidence_ids":sorted(conflicting),"confidence":confidence}
+        source_diversity=len({x.source_type for x in group})
+        missing_source_penalty=30 if source_diversity<2 else 0
+        contradiction_penalty=min(40,10*len(conflicting))
+        base_score={"resolved_by_reality_override":95,"resolved_by_priority":75,"unresolved_conflict":25,"no_evidence":0}[status]
+        confidence_score=max(0,base_score-missing_source_penalty-contradiction_penalty)
+        confidence="high" if confidence_score>=80 else ("medium" if confidence_score>=50 else "low")
+        payload={"claim_id":claim_id,"scope":scope,"status":status,"support_score":format(support,".4f"),"contradict_score":format(contradict,".4f"),"hard_override_direction":hard,"evidence_ids":[x.evidence_id for x in group],"winning_evidence_ids":sorted(winning),"conflicting_evidence_ids":sorted(conflicting),"confidence":confidence,"confidence_score":confidence_score,"missing_source_penalty":missing_source_penalty,"contradiction_penalty":contradiction_penalty}
         claims.append(FusedClaim(**payload,canonical_digest=record_digest("FusedClaim",payload)))  # type: ignore[arg-type]
     body={"reality_context_hash":context.canonical_hash,"evidence":[x.to_dict() for x in evidence],"claims":[x.to_dict() for x in claims],"provenance_index":{"reality_fields":list(context.facts),"evidence_sources":sorted({x.source_id for x in evidence})},"warnings":["reality_override_is_claim_and_scope_specific","contradictory_evidence_is_preserved","prediction_validity_not_evaluated"],"unresolved":unresolved}
     return EvidenceFusionOrchestratorResult(reality_context_hash=context.canonical_hash,evidence=evidence,claims=tuple(claims),provenance_index=body["provenance_index"],warnings=tuple(body["warnings"]),unresolved=tuple(unresolved),canonical_hash=record_digest("EvidenceFusionOrchestratorResult",body))  # type: ignore[arg-type]
