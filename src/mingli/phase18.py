@@ -12,7 +12,14 @@ PHASE18_CALCULATION_VERSION="0.1.0"
 PHASE18_DECISION_ID="PHASE_18_UNIFIED_REALITY_EVIDENCE_FUSION_R1_APPROVED"
 SOURCE_TYPES=("reality","chart","timing","rule","case")
 ALIASES={"no_contact_duration_months":"no_contact_months","major_not_eligible":"major_eligible","product_or_customer_validation":"customer_validation","symptom":"symptoms"}
-KNOWN_FIELDS=frozenset({"relationship_status","other_party_status","contact_status","no_contact_months","both_willing","breakup_reason","career_status","major_eligible","preparation_months","mock_rank","target_job_competition","capital_level","cash_runway_months","customer_validation","symptoms","contract_leverage","financial_risk","image_confirmed"})
+KNOWN_FIELDS=frozenset({
+    "relationship_status","other_party_status","contact_status","no_contact_months","both_willing","breakup_reason",
+    "explicit_rejection","legal_contact_restriction","safety_risk","root_cause_resolved","family_opposition",
+    "distance_plan_confirmed","communication_quality",
+    "career_status","major_eligible","age_eligible","degree_eligible","hukou_eligible","fresh_graduate_eligible",
+    "job_requirements_met","exam_stage","attempt_count","preparation_months","mock_rank","target_job_competition",
+    "capital_level","cash_runway_months","customer_validation","symptoms","contract_leverage","financial_risk","image_confirmed"
+})
 
 class Phase18InputError(ValueError): pass
 
