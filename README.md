@@ -119,6 +119,13 @@ python -m mingli.phase19_cli calculate --input birth.json
 python -m mingli.phase19_cli validate
 python -m mingli.phase19_cli benchmark
 ```
+
+Phase 20 提供 Yuan 固定八段 Renderer：资料确认、称骨歌诀、结论、事业、财运、感情、五年断事、建议。Renderer 只接受受控状态码，严格保持段落顺序，并保证免责声明只在全文末尾出现一次；未核验歌诀会明确留空，不会自动补写。
+
+```bash
+python -m mingli.phase20_cli render --input renderer.json
+python -m mingli.phase20_cli benchmark
+```
 ```
 
 ## 核心约束
