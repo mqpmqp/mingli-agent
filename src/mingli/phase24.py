@@ -154,7 +154,7 @@ def _phase22_check() -> PhaseGate:
     empty = run_case_benchmark()
     synthetic = run_case_benchmark({
         "registry_id":"independent-contract",
-        "minimum_cases_for_product_claim":1,
+        "minimum_cases_for_product_claim":30,
         "cases":[{"case_id":"synthetic:1","case_class":"synthetic","predicted_claims":{"c":"mixed"},"observed_claims":{"c":"mixed"}}],
     })
     return _result(22, (
