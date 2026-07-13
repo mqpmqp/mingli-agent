@@ -1,0 +1,36 @@
+{
+  "manifest_version": "phase14-temporal-trend-assertions@0.1",
+  "matrix_axes": {
+    "day_stems": 10,
+    "month_branches": 12,
+    "deterministic_checks_per_chart": 36
+  },
+  "minimum_expected_assertions_total": 4300,
+  "required_coverage": [
+    "phase7_hash_validation",
+    "phase13_hash_validation",
+    "nested_phase13_digest_validation",
+    "dayun_trend_partition",
+    "liunian_trend_partition",
+    "combined_window_trend_partition",
+    "ratio_normalization",
+    "net_balance_bounds",
+    "intensity_bounds",
+    "confidence_gate",
+    "verified_reality_hard_override",
+    "conflicting_verified_reality_unresolved",
+    "unverified_reality_no_high_confidence",
+    "year_index",
+    "age_index",
+    "year_query",
+    "age_query",
+    "transition_order",
+    "transition_delta",
+    "phase8_evidence_conversion",
+    "prediction_boundary",
+    "deterministic_key_reorder",
+    "subprocess_cli",
+    "isolated_wheel",
+    "source_install_hash_equality"
+  ]
+}
