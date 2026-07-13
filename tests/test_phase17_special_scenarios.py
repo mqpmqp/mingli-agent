@@ -17,6 +17,12 @@ class Phase17Tests(unittest.TestCase):
         self.assertEqual(SCENARIO_LAYERS["relationship_reunion"],tuple(item.layer for item in result.layers))
         self.assertFalse(next(x for x in result.layers if x.layer=="attraction").reality_override)
         self.assertTrue(all(next(x for x in result.layers if x.layer==layer).label=="conflict" for layer in ("recontact","reunion","stability")))
+    def test_published_eligibility_and_safety_facts_are_hard_gates(self):
+        exam=evaluate_special_scenario(self.source,scenario="career_exam",target_id=self.target,reality_context={"age_eligible":False,"job_requirements_met":False})
+        self.assertTrue(next(x for x in exam.layers if x.layer=="admission_outlook").reality_override)
+        reunion=evaluate_special_scenario(self.source,scenario="relationship_reunion",target_id=self.target,reality_context={"legal_contact_restriction":True,"root_cause_resolved":True})
+        self.assertTrue(next(x for x in reunion.layers if x.layer=="recontact").reality_override)
+        self.assertEqual("conflict",next(x for x in reunion.layers if x.layer=="stability").label)
     def test_invalid_and_blocked(self):
         with self.assertRaises(Phase17InputError): evaluate_special_scenario(self.source,scenario="health",target_id=self.target)
         with self.assertRaises(Phase17InputError): evaluate_special_scenario(self.source,scenario="career_exam",target_id="missing")
