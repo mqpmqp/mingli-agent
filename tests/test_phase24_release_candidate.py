@@ -11,7 +11,10 @@ class Phase24Tests(unittest.TestCase):
     def test_all_phase_gates_pass(self):
         self.assertEqual(list(range(16, 24)), [gate.phase for gate in self.result.phase_gates]); self.assertTrue(all(gate.status == "passed" for gate in self.result.phase_gates))
     def test_handoff_is_explicit(self):
-        self.assertEqual(4, len(self.result.codex_handoff)); self.assertIn("CLOUD_CI", {item["blocker_id"] for item in self.result.blockers})
+        self.assertEqual(2, len(self.result.codex_handoff)); self.assertEqual({"P19_VERSE_SOURCE","P22_REAL_CASE_THRESHOLD"}, {item["blocker_id"] for item in self.result.blockers})
+    def test_release_gate_is_not_circular(self):
+        self.assertFalse(self.result.provenance["benchmark_helpers_invoked"])
+        self.assertEqual("independent_contract_checks@0.1",self.result.provenance["gate_source"])
     def test_benchmark_contract(self):
         result = benchmark_phase24(self.result); self.assertEqual(result["assertions_total"], result["passed"])
 
