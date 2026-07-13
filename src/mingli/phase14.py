@@ -48,19 +48,19 @@ BLOCKED_OUTPUTS = {
 
 def _decimal(value: object, name: str) -> Decimal:
     try:
-        number = Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError) as exc:
+        result = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
         raise Phase14InputError(f"{name} must be decimal-compatible") from exc
-    if not number.is_finite():
+    if not result.is_finite():
         raise Phase14InputError(f"{name} must be finite")
-    return number
+    return result
 
 
 def _score(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP), "f")
 
 
-def _load_resource(name: str, label: str) -> dict[str, object]:
+def _resource(name: str, label: str) -> dict[str, object]:
     value = json.loads(files("mingli.derived.data").joinpath(name).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be an object")
@@ -68,18 +68,18 @@ def _load_resource(name: str, label: str) -> dict[str, object]:
 
 
 def load_phase14_trend_profiles() -> dict[str, object]:
-    return _load_resource(PROFILE_RESOURCE, "Phase 14 profile manifest")
+    return _resource(PROFILE_RESOURCE, "Phase 14 profile manifest")
 
 
 def load_phase14_trend_assertions() -> dict[str, object]:
-    return _load_resource(ASSERTION_RESOURCE, "Phase 14 assertion manifest")
+    return _resource(ASSERTION_RESOURCE, "Phase 14 assertion manifest")
 
 
 def get_temporal_trend_profile(profile_id: str = DEFAULT_PHASE14_PROFILE_ID) -> dict[str, object]:
-    profiles = load_phase14_trend_profiles().get("profiles")
-    if not isinstance(profiles, list):
+    raw = load_phase14_trend_profiles().get("profiles")
+    if not isinstance(raw, list):
         raise ValueError("profiles must be an array")
-    for item in profiles:
+    for item in raw:
         if isinstance(item, dict) and item.get("profile_id") == profile_id:
             result = dict(item)
             result["canonical_hash"] = digest({
@@ -94,21 +94,23 @@ def validate_phase14_profiles() -> tuple[str, ...]:
     issues: list[str] = []
     try:
         profile = get_temporal_trend_profile()
+        thresholds = profile.get("trend_thresholds")
         if profile.get("reviewed") is not True:
             issues.append("reviewed must be true")
-        thresholds = profile.get("trend_thresholds")
-        if not isinstance(thresholds, Mapping) or set(thresholds) != {"support_ratio_min", "conflict_ratio_min", "mixed_secondary_min"}:
+        if not isinstance(thresholds, Mapping) or set(thresholds) != {
+            "support_ratio_min", "conflict_ratio_min", "mixed_secondary_min"
+        }:
             issues.append("trend_thresholds are incomplete")
         else:
             for key, value in thresholds.items():
                 number = _decimal(value, f"trend_thresholds.{key}")
-                if number < 0 or number > 1:
+                if not Decimal("0") <= number <= Decimal("1"):
                     issues.append(f"trend_thresholds.{key} must be between 0 and 1")
         transition_delta = _decimal(profile.get("transition_delta"), "transition_delta")
-        if transition_delta < 0 or transition_delta > 2:
+        if not Decimal("0") <= transition_delta <= Decimal("2"):
             issues.append("transition_delta must be between 0 and 2")
         scale = _decimal(profile.get("evidence_scale"), "evidence_scale")
-        if scale <= 0 or scale > 10:
+        if not Decimal("0") < scale <= Decimal("10"):
             issues.append("evidence_scale must be greater than 0 and at most 10")
         if len(set(profile.get("independence_groups", []))) < 2:
             issues.append("at least two independence groups are required")
@@ -145,13 +147,12 @@ def _verify_fact_graph(value: Mapping[str, object]) -> str:
     body = {key: child for key, child in value.items() if key not in METADATA_FIELDS}
     if found != digest({"record_type": "BaziFactGraphResult", "payload": body}):
         raise Phase14InputError("Phase 7 Fact Graph canonical_hash mismatch")
-    timeline = value.get("timeline")
-    if not isinstance(timeline, Mapping):
+    if not isinstance(value.get("timeline"), Mapping):
         raise Phase14InputError("Phase 7 Fact Graph timeline is required")
     return found
 
 
-def _verify_interaction(value: Mapping[str, object], fact_graph_hash: str) -> str:
+def _verify_phase13(value: Mapping[str, object], fact_graph_hash: str) -> str:
     found = value.get("canonical_hash")
     if not isinstance(found, str) or not found.startswith("sha256:"):
         raise Phase14InputError("Phase 13 Interaction Result missing canonical_hash")
@@ -182,14 +183,14 @@ def _verify_interaction(value: Mapping[str, object], fact_graph_hash: str) -> st
 
 
 def _age_maps(graph: Mapping[str, object]) -> tuple[dict[str, tuple[int | None, int | None]], dict[str, int | None]]:
-    timeline = graph.get("timeline")
+    timeline = graph["timeline"]
     assert isinstance(timeline, Mapping)
-    dayun_map: dict[str, tuple[int | None, int | None]] = {}
-    liunian_map: dict[str, int | None] = {}
     raw_dayun = timeline.get("dayun_periods")
     raw_liunian = timeline.get("liunian_periods")
     if not isinstance(raw_dayun, list) or not isinstance(raw_liunian, list):
         raise Phase14InputError("Phase 7 timeline periods are required")
+    dayun: dict[str, tuple[int | None, int | None]] = {}
+    liunian: dict[str, int | None] = {}
     for item in raw_dayun:
         if not isinstance(item, Mapping):
             continue
@@ -197,20 +198,17 @@ def _age_maps(graph: Mapping[str, object]) -> tuple[dict[str, tuple[int | None, 
         end_age = item.get("end_age")
         start = int(start_age["chronological_years"]) if isinstance(start_age, Mapping) and start_age.get("chronological_years") is not None else None
         end = int(end_age["chronological_years"]) if isinstance(end_age, Mapping) and end_age.get("chronological_years") is not None else None
-        dayun_map[str(item.get("period_id"))] = (start, end)
+        dayun[str(item.get("period_id"))] = (start, end)
     for item in raw_liunian:
         if not isinstance(item, Mapping):
             continue
         snapshot = item.get("age_snapshot")
         age = int(snapshot["chronological_years"]) if isinstance(snapshot, Mapping) and snapshot.get("chronological_years") is not None else None
-        liunian_map[str(item.get("period_id"))] = age
-    return dayun_map, liunian_map
+        liunian[str(item.get("period_id"))] = age
+    return dayun, liunian
 
 
-def _parse_reality(
-    raw_items: Sequence[Mapping[str, object]],
-    valid_targets: set[str],
-) -> tuple[TemporalRealityEvidenceRecord, ...]:
+def _parse_reality(raw_items: Sequence[Mapping[str, object]], valid_targets: set[str]) -> tuple[TemporalRealityEvidenceRecord, ...]:
     records: list[TemporalRealityEvidenceRecord] = []
     seen: set[str] = set()
     for index, item in enumerate(raw_items, 1):
@@ -218,16 +216,16 @@ def _parse_reality(
         direction = str(item.get("direction", ""))
         detail = str(item.get("detail", "")).strip()
         source_id = str(item.get("source_id", "")).strip()
+        evidence_id = str(item.get("evidence_id") or f"phase14-reality:{target_id}:{index}")
         verified = item.get("verified") is True
         weight = _decimal(item.get("weight", "0"), "reality.weight")
-        evidence_id = str(item.get("evidence_id") or f"phase14-reality:{target_id}:{index}")
         if target_id not in valid_targets:
             raise Phase14InputError(f"reality evidence target is unknown: {target_id}")
         if direction not in {"support", "contradict"}:
             raise Phase14InputError("reality evidence direction must be support or contradict")
         if not detail or not source_id:
             raise Phase14InputError("reality evidence detail and source_id are required")
-        if weight < 0 or weight > 10:
+        if not Decimal("0") <= weight <= Decimal("10"):
             raise Phase14InputError("reality evidence weight must be between 0 and 10")
         if evidence_id in seen:
             raise Phase14InputError(f"duplicate reality evidence_id: {evidence_id}")
@@ -254,7 +252,7 @@ def _parse_reality(
     return tuple(sorted(records, key=lambda item: item.evidence_id))
 
 
-def _base_label(profile: Mapping[str, object], state: str, support_ratio: Decimal, conflict_ratio: Decimal, unresolved_count: int) -> str:
+def _label(profile: Mapping[str, object], state: str, support: Decimal, conflict: Decimal, unresolved_count: int) -> str:
     if unresolved_count or state == "unresolved":
         return "unresolved"
     thresholds = profile["trend_thresholds"]
@@ -262,11 +260,11 @@ def _base_label(profile: Mapping[str, object], state: str, support_ratio: Decima
     support_min = _decimal(thresholds["support_ratio_min"], "support_ratio_min")
     conflict_min = _decimal(thresholds["conflict_ratio_min"], "conflict_ratio_min")
     mixed_min = _decimal(thresholds["mixed_secondary_min"], "mixed_secondary_min")
-    if support_ratio >= support_min and conflict_ratio < mixed_min:
+    if support >= support_min and conflict < mixed_min:
         return "support_tendency"
-    if conflict_ratio >= conflict_min and support_ratio < mixed_min:
+    if conflict >= conflict_min and support < mixed_min:
         return "conflict_tendency"
-    if support_ratio >= mixed_min and conflict_ratio >= mixed_min:
+    if support >= mixed_min and conflict >= mixed_min:
         return "mixed_tendency"
     return {
         "aligned": "support_tendency",
@@ -276,29 +274,31 @@ def _base_label(profile: Mapping[str, object], state: str, support_ratio: Decima
     }.get(state, "neutral_tendency")
 
 
-def _record_meta(
+def _source_meta(
     source: Mapping[str, object],
     target_type: str,
     dayun_ages: Mapping[str, tuple[int | None, int | None]],
     liunian_ages: Mapping[str, int | None],
     liunian_by_id: Mapping[str, Mapping[str, object]],
-) -> tuple[str, int | None, int | None, int | None, str, str]:
+) -> tuple[str, int | None, int | None, int | None, int | None, str, str]:
     if target_type == "combined_window":
         target_id = str(source.get("window_id"))
         liunian_id = str(source.get("liunian_period_id"))
         liunian = liunian_by_id.get(liunian_id, {})
-        label_year = int(liunian["label_year"]) if liunian.get("label_year") is not None else None
+        year = int(liunian["label_year"]) if liunian.get("label_year") is not None else None
         age = liunian_ages.get(liunian_id)
-        return target_id, None, label_year, age, str(source.get("start_instant_utc")), str(source.get("end_instant_utc"))
+        return target_id, None, year, age, age, str(source.get("start_instant_utc")), str(source.get("end_instant_utc"))
     target_id = str(source.get("period_id"))
     if target_type == "dayun":
-        ages = dayun_ages.get(target_id, (None, None))
-        return target_id, int(source["sequence_index"]) if source.get("sequence_index") is not None else None, None, ages[0], str(source.get("start_instant_utc")), str(source.get("end_instant_utc"))
+        start_age, end_age = dayun_ages.get(target_id, (None, None))
+        sequence = int(source["sequence_index"]) if source.get("sequence_index") is not None else None
+        return target_id, sequence, None, start_age, end_age, str(source.get("start_instant_utc")), str(source.get("end_instant_utc"))
     age = liunian_ages.get(target_id)
-    return target_id, None, int(source["label_year"]) if source.get("label_year") is not None else None, age, str(source.get("start_instant_utc")), str(source.get("end_instant_utc"))
+    year = int(source["label_year"]) if source.get("label_year") is not None else None
+    return target_id, None, year, age, age, str(source.get("start_instant_utc")), str(source.get("end_instant_utc"))
 
 
-def _trend_record(
+def _trend(
     source: Mapping[str, object],
     target_type: str,
     dayun_ages: Mapping[str, tuple[int | None, int | None]],
@@ -309,69 +309,74 @@ def _trend_record(
     interaction_hash: str,
     profile: Mapping[str, object],
 ) -> TemporalTrendRecord:
-    target_id, sequence_index, label_year, start_age, start_instant, end_instant = _record_meta(
+    target_id, sequence, year, start_age, end_age, start, end = _source_meta(
         source, target_type, dayun_ages, liunian_ages, liunian_by_id
     )
-    end_age = dayun_ages.get(target_id, (None, None))[1] if target_type == "dayun" else start_age
-    support = _decimal(source.get("support_score", "0"), "support_score")
-    conflict = _decimal(source.get("conflict_score", "0"), "conflict_score")
-    neutral = _decimal(source.get("neutral_score", "0"), "neutral_score")
+    support_score = _decimal(source.get("support_score", "0"), "support_score")
+    conflict_score = _decimal(source.get("conflict_score", "0"), "conflict_score")
+    neutral_score = _decimal(source.get("neutral_score", "0"), "neutral_score")
     unresolved_count = int(source.get("unresolved_count", 0))
-    total = support + conflict + neutral
-    support_ratio = support / total if total else Decimal("0")
-    conflict_ratio = conflict / total if total else Decimal("0")
-    neutral_ratio = neutral / total if total else Decimal("0")
-    net = (support - conflict) / total if total else Decimal("0")
-    intensity = (support + conflict) / total if total else Decimal("0")
-    label = _base_label(profile, str(source.get("structural_state")), support_ratio, conflict_ratio, unresolved_count)
+    total = support_score + conflict_score + neutral_score
+    if total:
+        support_ratio = support_score / total
+        conflict_ratio = conflict_score / total
+        neutral_ratio = neutral_score / total
+        net = (support_score - conflict_score) / total
+        intensity = (support_score + conflict_score) / total
+    else:
+        support_ratio = Decimal("0")
+        conflict_ratio = Decimal("0")
+        neutral_ratio = Decimal("1")
+        net = Decimal("0")
+        intensity = Decimal("0")
+    trend_label = _label(profile, str(source.get("structural_state")), support_ratio, conflict_ratio, unresolved_count)
     reality = reality_by_target.get(target_id, ())
     verified_directions = {item.direction for item in reality if item.verified}
     override: str | None = None
     rationale = ["phase13_structural_scores_retained"]
     if len(verified_directions) > 1:
-        label = "unresolved"
+        trend_label = "unresolved"
         rationale.append("conflicting_verified_reality")
     elif len(verified_directions) == 1:
         override = next(iter(verified_directions))
-        label = "support_tendency" if override == "support" else "conflict_tendency"
+        trend_label = "support_tendency" if override == "support" else "conflict_tendency"
         rationale.append("verified_reality_hard_override")
     elif reality:
         rationale.append("unverified_reality_no_hard_override")
-    if label in {"unresolved", "neutral_tendency"} or total == 0:
+    if trend_label in {"unresolved", "neutral_tendency"}:
         confidence = "low"
         rationale.append("low_confidence_boundary")
-    elif override is not None:
+    elif override:
         confidence = "high"
         rationale.append("high_confidence_reality_scope_only")
     else:
         confidence = "medium"
         rationale.append("medium_without_verified_reality")
-    source_digest = str(source.get("canonical_digest", ""))
     payload = {
         "trend_id": f"trend:{target_id}",
         "target_id": target_id,
         "target_type": target_type,
-        "sequence_index": sequence_index,
-        "label_year": label_year,
-        "start_instant_utc": start_instant,
-        "end_instant_utc": end_instant,
+        "sequence_index": sequence,
+        "label_year": year,
+        "start_instant_utc": start,
+        "end_instant_utc": end,
         "start_age": start_age,
         "end_age": end_age,
         "structural_state": str(source.get("structural_state")),
-        "base_support_score": _score(support),
-        "base_conflict_score": _score(conflict),
-        "base_neutral_score": _score(neutral),
+        "base_support_score": _score(support_score),
+        "base_conflict_score": _score(conflict_score),
+        "base_neutral_score": _score(neutral_score),
         "support_ratio": _score(support_ratio),
         "conflict_ratio": _score(conflict_ratio),
         "neutral_ratio": _score(neutral_ratio),
         "net_balance": _score(net),
         "intensity": _score(intensity),
-        "trend_label": label,
+        "trend_label": trend_label,
         "confidence": confidence,
         "confidence_rationale_codes": sorted(set(rationale)),
         "reality_override_direction": override,
         "reality_evidence_ids": [item.evidence_id for item in reality],
-        "source_record_digest": source_digest,
+        "source_record_digest": str(source.get("canonical_digest", "")),
         "source_result_hashes": [graph_hash, interaction_hash],
         "profile_id": str(profile["profile_id"]),
     }
@@ -379,10 +384,10 @@ def _trend_record(
         trend_id=payload["trend_id"],
         target_id=target_id,
         target_type=target_type,  # type: ignore[arg-type]
-        sequence_index=sequence_index,
-        label_year=label_year,
-        start_instant_utc=start_instant,
-        end_instant_utc=end_instant,
+        sequence_index=sequence,
+        label_year=year,
+        start_instant_utc=start,
+        end_instant_utc=end,
         start_age=start_age,
         end_age=end_age,
         structural_state=payload["structural_state"],
@@ -394,19 +399,19 @@ def _trend_record(
         neutral_ratio=payload["neutral_ratio"],
         net_balance=payload["net_balance"],
         intensity=payload["intensity"],
-        trend_label=label,  # type: ignore[arg-type]
+        trend_label=trend_label,  # type: ignore[arg-type]
         confidence=confidence,  # type: ignore[arg-type]
         confidence_rationale_codes=tuple(payload["confidence_rationale_codes"]),
         reality_override_direction=override,  # type: ignore[arg-type]
         reality_evidence_ids=tuple(payload["reality_evidence_ids"]),
-        source_record_digest=source_digest,
+        source_record_digest=payload["source_record_digest"],
         source_result_hashes=(graph_hash, interaction_hash),
         profile_id=payload["profile_id"],
         canonical_digest=record_digest("TemporalTrendRecord", payload),
     )
 
 
-def _transition_type(previous: TemporalTrendRecord, current: TemporalTrendRecord, threshold: Decimal) -> str:
+def _transition_kind(previous: TemporalTrendRecord, current: TemporalTrendRecord, threshold: Decimal) -> str:
     if current.trend_label == "unresolved" and previous.trend_label != "unresolved":
         return "becoming_unresolved"
     if previous.trend_label == "unresolved" and current.trend_label != "unresolved":
@@ -427,9 +432,7 @@ def _transitions(records: Sequence[TemporalTrendRecord], profile: Mapping[str, o
     threshold = _decimal(profile["transition_delta"], "transition_delta")
     result: list[TrendTransitionRecord] = []
     for previous, current in zip(records, records[1:]):
-        net_delta = Decimal(current.net_balance) - Decimal(previous.net_balance)
-        intensity_delta = Decimal(current.intensity) - Decimal(previous.intensity)
-        transition_type = _transition_type(previous, current, threshold)
+        transition_type = _transition_kind(previous, current, threshold)
         payload = {
             "transition_id": f"transition:{previous.target_id}->{current.target_id}",
             "target_type": current.target_type,
@@ -437,8 +440,8 @@ def _transitions(records: Sequence[TemporalTrendRecord], profile: Mapping[str, o
             "to_target_id": current.target_id,
             "from_label": previous.trend_label,
             "to_label": current.trend_label,
-            "net_delta": _score(net_delta),
-            "intensity_delta": _score(intensity_delta),
+            "net_delta": _score(Decimal(current.net_balance) - Decimal(previous.net_balance)),
+            "intensity_delta": _score(Decimal(current.intensity) - Decimal(previous.intensity)),
             "transition_type": transition_type,
         }
         result.append(TrendTransitionRecord(
@@ -456,13 +459,13 @@ def _transitions(records: Sequence[TemporalTrendRecord], profile: Mapping[str, o
     return tuple(result)
 
 
-def _indices(records: Sequence[TemporalTrendRecord]) -> tuple[dict[str, tuple[str, ...]], dict[str, tuple[str, ...]]]:
+def _indexes(records: Sequence[TemporalTrendRecord]) -> tuple[dict[str, tuple[str, ...]], dict[str, tuple[str, ...]]]:
     years: dict[str, set[str]] = {}
     ages: dict[str, set[str]] = {}
     for record in records:
         if record.label_year is not None:
             years.setdefault(str(record.label_year), set()).add(record.target_id)
-        elif record.start_instant_utc and record.end_instant_utc:
+        else:
             try:
                 start_year = datetime.fromisoformat(record.start_instant_utc.replace("Z", "+00:00")).year
                 end_year = datetime.fromisoformat(record.end_instant_utc.replace("Z", "+00:00")).year
@@ -473,7 +476,7 @@ def _indices(records: Sequence[TemporalTrendRecord]) -> tuple[dict[str, tuple[st
                 pass
         if record.start_age is not None:
             end_age = record.end_age if record.end_age is not None else record.start_age
-            if end_age >= record.start_age and end_age - record.start_age <= 30:
+            if 0 <= end_age - record.start_age <= 30:
                 for age in range(record.start_age, end_age + 1):
                     ages.setdefault(str(age), set()).add(record.target_id)
     return (
@@ -482,7 +485,7 @@ def _indices(records: Sequence[TemporalTrendRecord]) -> tuple[dict[str, tuple[st
     )
 
 
-def _evidence_records(
+def _evidence(
     trends: Sequence[TemporalTrendRecord],
     reality: Sequence[TemporalRealityEvidenceRecord],
     interaction_hash: str,
@@ -491,21 +494,22 @@ def _evidence_records(
     scale = _decimal(profile["evidence_scale"], "evidence_scale")
     records: list[TemporalTrendEvidenceRecord] = []
     for trend in trends:
-        for evidence_type, direction, ratio in (
-            ("structural_support_ratio", "support", Decimal(trend.support_ratio)),
-            ("structural_conflict_ratio", "contradict", Decimal(trend.conflict_ratio)),
-        ):
+        rows = (
+            ("structural_support_ratio", "timing", "support", Decimal(trend.support_ratio)),
+            ("structural_conflict_ratio", "timing", "contradict", Decimal(trend.conflict_ratio)),
+            ("structural_neutral_ratio", "rule", "support", Decimal(trend.neutral_ratio)),
+        )
+        for evidence_type, source_type, direction, ratio in rows:
             if ratio == 0:
                 continue
-            contribution = min(Decimal("10"), ratio * scale)
             payload = {
                 "evidence_id": f"evidence:{trend.target_id}:{evidence_type}",
                 "target_id": trend.target_id,
                 "evidence_type": evidence_type,
-                "source_type": "timing",
+                "source_type": source_type,
                 "direction": direction,
-                "contribution": _score(contribution),
-                "priority": 80,
+                "contribution": _score(min(Decimal("10"), ratio * scale)),
+                "priority": 80 if source_type == "timing" else 60,
                 "verified": True,
                 "source_id": trend.source_record_digest,
                 "source_result_hashes": [interaction_hash],
@@ -515,10 +519,10 @@ def _evidence_records(
                 evidence_id=payload["evidence_id"],
                 target_id=trend.target_id,
                 evidence_type=evidence_type,
-                source_type="timing",
+                source_type=source_type,  # type: ignore[arg-type]
                 direction=direction,  # type: ignore[arg-type]
                 contribution=payload["contribution"],
-                priority=80,
+                priority=payload["priority"],
                 verified=True,
                 source_id=trend.source_record_digest,
                 source_result_hashes=(interaction_hash,),
@@ -572,7 +576,7 @@ def evaluate_bazi_temporal_trends(
         raise Phase14InputError("Phase 13 Interaction Result is required")
     profile = get_temporal_trend_profile(profile_id)
     graph_hash = _verify_fact_graph(fact_graph)
-    interaction_hash = _verify_interaction(interaction_result, graph_hash)
+    interaction_hash = _verify_phase13(interaction_result, graph_hash)
     raw_dayun = interaction_result["dayun_interactions"]
     raw_liunian = interaction_result["liunian_interactions"]
     raw_windows = interaction_result["combined_windows"]
@@ -583,27 +587,28 @@ def evaluate_bazi_temporal_trends(
         str(item.get("window_id")) for item in raw_windows if isinstance(item, Mapping)
     }
     reality = _parse_reality(reality_evidence, valid_targets)
-    reality_by_target: dict[str, tuple[TemporalRealityEvidenceRecord, ...]] = {}
-    for target_id in sorted(valid_targets):
-        reality_by_target[target_id] = tuple(item for item in reality if item.target_id == target_id)
+    reality_by_target = {
+        target_id: tuple(item for item in reality if item.target_id == target_id)
+        for target_id in sorted(valid_targets)
+    }
     dayun_ages, liunian_ages = _age_maps(fact_graph)
     liunian_by_id = {str(item.get("period_id")): item for item in raw_liunian if isinstance(item, Mapping)}
     dayun = tuple(
-        _trend_record(item, "dayun", dayun_ages, liunian_ages, liunian_by_id, reality_by_target, graph_hash, interaction_hash, profile)
+        _trend(item, "dayun", dayun_ages, liunian_ages, liunian_by_id, reality_by_target, graph_hash, interaction_hash, profile)
         for item in raw_dayun if isinstance(item, Mapping)
     )
     liunian = tuple(
-        _trend_record(item, "liunian", dayun_ages, liunian_ages, liunian_by_id, reality_by_target, graph_hash, interaction_hash, profile)
+        _trend(item, "liunian", dayun_ages, liunian_ages, liunian_by_id, reality_by_target, graph_hash, interaction_hash, profile)
         for item in raw_liunian if isinstance(item, Mapping)
     )
     combined = tuple(
-        _trend_record(item, "combined_window", dayun_ages, liunian_ages, liunian_by_id, reality_by_target, graph_hash, interaction_hash, profile)
+        _trend(item, "combined_window", dayun_ages, liunian_ages, liunian_by_id, reality_by_target, graph_hash, interaction_hash, profile)
         for item in raw_windows if isinstance(item, Mapping)
     )
     all_trends = (*dayun, *liunian, *combined)
     transitions = (*_transitions(dayun, profile), *_transitions(liunian, profile), *_transitions(combined, profile))
-    year_index, age_index = _indices(all_trends)
-    evidence = _evidence_records(all_trends, reality, interaction_hash, profile)
+    year_index, age_index = _indexes(all_trends)
+    evidence = _evidence(all_trends, reality, interaction_hash, profile)
     trend_counts = {label: 0 for label in TREND_LABELS}
     confidence_counts = {level: 0 for level in ("high", "medium", "low")}
     unresolved: list[dict[str, object]] = []
@@ -683,12 +688,12 @@ def query_temporal_trends(
     if not isinstance(index, Mapping):
         raise Phase14InputError(f"{index_name} is required")
     target_ids = set(index.get(str(index_value), []))
-    trends: list[Mapping[str, object]] = []
+    found: list[Mapping[str, object]] = []
     for key in ("dayun_trends", "liunian_trends", "combined_trends"):
         raw = payload.get(key)
         if isinstance(raw, list):
-            trends.extend(item for item in raw if isinstance(item, Mapping) and item.get("target_id") in target_ids)
-    return tuple(sorted(trends, key=lambda item: (str(item.get("target_type")), str(item.get("target_id")))))
+            found.extend(item for item in raw if isinstance(item, Mapping) and item.get("target_id") in target_ids)
+    return tuple(sorted(found, key=lambda item: (str(item.get("target_type")), str(item.get("target_id")))))
 
 
 def temporal_trend_result_to_phase8_evidence(result: BaziTemporalTrendEvidenceResult | Mapping[str, object]):
@@ -720,8 +725,7 @@ def temporal_trend_result_to_phase8_evidence(result: BaziTemporalTrendEvidenceRe
 
 def build_phase14_fixture(day_stem: str, month_branch: str) -> tuple[dict[str, object], dict[str, object]]:
     graph, xiji = build_phase13_fixture(day_stem, month_branch)
-    interaction = evaluate_luck_cycle_role_interactions(graph, xiji).to_dict()
-    return graph, interaction
+    return graph, evaluate_luck_cycle_role_interactions(graph, xiji).to_dict()
 
 
 def benchmark_phase14() -> Phase14BenchmarkResult:
@@ -748,11 +752,13 @@ def benchmark_phase14() -> Phase14BenchmarkResult:
             payload = result.to_dict()
             all_trends = (*result.dayun_trends, *result.liunian_trends, *result.combined_trends)
             target_ids = {item.target_id for item in all_trends}
-            ratio_checks = all(
-                Decimal(item.support_ratio) >= 0
-                and Decimal(item.conflict_ratio) >= 0
-                and Decimal(item.neutral_ratio) >= 0
-                and abs(Decimal(item.support_ratio) + Decimal(item.conflict_ratio) + Decimal(item.neutral_ratio) - Decimal("1")) <= Decimal("0.0002")
+            ratios_valid = all(
+                abs(
+                    Decimal(item.support_ratio)
+                    + Decimal(item.conflict_ratio)
+                    + Decimal(item.neutral_ratio)
+                    - Decimal("1")
+                ) <= Decimal("0.0002")
                 for item in all_trends
             )
             checks = (
@@ -772,7 +778,7 @@ def benchmark_phase14() -> Phase14BenchmarkResult:
                 all(item.trend_label in TREND_LABELS for item in all_trends),
                 all(item.confidence in {"high", "medium", "low"} for item in all_trends),
                 all(item.confidence != "high" for item in all_trends),
-                ratio_checks,
+                ratios_valid,
                 all(Decimal("-1") <= Decimal(item.net_balance) <= Decimal("1") for item in all_trends),
                 all(Decimal("0") <= Decimal(item.intensity) <= Decimal("1") for item in all_trends),
                 all(item.source_record_digest.startswith("sha256:") for item in all_trends),
@@ -800,21 +806,21 @@ def benchmark_phase14() -> Phase14BenchmarkResult:
     graph, interaction = build_phase14_fixture(STEMS[0], BRANCHES[2])
     baseline = evaluate_bazi_temporal_trends(graph, interaction)
     target = baseline.liunian_trends[0].target_id
-    reality_support = ({
+    support = {
         "target_id": target,
         "direction": "support",
         "detail": "verified external reality condition",
         "weight": "10",
         "verified": True,
         "source_id": "phase14-benchmark-reality-support",
-    },)
-    overridden = evaluate_bazi_temporal_trends(graph, interaction, reality_evidence=reality_support)
+    }
+    overridden = evaluate_bazi_temporal_trends(graph, interaction, reality_evidence=(support,))
     overridden_record = next(item for item in overridden.liunian_trends if item.target_id == target)
     check(overridden_record.trend_label == "support_tendency", "verified support reality did not override")
     check(overridden_record.confidence == "high", "verified reality did not set scoped high confidence")
     check(overridden_record.reality_override_direction == "support", "reality override direction missing")
     conflicting = evaluate_bazi_temporal_trends(graph, interaction, reality_evidence=(
-        *reality_support,
+        support,
         {
             "target_id": target,
             "direction": "contradict",
