@@ -1,4 +1,6 @@
-# Phase 16-24 Independent Final Audit
+# Phase 16-24 Independent Final Audit (Superseded by V2 Final Review)
+
+The final closure review and all corrective findings are recorded in `MINGLI_AGENT_V2_FINAL_REVIEW.md`. The summary below is retained as historical pre-closure evidence and must not be read as the final V2 verdict.
 
 ## Scope and baseline
 
@@ -20,9 +22,9 @@ Phase 16 was reviewed and merged independently by PR #21 at merge commit `dd21ce
 | Phase | Technical verdict | Product/evidence boundary |
 | --- | --- | --- |
 | P16 | PASS, merged and independently gated | Deterministic domain contracts only |
-| P17 | PASS | Reality gates do not prove outcomes |
+| P17 | PASS | Five career-exam layers and four reunion layers; reality gates do not prove outcomes |
 | P18 | PASS | Fusion preserves conflicts and scope |
-| P19 | PASS for weights | Verse text removed from RC2 scope by design; future optional pack only |
+| P19 | PASS for weights | Verse text removed from V2.0 scope by design; future optional pack only |
 | P20 | PASS | Fixed renderer does not validate predictions |
 | P21 | PASS | Bounded trends; concrete events rejected |
 | P22 | PASS for harness | 0 eligible real cases; no accuracy claim |
@@ -31,10 +33,10 @@ Phase 16 was reviewed and merged independently by PR #21 at merge commit `dd21ce
 
 ## Non-code blockers
 
-1. Any future optional ChengGu verse pack needs an independent content review and must remain outside the RC2 core package.
+1. Any future optional ChengGu verse pack needs an independent content review and must remain outside the V2.0 core package.
 2. Product validation needs at least 30 consented, de-identified, externally observed real cases that pass the provenance contract.
 3. No scientific, prospective, or external certification of predictive validity exists. `prediction_validity` remains `not_evaluated`.
 
 ## Audit conclusion
 
-The code is eligible for a technical release-candidate merge after exact-head PR CI passes. It is not eligible for product release or an accuracy claim.
+The historical audit supported a technical release candidate. See `MINGLI_AGENT_V2_FINAL_REVIEW.md` and `MINGLI_AGENT_V2_RELEASE_CANDIDATE_REPORT.md` for the corrected final review, including the P17/P20/P21/P22/P23 fixes and release-version synchronization.

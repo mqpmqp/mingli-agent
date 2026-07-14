@@ -37,6 +37,12 @@ class Phase23Tests(unittest.TestCase):
         self.assertEqual(37, result.chenggu["total_qian"])
         self.assertEqual(8, len(result.renderer["sections"]))
         self.assertEqual("challenging", result.effective_domain_statuses["wealth"])
+        self.assertEqual(result.evidence_fusion["claims"][0]["confidence"], result.effective_domain_confidence["wealth"])
+        self.assertTrue(all(
+            result.effective_domain_confidence[domain] == "low"
+            for domain, status in result.effective_domain_statuses.items()
+            if status == "unresolved"
+        ))
         self.assertEqual("resolved_by_reality_override", result.evidence_fusion["claims"][0]["status"])
         self.assertEqual("not_evaluated", result.prediction_validity)
 
@@ -57,6 +63,11 @@ class Phase23Tests(unittest.TestCase):
         payload = fixture()
         payload["baseline_domains"] = {"career": "supportive", "wealth": "supportive", "relationship": "supportive"}
         with self.assertRaisesRegex(ValueError, "baseline_domains"):
+            run_mingli_agent(payload)
+    def test_caller_overall_status_cannot_bypass_runtime_chain(self):
+        payload = fixture()
+        payload["overall_status"] = "supportive"
+        with self.assertRaisesRegex(ValueError, "overall_status"):
             run_mingli_agent(payload)
     def test_runtime_is_deterministic(self):
         left, right = run_mingli_agent(fixture()), run_mingli_agent(fixture()); self.assertEqual(left.canonical_hash, right.canonical_hash)

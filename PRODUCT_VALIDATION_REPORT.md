@@ -31,6 +31,6 @@ pii_leak_count: 0
 
 当前未提供任何真实私有验证数据，因此 validation closure 与 product accuracy claim gate 均未通过。空数据不能解释为零错误、零拒答或有效预测；`coverage`、`abstention_rate`、`brier_score` 与 `ece` 均保持不可计算。
 
-P19 歌诀已经按设计移出 RC2 核心包，不再构成 blocker。当前 HOLD 的未关闭产品证据阻塞项是：尚未导入满足合同的 Gold/Silver 私有案例，尚未形成至少 30 个唯一合格案例、100 个可比较 claims 与三个场景覆盖；产品准确率声明还另外要求至少 30 个 Gold 前瞻案例。
+P19 歌诀已经按设计移出 V2.0 核心包，不再构成 blocker。当前 HOLD 的未关闭产品证据阻塞项是：尚未导入满足合同的 Gold/Silver 私有案例，尚未形成至少 30 个唯一合格案例、100 个可比较 claims 与三个场景覆盖；产品准确率声明还另外要求至少 30 个 Gold 前瞻案例。
 
 公开仓库不得包含原始 PII、同意书、聊天记录、身份证明、联系方式或可重新识别个人的材料。

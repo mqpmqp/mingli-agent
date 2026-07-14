@@ -1,14 +1,14 @@
 # MingLi Agent Core Runtime
 
-## V2.0 Release Candidate 范围
+## V2.0 技术发布范围
 
 V2.0 技术候选版把确定性排盘、Fact Graph、P9–P16 结构规则、现实证据融合、特殊场景门禁、五年趋势和 Yuan 固定八段 Renderer 串成一个可审计的单进程流水线。调用入口是 `mingli.phase23.run_mingli_agent(...)` 或 `python -m mingli.phase23_cli run --input runtime.json`。
 
 运行时不会接受调用方伪造的 `baseline_domains`；三个领域的基础状态必须来自 P16 合同。已核验现实证据可在同一 claim 与 scope 内覆盖结构结果，冲突和缺源会降低置信度。所有结果固定保留 `prediction_validity=not_evaluated`，最终答案只在末行出现一次“仅供文化研究与娱乐参考。”。
 
-当前状态是 `technical_rc_only_product_hold`。P19 歌诀原文已按设计移出 RC2 核心包，P19 算法继续输出骨重并固定 `verse_available=false`。合格真实验证案例仍为 0，因此没有产品准确率，也不允许宣称产品已验证。详见 `ARCHITECTURE.md`、`RUNBOOK.md`、`RELEASE_CHECKLIST.md` 和 `PRODUCT_VALIDATION_REPORT.md`。
+当前状态是 `technical_rc_only_product_hold`。V2.0 可以作为确定性技术发布交付，但产品状态仍为 `PRODUCT_RELEASE_HOLD`。P19 歌诀原文已按设计移出核心包，P19 算法继续输出骨重并固定 `verse_available=false`。合格真实验证案例仍为 0，因此没有产品准确率，也不允许宣称产品已验证。详见 `ARCHITECTURE.md`、`RUNBOOK.md`、`RELEASE_CHECKLIST.md` 和 `PRODUCT_VALIDATION_REPORT.md`。
 
-MingLi Agent Core Runtime v0.1 是一个纯确定性的 Python 核心库。它把 `spec/` 中可验证的部分落成数据模型、规范校验、规则加载、证据融合、现实校正、置信度门禁、意图路由、中文渲染和静态策略检查。
+MingLi Agent Core Runtime v2.0.0 是一个纯确定性的 Python 核心库。它把 `spec/` 中可验证的部分落成数据模型、规范校验、规则加载、证据融合、现实校正、置信度门禁、意图路由、中文渲染和静态策略检查。
 
 Phase 9 adds an independent deterministic Bazi strength quantification layer:
 
@@ -105,7 +105,7 @@ python -m mingli.phase16_cli provenance --expected-root .
 
 公共 API 位于 `mingli.phase16`：`evaluate_base_domain_contracts(...)`、`query_base_domain_contracts(...)`、`load_phase16_base_rules(...)`、`validate_phase16_rules(...)` 和 `benchmark_phase16(...)`。P16 不输出升职、录用、收入金额、盈亏、投资建议、结婚、复合、分手、外遇或对象数量等具体事件，也不提供自然语言命理结论；所有成功输出继续固定 `prediction_validity=not_evaluated` 与 `domain_contract_validity=base_rules_only`。
 
-Phase 17 在 P16 上提供考公考编与复合特殊场景的四层合同。考公严格拆分体制适配、上岸条件、岗位方向、备考策略；复合严格拆分缘分牵引、复联、复合、稳定。现实硬条件只覆盖对应层，不会被盘面结构抵消。
+Phase 17 在 P16 上提供考公考编与复合特殊场景合同。考公严格拆分体制适配、上岸条件、考试倾向、岗位方向、备考策略五层；复合严格拆分缘分牵引、复联、复合、稳定四层。没有独立证据的考试倾向保持 `unresolved/low`，不会由其他层推断。现实硬条件只覆盖对应层，不会被盘面结构抵消。
 
 ```bash
 python -m mingli.phase17_cli evaluate --phase16-result phase16.json --scenario career_exam --target-id TARGET --reality reality.json
@@ -121,7 +121,7 @@ python -m mingli.phase18_cli fuse --reality reality.json --evidence evidence.jso
 python -m mingli.phase18_cli benchmark
 ```
 
-Phase 19 冻结 `chenggu-common-table-r1@0.1` 称骨权重表，使用整数“钱”完成年、农历月、农历日、民用时辰四项确定性求和。阳历输入会先转换为农历；闰月沿用同月权重并明确告警。RC2 核心包不包含完整歌诀原文、歌诀 package-data 或现代白话解释，结果固定 `verse_available=false`；未来如需歌诀，只能作为独立 optional verse pack 另行评审。该传统文化算法不具科学预测效力。
+Phase 19 冻结 `chenggu-common-table-r1@0.1` 称骨权重表，使用整数“钱”完成年、农历月、农历日、民用时辰四项确定性求和。阳历输入会先转换为农历；闰月沿用同月权重并明确告警；性别不参与骨重计算。V2.0 核心包不包含完整歌诀原文、歌诀 package-data 或现代白话解释，结果固定 `verse_available=false`；未来如需歌诀，只能作为独立 optional verse pack 另行评审。该传统文化算法不具科学预测效力。
 
 ```bash
 python -m mingli.phase19_cli calculate --input birth.json
@@ -129,21 +129,21 @@ python -m mingli.phase19_cli validate
 python -m mingli.phase19_cli benchmark
 ```
 
-Phase 20 提供 Yuan 固定八段 Renderer：资料确认、称骨歌诀、结论、事业、财运、感情、五年断事、建议。Renderer 只接受受控状态码，严格保持段落顺序，并保证免责声明只在全文末尾出现一次；RC2 的 P19 固定 `verse_available=false`，因此歌诀段只展示骨重占位，不会自动补写。
+Phase 20 提供 Yuan 固定八段 Renderer：资料确认、称骨歌诀、结论、事业、财运、感情、五年断事、建议。Renderer 只接受受控状态码与显式置信度，拒绝调用方注入 `overall_status` 或歌诀文本；未决状态只能使用低置信度。它严格保持段落顺序，并保证免责声明只在全文末尾出现一次；P19 固定 `verse_available=false`，因此歌诀段只展示骨重占位，不会自动补写。
 
 ```bash
 python -m mingli.phase20_cli render --input renderer.json
 python -m mingli.phase20_cli benchmark
 ```
 
-Phase 21 生成以锚点年前后各两年组成的连续五年趋势合同。每年只输出事业、财运、感情的受控倾向与整体状态；已核验现实证据仅在对应年份和领域硬覆盖。具体事件、金额、录用结果、复合结果和日期字段会被拒绝。
+Phase 21 生成以锚点年前后各两年组成的连续五年趋势合同。每年只输出事业、财运、感情的受控倾向、领域置信度、整体状态与整体置信度；无年度证据或冲突证据时保持低置信度。已核验现实证据仅在对应年份和领域硬覆盖。具体事件、金额、录用结果、复合结果和日期字段会被拒绝。
 
 ```bash
 python -m mingli.phase21_cli generate --input outlook.json
 python -m mingli.phase21_cli benchmark
 ```
 
-Phase 22 提供真实案例导入与前事回测合同。只有取得同意、完成去标识且带来源引用的真实案例才计入指标；合成案例只用于程序合同测试。当前仓库合格真实案例为 0，因此不会输出伪造准确率，也不允许产品准确率宣称。
+Phase 22 提供真实案例导入与前事回测合同。Validation closure 要求至少 30 个合格唯一人员、至少 10 Gold、不超过 20 Silver、至少 100 个可比较 claims、三个场景以及完整审查与隐私覆盖；产品准确率许可独立要求至少 30 个合格 Gold 唯一人员，且审查与隐私覆盖通过。Silver 不能开启准确率声明。合成案例只用于程序合同测试。当前仓库合格真实案例为 0，因此不会输出伪造准确率，也不允许产品准确率宣称。
 
 ```bash
 python -m mingli.phase22_cli run
@@ -151,14 +151,14 @@ python -m mingli.phase22_cli run --registry cases.json
 python -m mingli.phase22_cli benchmark
 ```
 
-Phase 23 提供单进程、无网络、无外部模型的端到端 Runtime，按固定顺序执行八字排盘、P19 称骨、P18 现实证据融合、P21 五年趋势与 P20 八段渲染。领域基础状态必须由已批准上游传入；Runtime 只允许已核验现实证据在 `runtime:baseline` 范围内覆盖对应领域。
+Phase 23 提供单进程、无网络、无外部模型的端到端 Runtime，按固定顺序执行八字排盘、P19 称骨、P18 现实证据融合、P21 五年趋势与 P20 八段渲染。领域基础状态与总论均由已批准上游派生，调用方不能注入 `baseline_domains` 或 `overall_status`；状态与置信度共同通过 `confidence_gate` 进入 Renderer。Runtime 只允许已核验现实证据在 `runtime:baseline` 范围内覆盖对应领域。
 
 ```bash
 python -m mingli.phase23_cli run --input runtime.json
 python -m mingli.phase23_cli benchmark
 ```
 
-Phase 24 汇总 P16—P23 基准并区分“本地技术 RC”与“产品可发布”。本地全部确定性门禁通过才形成技术候选；P19 歌诀不再是 RC2 blocker。Gold/Silver validation closure、Gold-only 产品准确率声明门禁和全仓云端 CI/隔离安装后验未完成前，产品发布保持 hold。
+Phase 24 汇总 P16—P23 基准并严格分离 validation closure、Gold-only 产品准确率声明门禁和产品发布授权。Validation closure 只会移除 `P22_VALIDATION_CLOSURE` blocker；即使准确率门禁通过，也不会自动移除 `PRODUCT_RELEASE_AUTHORIZATION`。P19 歌诀不是 V2.0 blocker，产品发布继续保持 hold。
 
 ```bash
 python -m mingli.phase24_cli assess
@@ -172,7 +172,7 @@ python -m mingli.phase24_cli benchmark
 - Phase 8 现实覆盖必须由规则显式声明 `reality_override_codes`，并且只覆盖已有 matched 证据的对应 claim。
 - 同一 claim 的相反证据永久保留冲突记录；现实硬覆盖优先，其次按规则 priority，等优先级冲突保持 unresolved。
 - 图片盘未确认时只请求确认并给出低置信限制说明。
-- 考公输出分开处理体制适配、上岸、岗位与备考；复合输出分开处理缘分牵引、复联、复合与稳定。
+- 考公输出分开处理体制适配、上岸条件、考试倾向、岗位与备考；复合输出分开处理缘分牵引、复联、复合与稳定。
 - 医疗与投资场景优先现实专业处置；命理不能决定诊断、就医、杠杆或仓位。
 - 固定免责声明只在答案末行出现一次，禁词在渲染完成前拦截。
 

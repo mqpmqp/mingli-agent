@@ -10,10 +10,10 @@ from typing import Literal, Mapping
 from .bazi import BRANCHES, STEMS, _lunar_month_days, _lunar_year_days, lunar_leap_month, lunar_to_solar
 from .contracts.serialization import canonical_json, digest
 
-PHASE19_SCHEMA_VERSION = "chenggu-deterministic-result@0.1"
-PHASE19_METHOD_ID = "chenggu-deterministic-integer-qian@0.1.0"
-PHASE19_CALCULATION_VERSION = "0.1.0"
-PHASE19_DECISION_ID = "PHASE_19_CHENGGU_DETERMINISTIC_ALGORITHM_R1_APPROVED"
+PHASE19_SCHEMA_VERSION = "chenggu-deterministic-result@0.2"
+PHASE19_METHOD_ID = "chenggu-deterministic-integer-qian@0.2.0"
+PHASE19_CALCULATION_VERSION = "0.2.0"
+PHASE19_DECISION_ID = "PHASE_19_CHENGGU_DETERMINISTIC_ALGORITHM_R2_APPROVED"
 TABLE_RESOURCE = "phase19_chenggu_table_v0.1.json"
 
 
@@ -158,6 +158,7 @@ def calculate_chenggu(raw: Mapping[str, object]) -> ChengGuResult:
             "zi_hour": "23:00-00:59",
             "leap_month": "same_weight_as_numeric_month",
             "arithmetic": "integer_qian",
+            "gender_basis": "not_used_for_weight_calculation",
         },
         "verse_available": False,
         "warnings": warnings,

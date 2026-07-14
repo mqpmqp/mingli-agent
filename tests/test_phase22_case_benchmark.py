@@ -71,6 +71,12 @@ class Phase22Tests(unittest.TestCase):
         self.assertTrue(result.validation_closure_passed)
         self.assertEqual(30, result.qualified_gold_unique_person_cases)
         self.assertTrue(result.product_accuracy_claim_allowed)
+    def test_privacy_failure_blocks_accuracy_claim_even_with_thirty_gold(self):
+        cases = [qualified_case(index, "gold") for index in range(30)]
+        result = run_case_benchmark({"registry_id": "privacy-accuracy-contract", "minimum_cases_for_product_claim": 30, "pii_leak_count": 1, "cases": cases})
+        self.assertEqual(30, result.qualified_gold_unique_person_cases)
+        self.assertFalse(result.privacy_coverage_passed)
+        self.assertFalse(result.product_accuracy_claim_allowed)
     def test_thirty_gold_scenarios_for_one_person_count_once(self):
         cases = [qualified_case(index, "gold", person_case_id="person:one") for index in range(30)]
         result = run_case_benchmark({"registry_id": "one-person-contract", "minimum_cases_for_product_claim": 30, "pii_leak_count": 0, "cases": cases})
@@ -98,5 +104,36 @@ class Phase22Tests(unittest.TestCase):
     def test_duplicate_case_rejected(self):
         case = {"case_id": "x", "case_class": "synthetic", "predicted_claims": {}, "observed_claims": {}}
         with self.assertRaises(Phase22InputError): run_case_benchmark({"cases": [case, case]})
+    def test_malformed_case_and_claim_records_are_rejected(self):
+        with self.assertRaises(Phase22InputError):
+            run_case_benchmark({"cases": ["not-an-object"]})
+        malformed = qualified_case(0, "gold")
+        malformed["predicted_claims"] = []
+        with self.assertRaises(Phase22InputError):
+            run_case_benchmark({"cases": [malformed]})
+    def test_scenario_review_and_privacy_failures_fail_closed(self):
+        one_scenario = [qualified_case(index, "gold") for index in range(10)]
+        one_scenario.extend(qualified_case(index + 10, "silver") for index in range(20))
+        for case in one_scenario:
+            case["scenario_id"] = "career"
+        scenario = run_case_benchmark({"pii_leak_count": 0, "cases": one_scenario})
+        self.assertFalse(scenario.scenario_coverage_passed)
+        self.assertIn("scenario_coverage_not_met", scenario.validation_closure_failures)
+
+        privacy = run_case_benchmark({"pii_leak_count": 1, "cases": [qualified_case(index, "gold") for index in range(30)]})
+        self.assertFalse(privacy.privacy_coverage_passed)
+        self.assertIn("privacy_coverage_not_met", privacy.validation_closure_failures)
+
+        unreviewed = [qualified_case(index, "gold") for index in range(30)]
+        unreviewed[0]["double_review_complete"] = False
+        review = run_case_benchmark({"pii_leak_count": 0, "cases": unreviewed})
+        self.assertFalse(review.review_coverage_passed)
+        self.assertIn("review_coverage_not_met", review.validation_closure_failures)
+
+        private = [qualified_case(index, "gold") for index in range(30)]
+        private[0]["deidentified"] = False
+        privacy = run_case_benchmark({"pii_leak_count": 0, "cases": private})
+        self.assertFalse(privacy.privacy_coverage_passed)
+        self.assertIn("privacy_coverage_not_met", privacy.validation_closure_failures)
 
 if __name__ == "__main__": unittest.main()

@@ -10,6 +10,10 @@ class Phase19Tests(unittest.TestCase):
     def test_integer_qian_and_components(self):
         result = calculate_chenggu({"calendar": "lunar", "birth_date": "1984-01-01", "birth_time": "00:00"})
         self.assertEqual(39, result.total_qian); self.assertEqual(39, sum(result.components_qian.values())); self.assertFalse(result.verse_available)
+        self.assertEqual("not_used_for_weight_calculation", result.conventions["gender_basis"])
+        male = calculate_chenggu({"calendar": "lunar", "birth_date": "1984-01-01", "birth_time": "00:00", "gender": "male"})
+        female = calculate_chenggu({"calendar": "lunar", "birth_date": "1984-01-01", "birth_time": "00:00", "gender": "female"})
+        self.assertEqual(male.canonical_hash, female.canonical_hash)
 
     def test_roundtrip_and_leap_convention(self):
         lunar = solar_to_lunar(__import__("datetime").date(1990, 3, 15)); self.assertEqual((1990, 2, 19, False), (lunar.year, lunar.month, lunar.day, lunar.is_leap_month))

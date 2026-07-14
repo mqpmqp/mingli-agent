@@ -8,10 +8,10 @@ from typing import Literal, Mapping, Sequence
 
 from .contracts.serialization import canonical_json, digest
 
-PHASE22_SCHEMA_VERSION = "real-case-backtest-report@0.2"
-PHASE22_METHOD_ID = "consented-deidentified-case-benchmark@0.2.0"
-PHASE22_CALCULATION_VERSION = "0.2.0"
-PHASE22_DECISION_ID = "PHASE_22_REAL_CASE_BENCHMARK_BACKTEST_R1_CONDITIONAL"
+PHASE22_SCHEMA_VERSION = "real-case-backtest-report@0.3"
+PHASE22_METHOD_ID = "consented-deidentified-case-benchmark@0.3.0"
+PHASE22_CALCULATION_VERSION = "0.3.0"
+PHASE22_DECISION_ID = "PHASE_22_REAL_CASE_BENCHMARK_BACKTEST_R2_CONDITIONAL"
 REGISTRY_RESOURCE = "phase22_real_case_registry_v0.1.json"
 ALLOWED_LABELS = frozenset({"supportive", "mixed", "challenging"})
 REQUIRED_UNIQUE_PERSON_CASES = 30
@@ -143,8 +143,20 @@ def evaluate_validation_closure(
     comparable_claims = sum(score.comparable_claims for score in qualified)
     scenario_ids = {score.scenario_id for score in qualified if score.scenario_id is not None}
     scenario_coverage_passed = len(scenario_ids) >= REQUIRED_SCENARIOS
-    review_coverage_passed = bool(qualified)
-    privacy_coverage_passed = bool(qualified) and pii_leak_count == 0
+    review_failure_codes = {"real_case_missing_double_review", "real_case_missing_adjudication"}
+    review_coverage_passed = bool(qualified) and not any(
+        score.case_class == "real"
+        and score.evidence_tier in {"gold", "silver"}
+        and bool(review_failure_codes.intersection(score.warnings))
+        for score in scores
+    )
+    privacy_failure_codes = {"real_case_not_deidentified"}
+    privacy_coverage_passed = bool(qualified) and pii_leak_count == 0 and not any(
+        score.case_class == "real"
+        and score.evidence_tier in {"gold", "silver"}
+        and bool(privacy_failure_codes.intersection(score.warnings))
+        for score in scores
+    )
 
     failures: list[str] = []
     if unique_people < REQUIRED_UNIQUE_PERSON_CASES:
@@ -273,13 +285,21 @@ def run_case_benchmark(registry: Mapping[str, object] | None = None) -> CaseBenc
     unresolved = sum(score.unresolved for score in real_scores)
     eligible_count = len(real_scores)
     closure = evaluate_validation_closure(scores, pii_leak_count=pii_leak_count)
-    claim_allowed = closure.qualified_gold_unique_person_cases >= minimum
+    claim_allowed = (
+        closure.qualified_gold_unique_person_cases >= minimum
+        and closure.review_coverage_passed
+        and closure.privacy_coverage_passed
+    )
     rate = format(matches / comparable, ".4f") if comparable else None
     warnings = ["retrospective_exact_match_is_not_prospective_validity", "synthetic_cases_never_count_as_real", "silver_cases_never_count_toward_product_accuracy_claim"]
     if eligible_count == 0:
         warnings.append("no_eligible_real_cases_accuracy_not_evaluated")
     if closure.qualified_gold_unique_person_cases < minimum:
         warnings.append("minimum_gold_case_threshold_not_met_for_product_accuracy_claim")
+    if not closure.review_coverage_passed:
+        warnings.append("review_coverage_not_met_for_product_accuracy_claim")
+    if not closure.privacy_coverage_passed:
+        warnings.append("privacy_coverage_not_met_for_product_accuracy_claim")
     body = {"registry_id": registry_id, "total_records": len(scores), "eligible_real_cases": eligible_count, "eligible_gold_cases": len(gold_scores), "eligible_silver_cases": len(silver_scores), "synthetic_contract_cases": sum(score.case_class == "synthetic" for score in scores), "comparable_claims": comparable, "matches": matches, "mismatches": mismatches, "unresolved": unresolved, "exact_match_rate": rate, **asdict(closure), "product_accuracy_claim_allowed": claim_allowed, "minimum_real_cases": minimum, "case_scores": [asdict(score) for score in scores], "warnings": warnings}
     return CaseBenchmarkReport(
         registry_id=registry_id,

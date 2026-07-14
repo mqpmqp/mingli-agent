@@ -10,6 +10,11 @@ class Phase17Tests(unittest.TestCase):
     def test_exam_layers_and_hard_boundary(self):
         result=evaluate_special_scenario(self.source,scenario="career_exam",target_id=self.target,reality_context={"major_eligible":False,"preparation_months":1})
         self.assertEqual(SCENARIO_LAYERS["career_exam"],tuple(item.layer for item in result.layers))
+        self.assertEqual(
+            ("system_fit", "admission_outlook", "exam_outlook", "position_direction", "preparation_strategy"),
+            SCENARIO_LAYERS["career_exam"],
+        )
+        self.assertEqual("unresolved", next(x for x in result.layers if x.layer == "exam_outlook").label)
         self.assertFalse(next(x for x in result.layers if x.layer=="system_fit").reality_override)
         self.assertEqual("conflict",next(x for x in result.layers if x.layer=="admission_outlook").label)
     def test_reunion_layers_and_scope(self):

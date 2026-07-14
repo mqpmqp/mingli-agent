@@ -21,10 +21,10 @@ from .phase19 import calculate_chenggu
 from .phase20 import render_yuan_eight_sections
 from .phase21 import generate_five_year_outlook, renderer_years
 
-PHASE23_SCHEMA_VERSION = "mingli-agent-runtime-result@0.2"
-PHASE23_METHOD_ID = "deterministic-mingli-agent-runtime@0.2.0"
-PHASE23_CALCULATION_VERSION = "0.2.0"
-PHASE23_DECISION_ID = "PHASE_23_END_TO_END_RUNTIME_R2_APPROVED"
+PHASE23_SCHEMA_VERSION = "mingli-agent-runtime-result@0.3"
+PHASE23_METHOD_ID = "deterministic-mingli-agent-runtime@0.3.0"
+PHASE23_CALCULATION_VERSION = "0.3.0"
+PHASE23_DECISION_ID = "PHASE_23_END_TO_END_RUNTIME_R3_APPROVED"
 RUNTIME_STAGES = (
     "intake_validation",
     "scenario_router",
@@ -80,6 +80,7 @@ class MingLiRuntimeResult:
     renderer: Mapping[str, object]
     final_answer: str
     effective_domain_statuses: Mapping[str, str]
+    effective_domain_confidence: Mapping[str, str]
     warnings: tuple[str, ...]
     canonical_hash: str
     schema_version: str = field(default=PHASE23_SCHEMA_VERSION, init=False)
@@ -102,6 +103,8 @@ def _validated_input(raw: Mapping[str, object]) -> tuple[Mapping[str, object], i
         raise Phase23InputError("runtime input must be an object")
     if "baseline_domains" in raw:
         raise Phase23InputError("baseline_domains is no longer accepted; Phase 16 domain contracts are authoritative")
+    if "overall_status" in raw:
+        raise Phase23InputError("overall_status is derived by the runtime and cannot be supplied")
     chart_input = raw.get("chart_input")
     anchor = raw.get("anchor_year")
     reality = raw.get("reality", {})
@@ -157,11 +160,17 @@ def _domain_evidence(by_domain: Mapping[str, Mapping[str, object]]) -> list[dict
     return records
 
 
-def _effective_statuses(
+def _effective_domains(
     by_domain: Mapping[str, Mapping[str, object]],
     fusion: Mapping[str, object],
-) -> dict[str, str]:
+) -> tuple[dict[str, str], dict[str, str]]:
     statuses = {domain: LABEL_TO_STATUS[str(by_domain[domain]["judgement_label"])] for domain in DOMAINS}
+    confidence = {
+        domain: str(by_domain[domain].get("confidence"))
+        if by_domain[domain].get("confidence") in {"high", "medium", "low"}
+        else "low"
+        for domain in DOMAINS
+    }
     for claim in fusion.get("claims", []):
         if not isinstance(claim, Mapping) or claim.get("scope") != "runtime:baseline":
             continue
@@ -170,16 +179,23 @@ def _effective_statuses(
             continue
         if claim.get("status") == "unresolved_conflict" or claim.get("confidence") == "low":
             statuses[domain] = "unresolved"
+            confidence[domain] = "low"
         elif claim.get("hard_override_direction") == "support":
             statuses[domain] = "supportive"
+            confidence[domain] = str(claim.get("confidence"))
         elif claim.get("hard_override_direction") == "contradict":
             statuses[domain] = "challenging"
+            confidence[domain] = str(claim.get("confidence"))
         elif claim.get("status") == "resolved_by_priority":
             winning = set(claim.get("winning_evidence_ids", []))
             evidence = [item for item in fusion.get("evidence", []) if isinstance(item, Mapping) and item.get("evidence_id") in winning]
             if evidence:
                 statuses[domain] = "supportive" if evidence[0].get("direction") == "support" else "challenging"
-    return statuses
+                confidence[domain] = str(claim.get("confidence"))
+    for domain, status in statuses.items():
+        if status == "unresolved":
+            confidence[domain] = "low"
+    return statuses, confidence
 
 
 def run_mingli_agent(raw: Mapping[str, object]) -> MingLiRuntimeResult:
@@ -207,7 +223,7 @@ def run_mingli_agent(raw: Mapping[str, object]) -> MingLiRuntimeResult:
     context = normalize_reality_context(reality_raw)
     fusion_items = _domain_evidence(by_domain) + [dict(item) for item in evidence_raw]
     fusion = orchestrate_evidence_fusion(context, fusion_items).to_dict()
-    effective = _effective_statuses(by_domain, fusion)
+    effective, effective_confidence = _effective_domains(by_domain, fusion)
     scenario_result = None
     if scenario is not None:
         scenario_result = evaluate_special_scenario(
@@ -230,7 +246,7 @@ def run_mingli_agent(raw: Mapping[str, object]) -> MingLiRuntimeResult:
         "profile": {key: chart_input.get(key) for key in ("calendar", "birth_date", "birth_time")},
         "chenggu": chenggu,
         "domains": effective,
-        "overall_status": raw.get("overall_status", "unresolved"),
+        "domain_confidence": effective_confidence,
         "five_years": renderer_years(five_year),
         "advice_codes": raw.get("advice_codes", []),
     }).to_dict()
@@ -253,7 +269,7 @@ def run_mingli_agent(raw: Mapping[str, object]) -> MingLiRuntimeResult:
         **artifacts,
         "reality_context": context.to_dict(),
         "evidence_fusion": fusion,
-        "confidence_gate": effective,
+        "confidence_gate": {"statuses": effective, "confidence": effective_confidence},
         "chenggu": chenggu,
         "five_year": five_year.to_dict(),
         "yuan_renderer": renderer,
@@ -282,6 +298,7 @@ def run_mingli_agent(raw: Mapping[str, object]) -> MingLiRuntimeResult:
         "renderer": renderer,
         "final_answer": renderer["rendered_text"],
         "effective_domain_statuses": effective,
+        "effective_domain_confidence": effective_confidence,
         "warnings": list(warnings),
     }
     return MingLiRuntimeResult(
@@ -296,6 +313,7 @@ def run_mingli_agent(raw: Mapping[str, object]) -> MingLiRuntimeResult:
         renderer,
         str(renderer["rendered_text"]),
         effective,
+        effective_confidence,
         warnings,
         digest({"record_type": "MingLiRuntimeResult", "payload": body}),
     )
@@ -317,7 +335,6 @@ def benchmark_phase23() -> dict[str, object]:
             "weight": 0, "priority": 100, "verified": True,
         }],
         "annual_evidence": [{"evidence_id": "c28", "year": 2028, "domain": "career", "signal": 2, "source_type":"timing", "source_id":"phase14"}],
-        "overall_status": "mixed",
         "advice_codes": ["verify_reality"],
     }
     result = run_mingli_agent(payload)

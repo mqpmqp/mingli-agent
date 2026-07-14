@@ -65,7 +65,7 @@ class Phase24Tests(unittest.TestCase):
         self.assertEqual({"PRODUCT_RELEASE_AUTHORIZATION"}, {item["blocker_id"] for item in result.blockers})
     def test_release_gate_is_not_circular(self):
         self.assertFalse(self.result.provenance["benchmark_helpers_invoked"])
-        self.assertEqual("independent_contract_checks@0.1",self.result.provenance["gate_source"])
+        self.assertEqual("independent_contract_checks@0.2",self.result.provenance["gate_source"])
     def test_benchmark_contract(self):
         result = benchmark_phase24(self.result); self.assertEqual(result["assertions_total"], result["passed"])
 

@@ -12,8 +12,8 @@ from .phase17_contracts import (
     SpecialScenarioAssessmentResult, record_digest,
 )
 
-DEFAULT_PHASE17_PROFILE_ID = "special-scenario-rules-r1@0.1"
-RULE_RESOURCE = "phase17_special_scenario_rules_v0.1.json"
+DEFAULT_PHASE17_PROFILE_ID = "special-scenario-rules-r1@0.2"
+RULE_RESOURCE = "phase17_special_scenario_rules_v0.2.json"
 BLOCKED_OUTPUTS = {"guaranteed_admission", "guaranteed_reunion", "marriage_prediction", "natural_language_renderer"}
 
 
@@ -164,7 +164,7 @@ def benchmark_phase17() -> dict[str, object]:
     for scenario,reality in cases:
         result=evaluate_special_scenario(source,scenario=scenario,target_id=target,reality_context=reality)
         expected=SCENARIO_LAYERS[scenario]
-        checks=[tuple(item.layer for item in result.layers)==expected,len(result.layers)==4,result.prediction_validity=="not_evaluated",result.canonical_hash.startswith("sha256:"),all(item.canonical_digest.startswith("sha256:") for item in result.layers),result.canonical_hash==evaluate_special_scenario(json.loads(json.dumps(source,sort_keys=True)),scenario=scenario,target_id=target,reality_context=json.loads(json.dumps(reality,sort_keys=True))).canonical_hash]
+        checks=[tuple(item.layer for item in result.layers)==expected,len(result.layers)==len(expected),result.prediction_validity=="not_evaluated",result.canonical_hash.startswith("sha256:"),all(item.canonical_digest.startswith("sha256:") for item in result.layers),result.canonical_hash==evaluate_special_scenario(json.loads(json.dumps(source,sort_keys=True)),scenario=scenario,target_id=target,reality_context=json.loads(json.dumps(reality,sort_keys=True))).canonical_hash]
         for index,ok in enumerate(checks,1): check(ok,f"{scenario} case check {index}")
     married=evaluate_special_scenario(source,scenario="relationship_reunion",target_id=target,reality_context={"other_party_status":"married"})
     check(next(x for x in married.layers if x.layer=="attraction").reality_override is False,"marriage leaked into attraction")

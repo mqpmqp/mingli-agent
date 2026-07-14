@@ -6,13 +6,13 @@ from typing import Literal, Mapping
 
 from .contracts.serialization import canonical_json, digest
 
-PHASE17_SCHEMA_VERSION = "special-scenario-assessment-result@0.1"
-PHASE17_METHOD_ID = "special-scenario-rules@0.1.0"
-PHASE17_CALCULATION_VERSION = "0.1.0"
-PHASE17_DECISION_ID = "PHASE_17_SPECIAL_SCENARIO_RULES_R1_APPROVED"
+PHASE17_SCHEMA_VERSION = "special-scenario-assessment-result@0.2"
+PHASE17_METHOD_ID = "special-scenario-rules@0.2.0"
+PHASE17_CALCULATION_VERSION = "0.2.0"
+PHASE17_DECISION_ID = "PHASE_17_SPECIAL_SCENARIO_RULES_R2_APPROVED"
 SCENARIOS = ("career_exam", "relationship_reunion")
 SCENARIO_LAYERS = {
-    "career_exam": ("system_fit", "admission_outlook", "position_direction", "preparation_strategy"),
+    "career_exam": ("system_fit", "admission_outlook", "exam_outlook", "position_direction", "preparation_strategy"),
     "relationship_reunion": ("attraction", "recontact", "reunion", "stability"),
 }
 LAYER_LABELS = ("support", "conflict", "conditional", "unresolved", "not_applicable")

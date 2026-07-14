@@ -14,10 +14,10 @@ from .phase21 import Phase21InputError, generate_five_year_outlook
 from .phase22 import CaseBenchmarkReport, run_case_benchmark
 from .phase23 import RUNTIME_STAGES, run_mingli_agent
 
-PHASE24_SCHEMA_VERSION = "release-candidate-assessment@0.3"
-PHASE24_METHOD_ID = "independent-local-rc-product-gate@0.3.0"
-PHASE24_CALCULATION_VERSION = "0.3.0"
-PHASE24_DECISION_ID = "PHASE_24_RELEASE_CANDIDATE_PRODUCT_VALIDATION_R2_HOLD"
+PHASE24_SCHEMA_VERSION = "release-candidate-assessment@0.4"
+PHASE24_METHOD_ID = "independent-local-rc-product-gate@0.4.0"
+PHASE24_CALCULATION_VERSION = "0.4.0"
+PHASE24_DECISION_ID = "PHASE_24_RELEASE_CANDIDATE_PRODUCT_VALIDATION_R3_HOLD"
 
 
 @dataclass(frozen=True)
@@ -77,8 +77,12 @@ def _phase17_check() -> PhaseGate:
         reality_context={"legal_contact_restriction": True, "root_cause_resolved": True},
     )
     layers = {item.layer: item for item in result.layers}
+    exam = evaluate_special_scenario(source, scenario="career_exam", target_id=target)
+    exam_layers = {item.layer: item for item in exam.layers}
     return _result(17, (
         not validate_phase17_rules(),
+        tuple(exam_layers) == ("system_fit", "admission_outlook", "exam_outlook", "position_direction", "preparation_strategy"),
+        exam_layers["exam_outlook"].label == "unresolved" and exam_layers["exam_outlook"].confidence == "low",
         layers["recontact"].reality_override,
         layers["reunion"].label == "conflict",
         layers["stability"].label == "conflict",
@@ -109,6 +113,7 @@ def _phase19_check() -> PhaseGate:
         result.total_qian == 37,
         result.display_weight == "3两7钱",
         result.verse_available is False,
+        result.conventions["gender_basis"] == "not_used_for_weight_calculation",
         result.prediction_validity == "not_evaluated",
     ))
 
@@ -118,14 +123,15 @@ def _phase20_check() -> PhaseGate:
         "profile":{"calendar":"solar","birth_date":"1990-03-15","birth_time":"10:30"},
         "chenggu":{"display_weight":"3两7钱","verse_available":False},
         "domains":{"career":"mixed","wealth":"challenging","relationship":"unresolved"},
-        "overall_status":"mixed",
-        "five_years":[{"year":year,"status":"mixed"} for year in range(2026,2031)],
+        "domain_confidence":{"career":"medium","wealth":"medium","relationship":"low"},
+        "five_years":[{"year":year,"status":"mixed","confidence":"low"} for year in range(2026,2031)],
     })
     return _result(20, (
         tuple(item.title for item in result.sections) == SECTION_TITLES,
         len(result.sections) == 8,
         result.rendered_text.count(DISCLAIMER) == 1,
         result.rendered_text.endswith(DISCLAIMER),
+        "置信度：低" in result.sections[6].content,
         result.prediction_validity == "not_evaluated",
     ))
 
@@ -148,6 +154,8 @@ def _phase21_check() -> PhaseGate:
     return _result(21, (
         [item.year for item in result.years] == [2026,2027,2028,2029,2030],
         next(item for item in result.years if item.year == 2028).domain_statuses["career"] == "supportive",
+        next(item for item in result.years if item.year == 2028).domain_confidence["career"] == "high",
+        all(item.confidence in {"high", "medium", "low"} for item in result.years),
         rejected,
         result.prediction_validity == "not_evaluated",
     ))
@@ -183,6 +191,7 @@ def _phase23_check() -> PhaseGate:
         all(item.status == "completed" for item in result.stages),
         result.artifacts["domain_contracts"]["phase15_result_hash"] == result.artifacts["domain_rules"]["canonical_hash"],
         result.effective_domain_statuses["wealth"] == "challenging",
+        result.effective_domain_confidence["wealth"] == result.evidence_fusion["claims"][0]["confidence"],
         len(result.renderer["sections"]) == 8,
         result.final_answer.endswith(DISCLAIMER),
         result.prediction_validity == "not_evaluated",
@@ -216,7 +225,7 @@ def assess_release_candidate(case_report: CaseBenchmarkReport | None = None) -> 
     decision = "release" if product_ready else ("technical_rc_only_product_hold" if technical_ready else "technical_hold")
     provenance = {
         "phase_range":"16-24",
-        "gate_source":"independent_contract_checks@0.1",
+        "gate_source":"independent_contract_checks@0.2",
         "benchmark_helpers_invoked":False,
         "chenggu_table_id":table["table_id"],
         "real_case_registry_hash":resolved_case_report.canonical_hash,
