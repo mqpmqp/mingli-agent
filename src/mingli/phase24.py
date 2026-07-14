@@ -11,12 +11,12 @@ from .phase18 import orchestrate_evidence_fusion
 from .phase19 import calculate_chenggu, load_chenggu_table, validate_phase19_table
 from .phase20 import DISCLAIMER, SECTION_TITLES, render_yuan_eight_sections
 from .phase21 import Phase21InputError, generate_five_year_outlook
-from .phase22 import run_case_benchmark
+from .phase22 import CaseBenchmarkReport, run_case_benchmark
 from .phase23 import RUNTIME_STAGES, run_mingli_agent
 
-PHASE24_SCHEMA_VERSION = "release-candidate-assessment@0.2"
-PHASE24_METHOD_ID = "independent-local-rc-product-gate@0.2.0"
-PHASE24_CALCULATION_VERSION = "0.2.0"
+PHASE24_SCHEMA_VERSION = "release-candidate-assessment@0.3"
+PHASE24_METHOD_ID = "independent-local-rc-product-gate@0.3.0"
+PHASE24_CALCULATION_VERSION = "0.3.0"
 PHASE24_DECISION_ID = "PHASE_24_RELEASE_CANDIDATE_PRODUCT_VALIDATION_R2_HOLD"
 
 
@@ -34,6 +34,9 @@ class ReleaseCandidateAssessment:
     release_decision: str
     local_technical_rc_ready: bool
     product_release_ready: bool
+    product_release_status: Literal["PRODUCT_RELEASE_HOLD"]
+    validation_closure_passed: bool
+    product_accuracy_claim_allowed: bool
     phase_gates: tuple[PhaseGate, ...]
     blockers: tuple[Mapping[str, str], ...]
     codex_handoff: tuple[Mapping[str, str], ...]
@@ -159,6 +162,7 @@ def _phase22_check() -> PhaseGate:
     })
     return _result(22, (
         empty.eligible_real_cases == 0,
+        not empty.validation_closure_passed,
         empty.exact_match_rate is None,
         not empty.product_accuracy_claim_allowed,
         synthetic.synthetic_contract_cases == 1,
@@ -196,17 +200,18 @@ def run_independent_release_checks() -> tuple[PhaseGate, ...]:
     return tuple(check() for _, check in INDEPENDENT_CHECKS)
 
 
-def assess_release_candidate() -> ReleaseCandidateAssessment:
+def assess_release_candidate(case_report: CaseBenchmarkReport | None = None) -> ReleaseCandidateAssessment:
     gates = run_independent_release_checks()
     technical_ready = all(gate.status == "passed" for gate in gates)
-    case_report = run_case_benchmark()
+    resolved_case_report = case_report or run_case_benchmark()
     table = load_chenggu_table()
-    blockers = (
-        {"blocker_id":"P22_VALIDATION_CLOSURE","owner":"authorized-data-process","status":"open","detail":f"当前合格真实案例 {case_report.eligible_real_cases}；RC2 validation closure 需要至少 30 个合格案例（Gold >= 10、Silver <= 20），产品准确率声明仍只计至少 30 个 Gold。"},
-    )
-    handoff = (
-        {"task_id":"DATA_01","action":"collect_tiered_validation_cases","command":"由授权数据流程导入去标识 Gold/Silver 私有案例","acceptance":"validation closure 达到 30 个唯一合格案例，其中 Gold 不少于 10；准确率声明另需 Gold 不少于 30"},
-    )
+    blockers: list[Mapping[str, str]] = []
+    handoff: list[Mapping[str, str]] = []
+    if not resolved_case_report.validation_closure_passed:
+        blockers.append({"blocker_id":"P22_VALIDATION_CLOSURE","owner":"authorized-data-process","status":"open","detail":f"当前合格唯一人员 {resolved_case_report.qualified_unique_person_cases}；validation closure failures: {','.join(resolved_case_report.validation_closure_failures)}"})
+        handoff.append({"task_id":"DATA_01","action":"collect_tiered_validation_cases","command":"由授权数据流程导入去标识 Gold/Silver 私有案例","acceptance":"validation closure 达到 30 个唯一合格案例，其中 Gold 不少于 10；准确率声明另需 30 个唯一 Gold 人员"})
+    blockers.append({"blocker_id":"PRODUCT_RELEASE_AUTHORIZATION","owner":"product-review","status":"open","detail":"Validation closure 与 product accuracy claim 均不构成产品发布授权；当前仍为 PRODUCT_RELEASE_HOLD。"})
+    handoff.append({"task_id":"RELEASE_01","action":"independent_product_release_review","command":"由产品负责人独立审查发布条件","acceptance":"另行明确授权产品发布；不得由 validation closure 自动推导"})
     product_ready = technical_ready and not blockers
     decision = "release" if product_ready else ("technical_rc_only_product_hold" if technical_ready else "technical_hold")
     provenance = {
@@ -214,20 +219,38 @@ def assess_release_candidate() -> ReleaseCandidateAssessment:
         "gate_source":"independent_contract_checks@0.1",
         "benchmark_helpers_invoked":False,
         "chenggu_table_id":table["table_id"],
-        "real_case_registry_hash":case_report.canonical_hash,
+        "real_case_registry_hash":resolved_case_report.canonical_hash,
+        "validation_closure_passed":resolved_case_report.validation_closure_passed,
+        "product_accuracy_claim_allowed":resolved_case_report.product_accuracy_claim_allowed,
     }
     warnings = ("technical_rc_does_not_equal_product_validity","prediction_validity_not_evaluated","external_ci_must_remain_a_separate_merge_gate")
     body = {
         "release_decision":decision,
         "local_technical_rc_ready":technical_ready,
         "product_release_ready":product_ready,
+        "product_release_status":"PRODUCT_RELEASE_HOLD",
+        "validation_closure_passed":resolved_case_report.validation_closure_passed,
+        "product_accuracy_claim_allowed":resolved_case_report.product_accuracy_claim_allowed,
         "phase_gates":[asdict(gate) for gate in gates],
-        "blockers":list(blockers),
-        "codex_handoff":list(handoff),
+        "blockers":blockers,
+        "codex_handoff":handoff,
         "provenance":provenance,
         "warnings":list(warnings),
     }
-    return ReleaseCandidateAssessment(decision,technical_ready,product_ready,gates,blockers,handoff,provenance,warnings,digest({"record_type":"ReleaseCandidateAssessment","payload":body}))
+    return ReleaseCandidateAssessment(
+        release_decision=decision,
+        local_technical_rc_ready=technical_ready,
+        product_release_ready=product_ready,
+        product_release_status="PRODUCT_RELEASE_HOLD",
+        validation_closure_passed=resolved_case_report.validation_closure_passed,
+        product_accuracy_claim_allowed=resolved_case_report.product_accuracy_claim_allowed,
+        phase_gates=gates,
+        blockers=tuple(blockers),
+        codex_handoff=tuple(handoff),
+        provenance=provenance,
+        warnings=warnings,
+        canonical_hash=digest({"record_type":"ReleaseCandidateAssessment","payload":body}),
+    )
 
 
 def benchmark_phase24(assessment: ReleaseCandidateAssessment | None = None) -> dict[str, object]:
@@ -235,10 +258,13 @@ def benchmark_phase24(assessment: ReleaseCandidateAssessment | None = None) -> d
     checks = (
         result.local_technical_rc_ready,
         not result.product_release_ready,
+        result.product_release_status == "PRODUCT_RELEASE_HOLD",
+        not result.validation_closure_passed,
+        not result.product_accuracy_claim_allowed,
         result.release_decision == "technical_rc_only_product_hold",
         tuple(gate.phase for gate in result.phase_gates) == tuple(range(16,24)),
         all(gate.status == "passed" for gate in result.phase_gates),
-        {item["blocker_id"] for item in result.blockers} == {"P22_VALIDATION_CLOSURE"},
+        {item["blocker_id"] for item in result.blockers} == {"P22_VALIDATION_CLOSURE","PRODUCT_RELEASE_AUTHORIZATION"},
         result.provenance.get("benchmark_helpers_invoked") is False,
         result.prediction_validity == "not_evaluated",
     )
