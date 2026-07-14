@@ -1,17 +1,18 @@
 name: Phase7 Day Master Hotfix Once
 
 on:
-  push:
+  pull_request_target:
     branches:
       - hotfix/phase7-day-master-position
-    paths:
-      - .github/workflows/phase7-hotfix-once.yml
+    types:
+      - opened
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -146,7 +147,7 @@ if __name__ == "__main__":
 ''', encoding="utf-8")
           PY
 
-      - name: Commit verified source candidate
+      - name: Commit source hotfix
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
