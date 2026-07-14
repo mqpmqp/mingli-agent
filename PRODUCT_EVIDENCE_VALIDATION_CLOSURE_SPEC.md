@@ -14,8 +14,8 @@
 
 仅允许以下六项工作：
 
-1. P19 来源、版权和内容审核闭环；
-2. P22 至少 30 个合格真实案例；
+1. P19 核心包不含歌诀原文的发布门禁；
+2. P22 Gold/Silver 分层验证闭环；
 3. 盲评与评分合同；
 4. 校准、覆盖、拒答及分场景表现统计；
 5. 生成 `PRODUCT_VALIDATION_REPORT.md`；
@@ -29,39 +29,32 @@
 - 修改 P16–P24 的领域判断语义、Evidence Fusion 优先级或 Yuan 八段结构；
 - 为提高指标而修改既有预测输出；
 - 使用合成案例、回填标签或事后改写预测冒充真实验证；
-- 在来源或授权不明时补写完整称骨歌诀；
+- 把完整称骨歌诀、现代白话解释或歌诀资源写入 RC2 核心包；
 - 提交原始身份信息、联系方式、精确地址或可重新识别的案例材料；
 - 在验证完成前声明产品准确率、预测有效性或优于人工命理师。
 
-## 4. P19 来源、版权与内容审核
+## 4. P19 RC2 核心包边界
 
-### 4.1 来源登记合同
+### 4.1 保留能力
 
-每个称骨版本必须登记：
+- P19 确定性称骨算法；
+- `chenggu-common-table-r1@0.1` 骨重表及年、月、日、时权重；
+- `display_weight`、`canonical_hash` 与既有计算约定；
+- 固定输出 `verse_available=false`。
 
-- `source_id`
-- 书名、版本、出版信息或授权来源
-- 页码或稳定定位信息
-- 来源文件 SHA-256
-- `rights_status`: `public_domain | licensed | permission_granted | restricted | unknown`
-- `content_status`: `verified | paraphrase_only | blocked`
-- 审核人、审核日期、审核备注
-- 与当前权重表及其他版本的差异
+### 4.2 删除范围
 
-### 4.2 内容门禁
+- 完整称骨歌诀原文不属于 RC2 范围；
+- 歌诀 package-data 与现代白话解释不得进入核心包；
+- 歌诀来源、版权或内容审核不再是 RC2 blocker；
+- P19 数值算法与歌诀内容继续解耦，任何后续内容包不得改变骨重计算结果。
 
-- 只有 `rights_status` 允许且 `content_status=verified` 的内容可以进入运行时资源。
-- `restricted`、`unknown` 或存在版本冲突时，运行时必须继续输出 `verse_available=false`。
-- 公共仓库不得保存未经授权的完整歌诀文本。
-- 允许保存来源元数据、哈希、差异摘要和审核结论；完整受限文本应留在授权的私有材料库。
-- P19 数值算法与歌诀内容必须保持解耦，内容审核不得改变既有称骨重量计算结果。
+### 4.3 状态与未来扩展
 
-### 4.3 P19 完成条件
-
-- 来源登记 Schema 与校验器通过；
-- 至少一个可合法使用的完整版本通过双人审核，或正式结论为 `blocked_no_authorized_source`；
-- 源树与 wheel 的 P19 内容状态及哈希一致；
-- 未授权内容无法通过 package-data 门禁。
+- `p19_verse_blocker=removed_by_design`；
+- `p19_algorithm_status=usable`；
+- `p19_verse_pack_status=future_optional_pack`；
+- optional verse pack 必须是后续独立版本、独立资源、独立审核，不属于 `v0.2.0-rc2` 决策门禁。
 
 ## 5. P22 合格真实案例合同
 
@@ -92,10 +85,13 @@
 
 ### 5.3 数量门槛
 
-- 合格真实案例总数必须 `>= 30`；
+- validation closure 允许 Gold 与 Silver 合并计数，但必须满足 `qualified_validation_cases>=30`、`gold_cases>=10`、`silver_cases<=20`、`comparable_claims>=100` 和 `scenario_coverage>=3`；
+- 产品准确率声明只允许 Gold 计数，必须满足 `eligible_gold_cases>=30` 且 `prospective_only=true`；
+- Silver 只能进入辅助验证与 validation closure，不能计入产品准确率声明；
+- Bronze 永不计入 benchmark；
 - 合成案例永不计入真实案例数量或产品指标；
 - 不合格案例必须保留排除原因，禁止静默删除；
-- 30 个案例仅允许启动产品验证评审，不自动产生准确率宣传权。
+- validation closure 通过不自动产生准确率宣传权。
 
 ## 6. 盲评与评分合同
 
@@ -215,8 +211,9 @@
 
 只有全部满足时，才允许进入 `v0.2.0-rc2` 决策：
 
-- P19 来源/版权状态已闭环，无未授权内容进入包；
-- 合格真实案例 `>= 30`；
+- P19 核心包不含歌诀原文、歌诀 package-data 或现代白话解释，且继续输出 `verse_available=false`；
+- validation closure gate 通过：`qualified_validation_cases>=30`、`gold_cases>=10`、`silver_cases<=20`、`bronze_counted=0`、`comparable_claims>=100`、`scenario_coverage>=3`；
+- `consent_rate=100%`、`pii_leak_count=0`、Gold 的 `freeze_hash_coverage=100%`、`double_review_coverage=100%`；
 - 盲评完整性检查全部通过；
 - 预登记指标计算成功且无静默排除；
 - 源树与隔离 wheel 结果一致；
@@ -224,7 +221,7 @@
 - `PRODUCT_VALIDATION_REPORT.md` 完整生成；
 - 人工评审确认结果没有过度解释。
 
-即使通过上述门禁，也只是允许决定是否制作 RC2，不自动允许公开准确率宣传或正式产品发布。
+即使通过上述门禁，也只是允许决定是否制作 RC2。只有 product accuracy claim gate 另外满足 `eligible_gold_cases>=30` 与 `prospective_only=true` 时，才可把 `product_accuracy_claim_allowed` 设为 `true`；RC2 validation closure 本身不自动允许公开准确率宣传或正式产品发布。
 
 ## 11. 受保护边界
 

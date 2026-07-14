@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import date
+from datetime import datetime
 import json
 from importlib.resources import files
 from typing import Literal, Mapping, Sequence
@@ -24,7 +24,9 @@ class Phase22InputError(ValueError):
 class CaseScore:
     case_id: str
     case_class: str
+    evidence_tier: str
     eligible_real_case: bool
+    product_accuracy_eligible: bool
     comparable_claims: int
     matches: int
     mismatches: int
@@ -37,6 +39,8 @@ class CaseBenchmarkReport:
     registry_id: str
     total_records: int
     eligible_real_cases: int
+    eligible_gold_cases: int
+    eligible_silver_cases: int
     synthetic_contract_cases: int
     comparable_claims: int
     matches: int
@@ -73,6 +77,12 @@ def _validate_claims(value: object, field_name: str) -> dict[str, str]:
     return result
 
 
+def _parse_timestamp(value: object, field_name: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(field_name)
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def run_case_benchmark(registry: Mapping[str, object] | None = None) -> CaseBenchmarkReport:
     data = dict(registry or load_case_registry())
     registry_id = str(data.get("registry_id", "external-case-registry"))
@@ -92,6 +102,9 @@ def run_case_benchmark(registry: Mapping[str, object] | None = None) -> CaseBenc
         case_class = str(item.get("case_class"))
         if case_class not in {"real", "synthetic"}:
             raise Phase22InputError("case_class must be real or synthetic")
+        evidence_tier = str(item.get("evidence_tier", "bronze"))
+        if evidence_tier not in {"gold", "silver", "bronze"}:
+            raise Phase22InputError("evidence_tier must be gold, silver or bronze")
         warnings: list[str] = []
         eligible = case_class == "real"
         if eligible and item.get("consent_status") != "granted":
@@ -108,9 +121,30 @@ def run_case_benchmark(registry: Mapping[str, object] | None = None) -> CaseBenc
             eligible = False; warnings.append("real_case_missing_external_provenance")
         if eligible:
             try:
-                date.fromisoformat(str(item.get("observed_at", "")))
+                observed_at = _parse_timestamp(item.get("observed_at"), "observed_at")
             except ValueError:
                 eligible = False; warnings.append("real_case_invalid_observation_date")
+        if eligible and item.get("double_review_complete") is not True:
+            eligible = False; warnings.append("real_case_missing_double_review")
+        if eligible and item.get("review_disagreement") is True and item.get("adjudication_status") != "completed":
+            eligible = False; warnings.append("real_case_missing_adjudication")
+        if eligible and evidence_tier == "gold":
+            if item.get("prospective_prediction") is not True:
+                eligible = False; warnings.append("gold_case_not_prospective")
+            elif not str(item.get("prediction_freeze_hash", "")).strip():
+                eligible = False; warnings.append("gold_case_missing_freeze_hash")
+            else:
+                try:
+                    frozen_at = _parse_timestamp(item.get("prediction_frozen_at"), "prediction_frozen_at")
+                    if frozen_at >= observed_at:
+                        raise ValueError("prediction must be frozen before observation")
+                except (TypeError, ValueError):
+                    eligible = False; warnings.append("gold_case_invalid_freeze_order")
+        if eligible and evidence_tier == "silver" and item.get("retrospective_external_support") is not True:
+            eligible = False; warnings.append("silver_case_missing_external_support")
+        if eligible and evidence_tier == "bronze":
+            eligible = False; warnings.append("bronze_case_excluded_from_benchmark")
+        accuracy_eligible = eligible and evidence_tier == "gold"
         predicted = _validate_claims(item.get("predicted_claims", {}), "predicted_claims")
         observed = _validate_claims(item.get("observed_claims", {}), "observed_claims")
         comparable = matches = mismatches = unresolved = 0
@@ -124,25 +158,30 @@ def run_case_benchmark(registry: Mapping[str, object] | None = None) -> CaseBenc
                 else: mismatches += 1
         if case_class == "synthetic":
             warnings.append("synthetic_case_excluded_from_accuracy")
-        scores.append(CaseScore(case_id, case_class, eligible, comparable, matches, mismatches, unresolved, tuple(warnings)))
+        scores.append(CaseScore(case_id, case_class, evidence_tier, eligible, accuracy_eligible, comparable, matches, mismatches, unresolved, tuple(warnings)))
     real_scores = [score for score in scores if score.eligible_real_case]
+    gold_scores = [score for score in scores if score.product_accuracy_eligible]
+    silver_scores = [score for score in real_scores if score.evidence_tier == "silver"]
     comparable = sum(score.comparable_claims for score in real_scores)
     matches = sum(score.matches for score in real_scores)
     mismatches = sum(score.mismatches for score in real_scores)
     unresolved = sum(score.unresolved for score in real_scores)
     eligible_count = len(real_scores)
-    claim_allowed = eligible_count >= minimum and comparable > 0
+    gold_comparable = sum(score.comparable_claims for score in gold_scores)
+    claim_allowed = len(gold_scores) >= minimum and gold_comparable > 0
     rate = format(matches / comparable, ".4f") if comparable else None
-    warnings = ["retrospective_exact_match_is_not_prospective_validity", "synthetic_cases_never_count_as_real"]
+    warnings = ["retrospective_exact_match_is_not_prospective_validity", "synthetic_cases_never_count_as_real", "silver_cases_never_count_toward_product_accuracy_claim"]
     if eligible_count == 0:
         warnings.append("no_eligible_real_cases_accuracy_not_evaluated")
-    if eligible_count < minimum:
-        warnings.append("minimum_real_case_threshold_not_met")
-    body = {"registry_id": registry_id, "total_records": len(scores), "eligible_real_cases": eligible_count, "synthetic_contract_cases": sum(score.case_class == "synthetic" for score in scores), "comparable_claims": comparable, "matches": matches, "mismatches": mismatches, "unresolved": unresolved, "exact_match_rate": rate, "product_accuracy_claim_allowed": claim_allowed, "minimum_real_cases": minimum, "case_scores": [asdict(score) for score in scores], "warnings": warnings}
+    if len(gold_scores) < minimum:
+        warnings.append("minimum_gold_case_threshold_not_met_for_product_accuracy_claim")
+    body = {"registry_id": registry_id, "total_records": len(scores), "eligible_real_cases": eligible_count, "eligible_gold_cases": len(gold_scores), "eligible_silver_cases": len(silver_scores), "synthetic_contract_cases": sum(score.case_class == "synthetic" for score in scores), "comparable_claims": comparable, "matches": matches, "mismatches": mismatches, "unresolved": unresolved, "exact_match_rate": rate, "product_accuracy_claim_allowed": claim_allowed, "minimum_real_cases": minimum, "case_scores": [asdict(score) for score in scores], "warnings": warnings}
     return CaseBenchmarkReport(
         registry_id=registry_id,
         total_records=len(scores),
         eligible_real_cases=eligible_count,
+        eligible_gold_cases=len(gold_scores),
+        eligible_silver_cases=len(silver_scores),
         synthetic_contract_cases=sum(score.case_class == "synthetic" for score in scores),
         comparable_claims=comparable,
         matches=matches,

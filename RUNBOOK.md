@@ -34,4 +34,4 @@ Then run P16–P24 `validate`/`benchmark` commands exposed by each CLI. A techni
 - Import path points elsewhere: remove stale editable installs or set `PYTHONPATH=src` for source verification; use a clean venv for wheel verification.
 - `baseline_domains` rejected: remove it; P23 derives baselines from P16.
 - Annual evidence rejected: supply `evidence_id`, `source_type`, and `source_id`; reality overrides also require `verified=true`.
-- Product remains on hold: this is expected until verse review and authorized real-case thresholds close.
+- Product remains on hold: this is expected until the tiered P22 validation closure passes. P19 verse review is not an RC2 blocker because verse text is excluded from the core package by design.

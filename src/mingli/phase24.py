@@ -202,12 +202,10 @@ def assess_release_candidate() -> ReleaseCandidateAssessment:
     case_report = run_case_benchmark()
     table = load_chenggu_table()
     blockers = (
-        {"blocker_id":"P19_VERSE_SOURCE","owner":"content-review","status":"open","detail":"完整称骨歌诀尚无通过来源审核的版本；Renderer 只展示骨重。"},
-        {"blocker_id":"P22_REAL_CASE_THRESHOLD","owner":"authorized-data-process","status":"open","detail":f"合格真实案例 {case_report.eligible_real_cases}/{case_report.minimum_real_cases}，不得宣称产品准确率。"},
+        {"blocker_id":"P22_VALIDATION_CLOSURE","owner":"authorized-data-process","status":"open","detail":f"当前合格真实案例 {case_report.eligible_real_cases}；RC2 validation closure 需要至少 30 个合格案例（Gold >= 10、Silver <= 20），产品准确率声明仍只计至少 30 个 Gold。"},
     )
     handoff = (
-        {"task_id":"CONTENT_01","action":"review_chenggu_verses","command":"由内容审核流程核对完整歌诀及授权","acceptance":"逐条来源可追溯且完成授权审核"},
-        {"task_id":"DATA_01","action":"collect_consented_cases","command":"由授权数据流程导入去标识真实案例","acceptance":f"不少于 {case_report.minimum_real_cases} 个合格案例"},
+        {"task_id":"DATA_01","action":"collect_tiered_validation_cases","command":"由授权数据流程导入去标识 Gold/Silver 私有案例","acceptance":"validation closure 达到 30 个唯一合格案例，其中 Gold 不少于 10；准确率声明另需 Gold 不少于 30"},
     )
     product_ready = technical_ready and not blockers
     decision = "release" if product_ready else ("technical_rc_only_product_hold" if technical_ready else "technical_hold")
@@ -240,7 +238,7 @@ def benchmark_phase24(assessment: ReleaseCandidateAssessment | None = None) -> d
         result.release_decision == "technical_rc_only_product_hold",
         tuple(gate.phase for gate in result.phase_gates) == tuple(range(16,24)),
         all(gate.status == "passed" for gate in result.phase_gates),
-        {item["blocker_id"] for item in result.blockers} == {"P19_VERSE_SOURCE","P22_REAL_CASE_THRESHOLD"},
+        {item["blocker_id"] for item in result.blockers} == {"P22_VALIDATION_CLOSURE"},
         result.provenance.get("benchmark_helpers_invoked") is False,
         result.prediction_validity == "not_evaluated",
     )

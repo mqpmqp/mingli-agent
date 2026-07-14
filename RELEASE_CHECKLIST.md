@@ -11,9 +11,12 @@
 - [ ] Main push CI passes after merge.
 - [ ] Annotated RC tag points to the verified main commit.
 
-Product release remains blocked while either item is open:
+RC2 validation closure remains blocked while this item is open:
 
-- [ ] Complete ChengGu verses have traceable sources and authorization approval.
-- [ ] At least 30 consented, de-identified, externally observed real cases pass provenance gates.
+- [ ] At least 30 consented, de-identified validation cases pass provenance gates, including at least 10 Gold and no more than 20 Silver, with at least 100 comparable claims across at least 3 scenarios.
+
+Complete ChengGu verses are out of RC2 scope. The core package must keep `verse_available=false` and contain no verse text, verse package-data, or modern paraphrase. A future optional verse pack requires a separate review.
+
+Product accuracy claims have a stricter independent gate: at least 30 prospective Gold cases; Silver and Bronze never count.
 
 Technical RC completion does not change `prediction_validity=not_evaluated` and does not authorize an accuracy claim.
