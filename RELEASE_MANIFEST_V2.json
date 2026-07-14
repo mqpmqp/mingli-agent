@@ -1,0 +1,34 @@
+{
+  "schema_version": "mingli-release-manifest@1",
+  "release": "v2.0.0",
+  "package_version": "2.0.0",
+  "release_class": "technical_release_product_hold",
+  "prediction_validity": "not_evaluated",
+  "product_release_status": "PRODUCT_RELEASE_HOLD",
+  "product_accuracy_claim_allowed": false,
+  "source_ref": "v2.0.0",
+  "protected_paths_modified": {
+    "spec": false,
+    "knowledge": false
+  },
+  "runtime_dependencies": {
+    "external_llm": false,
+    "database": false,
+    "network": false,
+    "external_chart_api": false
+  },
+  "content_boundaries": {
+    "chenggu_verse_packaged": false,
+    "modern_verse_paraphrase_packaged": false,
+    "pii_packaged": false
+  },
+  "release_assets": [
+    "mingli_agent-2.0.0-py3-none-any.whl",
+    "mingli_agent-2.0.0.tar.gz",
+    "source-code.zip",
+    "source-code.tar.gz",
+    "SHA256SUMS",
+    "release-manifest-v2.0.0.json"
+  ],
+  "integrity_index": "SHA256SUMS"
+}

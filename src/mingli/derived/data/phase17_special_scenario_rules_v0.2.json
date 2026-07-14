@@ -1,8 +1,8 @@
 {
-  "decision_id":"PHASE_17_SPECIAL_SCENARIO_RULES_R1_APPROVED",
-  "profile_id":"special-scenario-rules-r1@0.1",
+  "decision_id":"PHASE_17_SPECIAL_SCENARIO_RULES_R2_APPROVED",
+  "profile_id":"special-scenario-rules-r1@0.2",
   "reviewed":true,
-  "scenarios":{"career_exam":["system_fit","admission_outlook","position_direction","preparation_strategy"],"relationship_reunion":["attraction","recontact","reunion","stability"]},
+  "scenarios":{"career_exam":["system_fit","admission_outlook","exam_outlook","position_direction","preparation_strategy"],"relationship_reunion":["attraction","recontact","reunion","stability"]},
   "claim_boundary_codes":["special_scenario_layer_only","reality_scope_hard_override","structure_not_concrete_outcome","prediction_validity_not_evaluated"],
   "rules":[
     {"rule_id":"exam_major_ineligible_admission","scenario":"career_exam","field":"major_eligible","op":"equals","value":false,"layers":["admission_outlook","position_direction"],"direction":"conflict","outcome_code":"major_ineligible_hard_block","priority":100,"hard_override":true},

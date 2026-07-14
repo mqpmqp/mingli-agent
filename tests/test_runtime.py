@@ -5,6 +5,9 @@ import json
 import sys
 import tempfile
 import unittest
+from importlib.metadata import version
+
+import mingli
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -95,6 +98,8 @@ class SchemaLoaderTests(unittest.TestCase):
 
 
 class ModelTests(unittest.TestCase):
+    def test_runtime_version_matches_package_metadata(self):
+        self.assertEqual(version("mingli-agent"), mingli.__version__)
     def test_models_are_strict_and_frozen(self) -> None:
         chart_input = ChartInput(
             gender="female",
