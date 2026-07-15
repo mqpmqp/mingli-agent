@@ -67,6 +67,23 @@ class TestGateRunnerTests(unittest.TestCase):
         self.assertEqual(124, run_gate("benchmark", timeout_seconds=30))
 
     @patch("mingli.test_gates.subprocess.run")
+    def test_timeout_writes_failure_junit_artifact(self, run):
+        run.side_effect = subprocess.TimeoutExpired(["python", "-m", "pytest"], 30)
+        with tempfile.TemporaryDirectory() as directory:
+            junit = Path(directory) / "benchmark.xml"
+            self.assertEqual(
+                124,
+                run_gate(
+                    "benchmark",
+                    timeout_seconds=30,
+                    junit_xml=str(junit),
+                ),
+            )
+            report = junit.read_text(encoding="utf-8")
+        self.assertIn('errors="1"', report)
+        self.assertIn("timed out after 30 seconds", report)
+
+    @patch("mingli.test_gates.subprocess.run")
     def test_success_returns_pytest_exit_code_and_creates_junit_directory(self, run):
         run.return_value.returncode = 0
         with tempfile.TemporaryDirectory() as directory:
