@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
-from scripts.build_astro_etl_toolkit import build_toolkit
+from scripts.build_astro_etl_toolkit import build_toolkit, main
 
 
 class BuildToolkitTests(unittest.TestCase):
@@ -118,6 +120,54 @@ class BuildToolkitTests(unittest.TestCase):
                     source_commit="d" * 40,
                     source_date_epoch=1_700_000_000,
                 )
+
+    def test_rejects_invalid_commit_and_zip_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = root / "payload"
+            payload.write_bytes(b"payload")
+            with self.assertRaisesRegex(ValueError, "source_commit"):
+                build_toolkit(
+                    root / "invalid-commit.zip",
+                    [("payload", payload)],
+                    source_commit="short",
+                    source_date_epoch=1_700_000_000,
+                )
+            for epoch in (-1, 0):
+                with self.subTest(epoch=epoch):
+                    with self.assertRaisesRegex(ValueError, "source_date_epoch"):
+                        build_toolkit(
+                            root / "invalid-time.zip",
+                            [("payload", payload)],
+                            source_commit="e" * 40,
+                            source_date_epoch=epoch,
+                        )
+
+    def test_cli_builds_bundle_from_entry_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = root / "payload"
+            payload.write_bytes(b"payload")
+            output = root / "toolkit.zip"
+            stdout = io.StringIO()
+
+            with mock.patch("sys.stdout", stdout):
+                result = main(
+                    [
+                        "--output",
+                        str(output),
+                        "--source-commit",
+                        "f" * 40,
+                        "--source-date-epoch",
+                        "1700000000",
+                        "--entry",
+                        f"payload={payload}",
+                    ]
+                )
+
+            self.assertEqual(result, 0)
+            self.assertEqual(stdout.getvalue().strip(), str(output))
+            self.assertTrue(output.is_file())
 
 
 if __name__ == "__main__":
