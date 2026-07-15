@@ -102,6 +102,12 @@ class TestGateRunnerTests(unittest.TestCase):
         self.assertIn("--junitxml=", " ".join(command))
         self.assertEqual(12, run.call_args.kwargs["timeout"])
 
+    @patch("mingli.test_gates.subprocess.run")
+    def test_benchmark_default_timeout_is_bounded_to_one_hour(self, run):
+        run.return_value.returncode = 0
+        self.assertEqual(0, run_gate("benchmark"))
+        self.assertEqual(3600, run.call_args.kwargs["timeout"])
+
     def test_non_positive_timeout_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "must be positive"):
             run_gate("fast", timeout_seconds=-1)
@@ -164,6 +170,8 @@ class TestGateWorkflowTests(unittest.TestCase):
             self.assertIn(command, workflow)
         self.assertGreaterEqual(workflow.count("timeout-minutes:"), 3)
         self.assertGreaterEqual(workflow.count("actions/upload-artifact@v4"), 3)
+        self.assertIn("timeout-minutes: 90", workflow)
+        self.assertIn("test-benchmark --timeout-seconds 3600", workflow)
 
 
 if __name__ == "__main__":
