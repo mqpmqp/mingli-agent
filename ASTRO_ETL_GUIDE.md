@@ -2,6 +2,8 @@
 
 `scripts/astro_etl_pipeline.py` 将一个已获得明确授权的 Astro 来源记录转换为 `RealCaseIntake`，然后交给现有受控 validation store 导入流程。原始资料、project salt 和导入后的完整案例都必须位于 Git checkout 之外。
 
+仓库内可直接使用 `.venv-validation`。独立工具包另附当前项目 wheel；在已经具备项目依赖的受控 Python 3.11+ 环境中，可先运行 `python -m pip install .\mingli_agent-2.0.0-py3-none-any.whl`，再执行同目录的 `astro_etl_pipeline.py`。安装不会包含任何真实案例或 project salt。
+
 ## 必要边界
 
 - `public_domain_historical` 不是本项目认可的 consent；缺少明确研究与 benchmark 授权时，转换会 fail closed。
