@@ -65,7 +65,9 @@ def runtime_input(*, training_consent: bool = False) -> dict[str, object]:
 
 class ProductRuntimeTests(unittest.TestCase):
     def test_complete_input_returns_product_envelope(self) -> None:
+        Draft202012Validator(get_schema("product_runtime_input.schema.json")).validate(runtime_input())
         result = run_product_runtime(runtime_input())
+        Draft202012Validator(get_schema("product_runtime_envelope.schema.json")).validate(result)
         self.assertEqual("completed", result["status"])
         for field in (
             "run_id", "schema_version", "engine_version", "rule_manifest_hash",
@@ -151,6 +153,7 @@ class TrainingStoreTests(unittest.TestCase):
 
     def test_training_schemas_are_packaged_and_validate_minimum_objects(self) -> None:
         names = (
+            "product_runtime_input.schema.json", "product_runtime_envelope.schema.json",
             "training_case.schema.json", "analysis_run.schema.json", "user_feedback.schema.json",
             "outcome_observation.schema.json", "rule_review_candidate.schema.json",
             "training_iteration.schema.json",
