@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/training_iteration.schema.json",
+  "title": "TrainingIteration",
+  "type": "object",
+  "required": ["iteration_id", "created_at", "source_run_ids", "feedback_ids", "outcome_ids", "candidate_ids", "review_state", "decision", "reviewer_note", "applied_rule_ids", "valid"],
+  "properties": {
+    "iteration_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "source_run_ids": {"type": "array", "items": {"type": "string"}},
+    "feedback_ids": {"type": "array", "items": {"type": "string"}},
+    "outcome_ids": {"type": "array", "items": {"type": "string"}},
+    "candidate_ids": {"type": "array", "items": {"type": "string"}},
+    "review_state": {"enum": ["pending_human_review", "reviewed"]},
+    "decision": {"type": ["string", "null"]},
+    "reviewer_note": {"type": ["string", "null"]},
+    "applied_rule_ids": {"type": "array", "items": {"type": "string"}},
+    "valid": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

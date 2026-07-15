@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/analysis_run.schema.json",
+  "title": "AnalysisRun",
+  "type": "object",
+  "required": ["run_id", "case_id", "created_at", "schema_version", "engine_version", "rule_manifest_hash", "renderer_version", "input_manifest_hash", "output_manifest_hash", "status", "confidence", "result", "provenance", "valid"],
+  "properties": {
+    "run_id": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "schema_version": {"type": "string"},
+    "engine_version": {"type": "string"},
+    "rule_manifest_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "renderer_version": {"type": "string"},
+    "input_manifest_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "output_manifest_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "status": {"enum": ["completed", "degraded", "blocked"]},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "result": {"type": "object"},
+    "provenance": {"type": "object"},
+    "valid": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}
