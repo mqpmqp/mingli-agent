@@ -8,6 +8,7 @@ import sys
 from typing import Sequence
 
 from .contracts.serialization import canonical_json
+from .validation_astro_etl import transform_astro_record
 from .validation_authorization import evaluate_product_release
 from .validation_dataset import build_dataset_manifest, verify_dataset_manifest
 from .validation_freeze import freeze_prediction, verify_prediction_snapshot
@@ -26,12 +27,16 @@ def _write_new(path: Path, value: object) -> None:
         handle.write(canonical_json(value) + "\n")
 
 
-def _controlled_store(path: Path, repo_root: Path) -> Path:
+def _controlled_external_path(path: Path, repo_root: Path, *, label: str) -> Path:
     resolved = path.resolve()
     root = repo_root.resolve()
     if resolved == root or root in resolved.parents:
-        raise ValueError("validation store must be outside the Git checkout")
+        raise ValueError(f"{label} must be outside the Git checkout")
     return resolved
+
+
+def _controlled_store(path: Path, repo_root: Path) -> Path:
+    return _controlled_external_path(path, repo_root, label="validation store")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -42,6 +47,12 @@ def _parser() -> argparse.ArgumentParser:
     intake.add_argument("--store", type=Path, required=True)
     intake.add_argument("--source-ref", required=True)
     intake.add_argument("--dry-run", action="store_true")
+    astro = commands.add_parser("astro-intake")
+    astro.add_argument("--file", type=Path, required=True)
+    astro.add_argument("--store", type=Path, required=True)
+    astro.add_argument("--source-ref", required=True)
+    astro.add_argument("--project-salt-file", type=Path, required=True)
+    astro.add_argument("--dry-run", action="store_true")
     batch = commands.add_parser("intake-batch")
     batch.add_argument("--directory", type=Path, required=True)
     batch.add_argument("--store", type=Path, required=True)
@@ -77,7 +88,30 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        if args.command == "intake":
+        if args.command == "astro-intake":
+            repo_root = Path.cwd()
+            source_path = _controlled_external_path(
+                args.file,
+                repo_root,
+                label="Astro source file",
+            )
+            salt_path = _controlled_external_path(
+                args.project_salt_file,
+                repo_root,
+                label="project salt file",
+            )
+            project_salt = salt_path.read_text(encoding="utf-8").strip()
+            transformed = transform_astro_record(
+                _read(source_path),
+                project_salt=project_salt,
+            )
+            result = import_intakes(
+                _controlled_store(args.store, repo_root),
+                [transformed],
+                source_ref=args.source_ref,
+                dry_run=args.dry_run,
+            ).to_dict()
+        elif args.command == "intake":
             store = _controlled_store(args.store, Path.cwd())
             result = import_intakes(store, [_read(args.file)], source_ref=args.source_ref, dry_run=args.dry_run).to_dict()
         elif args.command == "intake-batch":

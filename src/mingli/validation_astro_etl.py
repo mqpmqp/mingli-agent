@@ -120,6 +120,8 @@ def transform_astro_record(
         "scenarios": [dict(_mapping(item, "scenario")) for item in scenarios],
     }
     try:
-        return validate_intake(intake)
+        validated = validate_intake(intake)
     except (IntakeError, ValueError) as exc:
         raise AstroTransformError(str(exc)) from exc
+    validated.pop("intake_canonical_hash", None)
+    return validated
