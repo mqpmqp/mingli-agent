@@ -3,8 +3,12 @@ from __future__ import annotations
 import subprocess
 import unittest
 from unittest.mock import patch
+from pathlib import Path
 
 from mingli.test_gates import build_pytest_command, classify_test, run_gate
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestGateClassificationTests(unittest.TestCase):
@@ -55,6 +59,22 @@ class TestGateRunnerTests(unittest.TestCase):
     def test_unknown_gate_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "unknown test gate"):
             build_pytest_command("everything")
+
+
+class TestGateWorkflowTests(unittest.TestCase):
+    def test_ci_has_independent_timed_jobs_and_junit_artifacts(self):
+        workflow = (ROOT / ".github" / "workflows" / "test.yml").read_text(
+            encoding="utf-8"
+        )
+        for job, command in (
+            ("fast_tests", "test-fast"),
+            ("benchmark_tests", "test-benchmark"),
+            ("real_case_tests", "test-real-case"),
+        ):
+            self.assertIn(f"  {job}:", workflow)
+            self.assertIn(command, workflow)
+        self.assertGreaterEqual(workflow.count("timeout-minutes:"), 3)
+        self.assertGreaterEqual(workflow.count("actions/upload-artifact@v4"), 3)
 
 
 if __name__ == "__main__":
