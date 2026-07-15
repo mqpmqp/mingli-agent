@@ -227,7 +227,18 @@ class SourceAndPackagingTests(unittest.TestCase):
 
             with zipfile.ZipFile(wheel) as archive:
                 packaged = {name for name in archive.namelist() if "/schemas/" in name and name.endswith(".json")}
-            self.assertEqual(13, len(packaged))
+            self.assertEqual(21, len(packaged))
+            packaged_names = {Path(name).name for name in packaged}
+            self.assertTrue({
+                "product_runtime_input.schema.json",
+                "product_runtime_envelope.schema.json",
+                "training_case.schema.json",
+                "analysis_run.schema.json",
+                "user_feedback.schema.json",
+                "outcome_observation.schema.json",
+                "rule_review_candidate.schema.json",
+                "training_iteration.schema.json",
+            }.issubset(packaged_names))
             self.assertIn("mingli/contracts/schemas/phase16_domain_contract_result.schema.json", packaged)
             self.assertIn("mingli/contracts/schemas/real_case_intake.schema.json", packaged)
             self.assertIn("mingli/contracts/schemas/product_release_authorization.schema.json", packaged)
