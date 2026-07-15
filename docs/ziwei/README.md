@@ -74,4 +74,3 @@ python -m pytest -q tests/test_ziwei_time_and_contracts.py tests/test_ziwei_isol
 - 不可把 partial 结果展示为完整命盘。
 - 健康、法律、投资、婚姻等重大决定必须优先使用现实证据和专业意见。
 - 输出必须保持条件化、置信度和“仅供文化研究与娱乐参考”边界。
-

@@ -70,4 +70,3 @@ def test_pair_analysis_hash_is_order_and_identity_sensitive() -> None:
 
     assert make_pair_context_hash(a, b) != make_pair_context_hash(b, a)
     assert make_pair_context_hash(a, b) != make_pair_context_hash(a, c)
-

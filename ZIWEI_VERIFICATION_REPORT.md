@@ -1,7 +1,9 @@
 # Ziwei Verification Report
 
-日期：2026-07-16  
-Python：3.11.15  
+日期：2026-07-16
+
+Python：3.11.15
+
 验证实现提交：`0bcbce6`
 
 ## 已执行验证

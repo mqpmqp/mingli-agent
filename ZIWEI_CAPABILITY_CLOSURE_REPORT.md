@@ -1,7 +1,9 @@
 # Ziwei Capability Closure Report
 
-日期：2026-07-16  
-实现基线：`532f8ea4570db6ddb126ad39e07b8d7e0a8446d9`  
+日期：2026-07-16
+
+实现基线：`532f8ea4570db6ddb126ad39e07b8d7e0a8446d9`
+
 已验证实现提交：`0bcbce6`（后续仅含报告、打包门禁更新与验证记录）
 
 ## 总体结论
@@ -44,4 +46,3 @@ Input -> Calendar/Solar-Time Normalization -> Partial/Degraded Ziwei Chart
 ```
 
 只有规范化与隔离属于当前可验证确定性层；传统排盘字段不会进入规则求值。
-

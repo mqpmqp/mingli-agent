@@ -34,4 +34,3 @@
 - 紫微传统排盘引擎与规则内容：维持 NO-GO，直到独立来源、算法审查和 benchmark 齐备。
 - Runtime/Yuan 接口：在只输出受控低置信、明确 unsupported 的前提下可 GO 进入真实案例验证准备。
 - 商业发布：NO-GO。
-
