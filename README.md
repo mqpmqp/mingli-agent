@@ -1,5 +1,15 @@
 # MingLi Agent Core Runtime
 
+## Astro 来源资料导入
+
+已明确取得 research 与 benchmark consent 的 Astro 来源记录，可通过 fail-closed 转换器进入 Git 外受控 validation store。转换器使用 HMAC-SHA256 假名化身份，拒绝 `public_domain_historical` 代替 consent，也拒绝把 retrospective `events` 转成 prediction 前登记的 scenario。
+
+```powershell
+.\.venv-validation\Scripts\python.exe scripts\astro_etl_pipeline.py --file D:\private\authorized-astro-record.json --store D:\private\mingli-validation --source-ref authorized:astro-program --project-salt-file D:\private\mingli-project-salt.txt --dry-run
+```
+
+详细输入字段、安全边界与实际导入步骤见 `ASTRO_ETL_GUIDE.md`。
+
 ## V2.0 技术发布范围
 
 V2.0 技术候选版把确定性排盘、Fact Graph、P9–P16 结构规则、现实证据融合、特殊场景门禁、五年趋势和 Yuan 固定八段 Renderer 串成一个可审计的单进程流水线。调用入口是 `mingli.phase23.run_mingli_agent(...)` 或 `python -m mingli.phase23_cli run --input runtime.json`。
