@@ -16,13 +16,15 @@ prediction_validity=not_evaluated
 - No Ruff or Pyright regression relative to baseline commit `384e142`.
 - Isolated updated build/quality environment has no known audited dependency vulnerabilities.
 - Test gates are separated in local commands and CI jobs with timeouts and JUnit artifacts.
-- Independent benchmark gate completed: 32 tests and 15 subtests passed in 1522.35 seconds.
+- Final local collection is exhaustive and disjoint: 162 fast, 32 benchmark, and 58 real-case contract tests.
+- Final independent benchmark gate completed: 32 tests passed in 1401.55 seconds.
+- A deterministic RC2 candidate bundle was built twice with matching hashes and an embedded per-file manifest tied to source commit `dfc7727`.
 
 ## Still blocking release
 
 - No authorized real-case pilot exists; the full consent-to-release evidence chain is unproven on real data.
 - No remote branch, Draft PR, remote CI evidence, or independent privacy/time-leakage review exists yet.
 - The repository retains historical Ruff/Pyright debt; this branch introduces no delta but does not erase that debt.
-- A release artifact must be rebuilt from the final reviewed commit and tied to its source hash.
+- The RC2 is a local candidate, not an approved release artifact; the release artifact must be rebuilt from the final independently reviewed commit.
 
 Only an independent authorization referencing a frozen, reproducible, qualified real-case dataset may clear the hold.

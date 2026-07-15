@@ -25,6 +25,8 @@ PRODUCT_RELEASE_HOLD_REMAINS
 - Pyright delta: baseline 354 errors; current 354 errors; no new type errors.
 - Local wheel build and wrapper compilation passed.
 - Frozen toolkit SHA-256: `681F9467F0568ED64F8C5A5FFEBD2F3D4B033B9A941B4A6A313F0F09C8703233`.
+- Final local gate collection: 252 tests with 161 fast passes, 32 benchmark passes, 58 real-case contract passes, and one documented Windows privilege skip.
+- Reproducible wheel, sdist, and RC2 candidate hashes were confirmed across independent temporary worktrees.
 
 ## Non-claims
 

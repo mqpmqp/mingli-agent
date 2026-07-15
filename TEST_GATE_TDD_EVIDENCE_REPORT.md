@@ -11,24 +11,24 @@
 
 | Guarantee | RED evidence | GREEN evidence |
 |---|---|---|
-| Gate classification and subprocess timeout | `3c5affd`: `mingli.test_gates` missing | `70d773b`: 6 gate-contract tests pass |
+| Gate classification and subprocess timeout | `3c5affd`: `mingli.test_gates` missing | `70d773b`: gate-contract tests pass |
 | Independent CI jobs with timeouts/artifacts | `d5013c2`: workflow lacked `fast_tests` | `6fc0282`: YAML parses and workflow contract passes |
 | Runner execution paths reach coverage threshold | Initial stdlib trace: 59% | Final stdlib trace: 96% |
-| Timeout still produces JUnit evidence | `e26034d`: expected XML missing | `cb74ced` plus follow-up coverage: 13 gate-runner tests pass; timeout XML contains `errors=1` |
+| Timeout still produces JUnit evidence | `e26034d`: expected XML missing | `cb74ced` plus follow-up coverage: timeout XML contains `errors=1` |
 
 ## Collection invariant
 
-Final collection after the runner tests were completed:
+Final collection after reproducible-delivery tests were added:
 
 ```text
-test-fast: 149
+test-fast: 162
 test-benchmark: 32
 test-real-case: 58
-total: 239
+total: 252
 ```
 
-The sum must equal the unfiltered pytest collection, and classification returns one string value per node ID, so the groups are mutually exclusive.
+The sum equals the unfiltered pytest collection, and classification returns one gate per node ID, so the groups are mutually exclusive.
 
 ## Long-gate result
 
-The first independent benchmark run timed out after 1800 seconds and proved timeout containment. A bounded retry with a 3600-second limit completed all 32 benchmark tests and 15 subtests in 1522.35 seconds without reducing the matrices. Phase 15 and Phase 16 assertion matrices remain performance hotspots and should stay isolated from fast regression.
+The first independent benchmark attempt timed out after 1800 seconds and proved timeout containment. The final 3600-second bounded run completed all 32 benchmark tests in 1401.55 seconds without reducing the matrices. Phase 15 and Phase 16 remain performance hotspots and stay isolated from fast regression.
