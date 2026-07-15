@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_anonymous_case.schema.json",
+  "type": "object",
+  "required": ["case_id", "chart_fingerprint", "consent", "event_timeline", "assessments", "reviewer_notes", "confidence_calibration"],
+  "properties": {
+    "case_id": {"type": "string", "pattern": "^anonymous:"},
+    "chart_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "consent": {
+      "type": "object",
+      "required": ["consent_for_storage", "consent_for_model_improvement", "consent_for_public_case", "anonymization_status", "retention_policy", "withdrawal_status"],
+      "properties": {
+        "consent_for_storage": {"type": "boolean"},
+        "consent_for_model_improvement": {"type": "boolean"},
+        "consent_for_public_case": {"type": "boolean"},
+        "anonymization_status": {"enum": ["pending", "anonymized", "rejected"]},
+        "retention_policy": {"enum": ["session_only", "fixed_term", "delete_on_withdrawal"]},
+        "withdrawal_status": {"enum": ["not_requested", "requested", "deleted"]}
+      },
+      "additionalProperties": false
+    },
+    "event_timeline": {"type": "array", "items": {"type": "object"}},
+    "assessments": {"type": "array", "items": {"type": "object", "properties": {"classification": {"enum": ["hit", "partial_hit", "unverifiable", "wrong"]}}}},
+    "reviewer_notes": {"type": "array", "items": {"type": "string"}},
+    "confidence_calibration": {"enum": ["not_evaluated", "under_confident", "calibrated", "over_confident"]},
+    "withdrawn_at": {"type": ["string", "null"], "format": "date-time"}
+  },
+  "additionalProperties": false
+}

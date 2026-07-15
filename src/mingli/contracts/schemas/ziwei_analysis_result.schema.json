@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_analysis_result.schema.json",
+  "type": "object",
+  "required": ["deterministic", "inference", "evidence_fusion", "yuan", "prediction_validity"],
+  "properties": {
+    "deterministic": {"type": "object"},
+    "inference": {"type": "object"},
+    "evidence_fusion": {"type": "object"},
+    "yuan": {"type": "object"},
+    "prediction_validity": {"const": "not_evaluated"}
+  },
+  "additionalProperties": false
+}
