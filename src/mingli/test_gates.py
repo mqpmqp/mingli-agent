@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 from typing import Sequence
+from xml.etree import ElementTree
 
 
 TEST_GATES = ("fast", "benchmark", "real_case")
@@ -48,6 +49,35 @@ def build_pytest_command(
     return command
 
 
+def _write_timeout_junit(path: str, gate: str, timeout: int) -> None:
+    message = f"{gate} test gate timed out after {timeout} seconds"
+    root = ElementTree.Element("testsuites", {"name": "pytest tests"})
+    suite = ElementTree.SubElement(
+        root,
+        "testsuite",
+        {
+            "name": f"{gate} timeout",
+            "errors": "1",
+            "failures": "0",
+            "skipped": "0",
+            "tests": "1",
+            "time": str(timeout),
+        },
+    )
+    case = ElementTree.SubElement(
+        suite,
+        "testcase",
+        {"classname": "mingli.test_gates", "name": f"test_{gate}_timeout"},
+    )
+    error = ElementTree.SubElement(
+        case,
+        "error",
+        {"type": "timeout", "message": message},
+    )
+    error.text = message
+    ElementTree.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
+
+
 def run_gate(
     gate: str,
     *,
@@ -66,6 +96,8 @@ def run_gate(
     try:
         return subprocess.run(command, check=False, timeout=timeout).returncode
     except subprocess.TimeoutExpired:
+        if junit_xml:
+            _write_timeout_junit(junit_xml, gate, timeout)
         print(f"error: {gate} test gate timed out after {timeout} seconds", file=sys.stderr)
         return 124
 
