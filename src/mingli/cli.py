@@ -33,6 +33,8 @@ from .schema_loader import validate_spec
 from .knowledge import import_pilot, inventory, rollback, validate_knowledge
 from .validation_cli import main as validation_main
 from .training_cli import main as training_main
+from .ziwei import build_ziwei_chart
+from .ziwei_rules import build_rule_coverage
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -105,6 +107,11 @@ def _parser() -> argparse.ArgumentParser:
     validation.add_argument("validation_args", nargs=argparse.REMAINDER)
     training = subcommands.add_parser("training", help="日常测算训练闭环工具")
     training.add_argument("training_args", nargs=argparse.REMAINDER)
+    ziwei = subcommands.add_parser("ziwei", help="紫微结构合同与安全降级工具")
+    ziwei_subcommands = ziwei.add_subparsers(dest="ziwei_command", required=True)
+    ziwei_chart = ziwei_subcommands.add_parser("chart", help="生成紫微结构化 partial/degraded 命盘壳")
+    ziwei_chart.add_argument("--input", default="-", help="JSON 文件路径；默认 stdin")
+    ziwei_subcommands.add_parser("coverage", help="输出紫微规则覆盖与发布门禁")
     return parser
 
 
@@ -120,6 +127,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             return validation_main(args.validation_args)
         if args.command == "training":
             return training_main(args.training_args)
+        if args.command == "ziwei":
+            if args.ziwei_command == "chart":
+                value = _read_json_argument(args.input)
+                if not isinstance(value, dict):
+                    raise ValueError("Ziwei chart input must be a JSON object")
+                print(json.dumps(build_ziwei_chart(value), ensure_ascii=False, sort_keys=True))
+                return 0
+            print(json.dumps(build_rule_coverage([]), ensure_ascii=False, sort_keys=True))
+            return 0
         if args.command == "validate-spec":
             issues = validate_spec(args.path)
             if issues:
