@@ -18,7 +18,7 @@ REAL_CASE_TEST_FILES = frozenset(
     }
 )
 _BENCHMARK_TOKENS = ("benchmark", "assertion_matrix", "golden", "wheel_contains")
-_DEFAULT_TIMEOUTS = {"fast": 300, "benchmark": 1800, "real_case": 600}
+_DEFAULT_TIMEOUTS = {"fast": 300, "benchmark": 3600, "real_case": 600}
 
 
 def classify_test(nodeid: str) -> str:

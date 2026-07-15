@@ -10,6 +10,18 @@
 
 详细输入字段、安全边界与实际导入步骤见 `ASTRO_ETL_GUIDE.md`。
 
+## 分离的测试门禁
+
+安装开发依赖后，使用三条互斥命令运行验证：
+
+```powershell
+test-fast --timeout-seconds 300 --junitxml artifacts/test-fast.xml -- -q
+test-benchmark --timeout-seconds 3600 --junitxml artifacts/test-benchmark.xml -- -q
+test-real-case --timeout-seconds 600 --junitxml artifacts/test-real-case.xml -- -q
+```
+
+三条命令覆盖同一次 pytest collection 的全部测试，分别用于普通回归、长期 benchmark 与真实案例合同验证。CI 为每类测试设置独立 job、超时与 JUnit artifact。
+
 ## V2.0 技术发布范围
 
 V2.0 技术候选版把确定性排盘、Fact Graph、P9–P16 结构规则、现实证据融合、特殊场景门禁、五年趋势和 Yuan 固定八段 Renderer 串成一个可审计的单进程流水线。调用入口是 `mingli.phase23.run_mingli_agent(...)` 或 `python -m mingli.phase23_cli run --input runtime.json`。
