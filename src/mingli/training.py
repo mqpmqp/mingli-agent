@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
 
@@ -61,6 +61,12 @@ def _plain_mapping(value: Mapping[str, object]) -> dict[str, object]:
     return json.loads(canonical_json(value))
 
 
+def _string_values(value: object) -> tuple[str, ...]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return ()
+    return tuple(str(item) for item in value)
+
+
 class TrainingStore:
     """Auditable JSON store. Real stores must resolve outside the repository."""
 
@@ -88,7 +94,7 @@ class TrainingStore:
                 field_path=findings[0].field_path,
             )
         validator = Draft202012Validator(get_schema(_SCHEMAS[kind]), format_checker=FormatChecker())
-        errors = sorted(validator.iter_errors(payload), key=lambda item: list(item.absolute_path))
+        errors = sorted(validator.iter_errors(cast(Any, payload)), key=lambda item: list(item.absolute_path))
         if errors:
             error = errors[0]
             path = "$" + "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in error.absolute_path)
@@ -171,7 +177,7 @@ class TrainingStore:
             "runs": [item for item in self._list("run") if item.get("case_id") == case_id],
             "feedback": [item for item in self._list("feedback") if item.get("case_id") == case_id],
             "outcomes": [item for item in self._list("outcome") if item.get("case_id") == case_id],
-            "candidates": [item for item in self._list("candidate") if case_id in item.get("source_case_ids", [])],
+            "candidates": [item for item in self._list("candidate") if case_id in _string_values(item.get("source_case_ids"))],
         }
 
     def save_analysis_run(self, value: Mapping[str, object]) -> dict[str, object]:
@@ -324,7 +330,7 @@ class TrainingStore:
         for kind in ("run", "feedback", "outcome", "candidate"):
             count = 0
             for item in self._list(kind):
-                matches = item.get("case_id") == case_id or case_id in item.get("source_case_ids", [])
+                matches = item.get("case_id") == case_id or case_id in _string_values(item.get("source_case_ids"))
                 if matches:
                     if kind == "run":
                         run_ids.add(str(item.get("run_id")))
@@ -334,7 +340,7 @@ class TrainingStore:
                     count += 1
             removed[kind] = count
         for item in self._list("iteration"):
-            if run_ids.intersection(str(value) for value in item.get("source_run_ids", [])) or candidate_ids.intersection(str(value) for value in item.get("candidate_ids", [])):
+            if run_ids.intersection(_string_values(item.get("source_run_ids"))) or candidate_ids.intersection(_string_values(item.get("candidate_ids"))):
                 self._path("iteration", str(item.get("iteration_id"))).unlink(missing_ok=True)
                 removed["iteration"] = removed.get("iteration", 0) + 1
         self._path("case", case_id).unlink(missing_ok=True)

@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
-from typing import Mapping
+from typing import Mapping, Sequence
 
 from .contracts import canonical_json, digest
 from .phase20 import PHASE20_METHOD_ID
@@ -66,7 +66,7 @@ def _validated_datetime(value: object) -> str | None:
 
 def _confidence(levels: Mapping[str, str]) -> tuple[str, str, str]:
     normalized = [value if value in _CONFIDENCE_RANK else "low" for value in levels.values()]
-    overall = min(normalized, key=_CONFIDENCE_RANK.get) if normalized else "low"
+    overall = min(normalized, key=lambda value: _CONFIDENCE_RANK[value]) if normalized else "low"
     unresolved = sorted(domain for domain, level in levels.items() if level == "low")
     if overall == "low":
         return overall, "low confidence: unresolved or insufficient evidence in " + ",".join(unresolved), "degraded"
@@ -75,16 +75,20 @@ def _confidence(levels: Mapping[str, str]) -> tuple[str, str, str]:
 
 def _reality_evidence(fusion: Mapping[str, object]) -> list[dict[str, object]]:
     records: list[dict[str, object]] = []
-    for claim in fusion.get("claims", []):
+    claims = fusion.get("claims")
+    if not isinstance(claims, Sequence) or isinstance(claims, (str, bytes)):
+        return records
+    for claim in claims:
         if not isinstance(claim, Mapping) or claim.get("hard_override_direction") not in {"support", "contradict"}:
             continue
+        evidence_ids = claim.get("winning_evidence_ids")
         records.append({
             "claim_id": claim.get("claim_id"),
             "scope": claim.get("scope"),
             "direction": claim.get("hard_override_direction"),
             "resolution": claim.get("status"),
             "confidence": claim.get("confidence"),
-            "evidence_ids": list(claim.get("winning_evidence_ids", [])),
+            "evidence_ids": list(evidence_ids) if isinstance(evidence_ids, Sequence) and not isinstance(evidence_ids, (str, bytes)) else [],
         })
     return sorted(records, key=lambda item: (str(item["scope"]), str(item["claim_id"])))
 
@@ -95,8 +99,12 @@ def _knowledge_trace(root: Path | None) -> dict[str, object]:
         return {"status": "unavailable", "manifest_hash": None, "issue_count": 1, "inventory": {}}
     issues = validate_knowledge(knowledge_root)
     assets: list[dict[str, str]] = []
-    for path in sorted(item for item in knowledge_root.rglob("*") if item.is_file()):
+    for path in sorted(item for item in knowledge_root.rglob("*") if item.is_file() and not item.is_symlink()):
         content = path.read_bytes()
+        try:
+            content = content.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+        except UnicodeDecodeError:
+            pass
         assets.append({
             "path": path.relative_to(knowledge_root).as_posix(),
             "sha256": hashlib.sha256(content).hexdigest(),
@@ -179,6 +187,7 @@ def run_product_runtime(
         "evidence_provenance": runtime.evidence_fusion.get("provenance_index", {}),
         "knowledge_os": knowledge,
     }
+    sections = runtime.renderer.get("sections")
     body: dict[str, object] = {
         "run_id": runtime.run_id,
         "schema_version": PRODUCT_RUNTIME_SCHEMA_VERSION,
@@ -195,7 +204,7 @@ def run_product_runtime(
             "prediction_validity_not_evaluated",
         ],
         "reality_evidence_used": _reality_evidence(runtime.evidence_fusion),
-        "sections": list(runtime.renderer["sections"]),
+        "sections": list(sections) if isinstance(sections, Sequence) and not isinstance(sections, (str, bytes)) else [],
         "domain_results": dict(runtime.effective_domain_statuses),
         "trace": trace,
         "errors": [],
