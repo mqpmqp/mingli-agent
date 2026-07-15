@@ -16,10 +16,10 @@ from .phase22 import CaseBenchmarkReport, run_case_benchmark
 from .phase23 import RUNTIME_STAGES, run_mingli_agent
 from .validation_authorization import evaluate_product_release
 
-PHASE24_SCHEMA_VERSION = "release-candidate-assessment@0.5"
-PHASE24_METHOD_ID = "independent-frozen-dataset-product-gate@0.5.0"
-PHASE24_CALCULATION_VERSION = "0.5.0"
-PHASE24_DECISION_ID = "PHASE_24_FROZEN_DATASET_AUTHORIZATION_R4_FAIL_CLOSED"
+PHASE24_SCHEMA_VERSION = "release-candidate-assessment@0.6"
+PHASE24_METHOD_ID = "dual-product-commercial-release-gate@0.6.0"
+PHASE24_CALCULATION_VERSION = "0.6.0"
+PHASE24_DECISION_ID = "PHASE_24_PRODUCT_CAPABILITY_COMMERCIAL_VALIDATION_R5"
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,10 @@ class ReleaseCandidateAssessment:
     local_technical_rc_ready: bool
     product_release_ready: bool
     product_release_status: Literal["PRODUCT_RELEASE_HOLD", "PRODUCT_RELEASE_ALLOWED"]
+    product_capability_status: Literal["PRODUCT_CAPABILITY_READY", "PRODUCT_CAPABILITY_BLOCKED"]
+    commercial_validation_status: Literal["COMMERCIAL_VALIDATION_PENDING", "COMMERCIAL_VALIDATION_READY"]
+    development_runtime_allowed: bool
+    production_commercial_allowed: bool
     validation_closure_passed: bool
     product_accuracy_claim_allowed: bool
     phase_gates: tuple[PhaseGate, ...]
@@ -269,6 +273,8 @@ def assess_release_candidate(
         product_status = "PRODUCT_RELEASE_HOLD"
         blockers.append({"blocker_id":"TECHNICAL_RELEASE_GATE","owner":"engineering","status":"open","detail":"Independent Phase 16-23 checks are not all passing."})
     product_ready = technical_ready and product_status == "PRODUCT_RELEASE_ALLOWED" and not blockers
+    capability_status = "PRODUCT_CAPABILITY_READY" if technical_ready else "PRODUCT_CAPABILITY_BLOCKED"
+    commercial_status = "COMMERCIAL_VALIDATION_READY" if product_ready else "COMMERCIAL_VALIDATION_PENDING"
     decision = "release" if product_ready else ("technical_rc_only_product_hold" if technical_ready else "technical_hold")
     provenance = {
         "phase_range":"16-24",
@@ -293,6 +299,10 @@ def assess_release_candidate(
         "local_technical_rc_ready":technical_ready,
         "product_release_ready":product_ready,
         "product_release_status":product_status,
+        "product_capability_status":capability_status,
+        "commercial_validation_status":commercial_status,
+        "development_runtime_allowed":technical_ready,
+        "production_commercial_allowed":product_ready,
         "validation_closure_passed":resolved_case_report.validation_closure_passed,
         "product_accuracy_claim_allowed":resolved_case_report.product_accuracy_claim_allowed,
         "phase_gates":[asdict(gate) for gate in gates],
@@ -307,6 +317,10 @@ def assess_release_candidate(
         local_technical_rc_ready=technical_ready,
         product_release_ready=product_ready,
         product_release_status=product_status,
+        product_capability_status=capability_status,
+        commercial_validation_status=commercial_status,
+        development_runtime_allowed=technical_ready,
+        production_commercial_allowed=product_ready,
         validation_closure_passed=resolved_case_report.validation_closure_passed,
         product_accuracy_claim_allowed=resolved_case_report.product_accuracy_claim_allowed,
         phase_gates=gates,
@@ -325,6 +339,10 @@ def benchmark_phase24(assessment: ReleaseCandidateAssessment | None = None) -> d
         result.local_technical_rc_ready,
         not result.product_release_ready,
         result.product_release_status == "PRODUCT_RELEASE_HOLD",
+        result.product_capability_status == "PRODUCT_CAPABILITY_READY",
+        result.commercial_validation_status == "COMMERCIAL_VALIDATION_PENDING",
+        result.development_runtime_allowed,
+        not result.production_commercial_allowed,
         not result.validation_closure_passed,
         not result.product_accuracy_claim_allowed,
         result.release_decision == "technical_rc_only_product_hold",
