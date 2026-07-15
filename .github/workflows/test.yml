@@ -14,8 +14,72 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  fast_tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package and test dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Compile
+        run: python -m compileall src tests scripts
+
+      - name: Run fast test gate
+        run: test-fast --timeout-seconds 300 --junitxml artifacts/test-fast.xml -- -q
+
+      - name: Upload fast test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-fast-report
+          path: artifacts/test-fast.xml
+          if-no-files-found: error
+
+  real_case_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package and test dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run real-case test gate
+        run: test-real-case --timeout-seconds 600 --junitxml artifacts/test-real-case.xml -- -q
+
+      - name: Verify real-case privacy and package boundaries
+        run: |
+          python scripts/check_validation_privacy.py
+          python scripts/check_validation_privacy.py --archives dist
+          python -m mingli.cli validation benchmark
+
+      - name: Upload real-case test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-real-case-report
+          path: artifacts/test-real-case.xml
+          if-no-files-found: error
+
+  benchmark_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,11 +96,16 @@ jobs:
       - name: Compile
         run: python -m compileall src tests
 
-      - name: Run unittest
-        run: python -m unittest discover -v
+      - name: Run benchmark test gate
+        run: test-benchmark --timeout-seconds 1800 --junitxml artifacts/test-benchmark.xml -- -q
 
-      - name: Run pytest
-        run: python -m pytest -q
+      - name: Upload benchmark test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-benchmark-report
+          path: artifacts/test-benchmark.xml
+          if-no-files-found: error
 
       - name: Validate spec
         run: python -m mingli.cli validate-spec spec
@@ -158,9 +227,3 @@ jobs:
 
       - name: Confirm knowledge is unchanged
         run: git diff --exit-code origin/main...HEAD -- knowledge
-
-      - name: Verify real-case validation privacy and package boundaries
-        run: |
-          python scripts/check_validation_privacy.py
-          python scripts/check_validation_privacy.py --archives dist
-          python -m mingli.cli validation benchmark
