@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from mingli.test_gates import build_pytest_command, classify_test, run_gate
+from mingli.test_gates import (
+    _entrypoint,
+    benchmark_main,
+    build_pytest_command,
+    classify_test,
+    fast_main,
+    main,
+    real_case_main,
+    run_gate,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +65,68 @@ class TestGateRunnerTests(unittest.TestCase):
     def test_timeout_returns_distinct_exit_code(self, run):
         run.side_effect = subprocess.TimeoutExpired(["python", "-m", "pytest"], 30)
         self.assertEqual(124, run_gate("benchmark", timeout_seconds=30))
+
+    @patch("mingli.test_gates.subprocess.run")
+    def test_success_returns_pytest_exit_code_and_creates_junit_directory(self, run):
+        run.return_value.returncode = 0
+        with tempfile.TemporaryDirectory() as directory:
+            junit = Path(directory) / "nested" / "fast.xml"
+            self.assertEqual(
+                0,
+                run_gate(
+                    "fast",
+                    timeout_seconds=12,
+                    junit_xml=str(junit),
+                    extra_args=("-q",),
+                ),
+            )
+            self.assertTrue(junit.parent.is_dir())
+        command = run.call_args.args[0]
+        self.assertIn("--junitxml=", " ".join(command))
+        self.assertEqual(12, run.call_args.kwargs["timeout"])
+
+    def test_non_positive_timeout_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, "must be positive"):
+            run_gate("fast", timeout_seconds=-1)
+
+    @patch("mingli.test_gates.run_gate", return_value=0)
+    def test_entrypoint_and_module_main_forward_options(self, run):
+        self.assertEqual(
+            0,
+            _entrypoint(
+                "fast",
+                ["--timeout-seconds", "12", "--junitxml", "fast.xml", "--", "-q"],
+            ),
+        )
+        self.assertEqual(
+            0,
+            main(
+                [
+                    "--timeout-seconds",
+                    "34",
+                    "--junitxml",
+                    "real.xml",
+                    "real_case",
+                    "--",
+                    "-x",
+                ]
+            ),
+        )
+        first, second = run.call_args_list
+        self.assertEqual(("fast",), first.args)
+        self.assertEqual(("-q",), first.kwargs["extra_args"])
+        self.assertEqual(("real_case",), second.args)
+        self.assertEqual(("-x",), second.kwargs["extra_args"])
+
+    @patch("mingli.test_gates._entrypoint", return_value=0)
+    def test_console_entrypoints_select_exact_gate(self, entrypoint):
+        self.assertEqual(0, fast_main())
+        self.assertEqual(0, benchmark_main())
+        self.assertEqual(0, real_case_main())
+        self.assertEqual(
+            [("fast",), ("benchmark",), ("real_case",)],
+            [call.args for call in entrypoint.call_args_list],
+        )
 
     def test_unknown_gate_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "unknown test gate"):
