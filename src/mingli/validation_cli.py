@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from .contracts.serialization import canonical_json
 from .validation_astro_etl import transform_astro_record
@@ -101,10 +101,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 label="project salt file",
             )
             project_salt = salt_path.read_text(encoding="utf-8").strip()
-            transformed = transform_astro_record(
-                _read(source_path),
-                project_salt=project_salt,
-            )
+            raw_record = _read(source_path)
+            if not isinstance(raw_record, Mapping):
+                raise ValueError("Astro source file must contain a JSON object")
+            transformed = transform_astro_record(raw_record, project_salt=project_salt)
             result = import_intakes(
                 _controlled_store(args.store, repo_root),
                 [transformed],

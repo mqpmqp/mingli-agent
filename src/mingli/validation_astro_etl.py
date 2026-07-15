@@ -44,6 +44,8 @@ def local_mean_solar_time(utc_time: object, longitude: object) -> str:
     """
 
     parsed = _utc_datetime(utc_time)
+    if isinstance(longitude, bool) or not isinstance(longitude, (int, float, str)):
+        raise AstroTransformError("birth_longitude must be numeric")
     try:
         longitude_value = float(longitude)
     except (TypeError, ValueError) as exc:

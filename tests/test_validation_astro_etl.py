@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 import tempfile
+from typing import Mapping, cast
 import unittest
 
 from mingli.validation_astro_etl import (
@@ -68,13 +69,14 @@ class AstroEtlTests(unittest.TestCase):
             raw,
             project_salt="test-only-project-salt",
         )
+        birth = cast(Mapping[str, object], transformed["birth_input"])
 
-        self.assertEqual("1990-03-15", transformed["birth_input"]["birth_date"])
-        self.assertEqual("10:30", transformed["birth_input"]["birth_time"])
-        self.assertFalse(transformed["birth_input"]["true_solar_time"])
+        self.assertEqual("1990-03-15", birth["birth_date"])
+        self.assertEqual("10:30", birth["birth_time"])
+        self.assertFalse(birth["true_solar_time"])
         self.assertEqual(
             "1990-03-15T10:36:15.696000+08:06:15.696000",
-            transformed["birth_input"]["local_mean_solar_time"],
+            birth["local_mean_solar_time"],
         )
         self.assertTrue(str(transformed["person_case_id"]).startswith("person:"))
         self.assertNotIn(raw["name"], json.dumps(transformed, ensure_ascii=False))
