@@ -227,7 +227,28 @@ class SourceAndPackagingTests(unittest.TestCase):
 
             with zipfile.ZipFile(wheel) as archive:
                 packaged = {name for name in archive.namelist() if "/schemas/" in name and name.endswith(".json")}
-            self.assertEqual(21, len(packaged))
+            self.assertEqual(33, len(packaged))
+            ziwei_schemas = {
+                f"ziwei_{name}.schema.json"
+                for name in (
+                    "analysis_result",
+                    "anonymous_case",
+                    "birth_input",
+                    "brightness",
+                    "chart",
+                    "fingerprint",
+                    "palace",
+                    "rule_card",
+                    "star",
+                    "temporal_context",
+                    "time_correction",
+                    "transformation",
+                )
+            }
+            self.assertEqual(
+                ziwei_schemas,
+                {Path(name).name for name in packaged if Path(name).name.startswith("ziwei_")},
+            )
             packaged_names = {Path(name).name for name in packaged}
             self.assertTrue({
                 "product_runtime_input.schema.json",
