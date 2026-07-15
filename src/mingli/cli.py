@@ -32,6 +32,7 @@ from .rule_loader import load_rules
 from .schema_loader import validate_spec
 from .knowledge import import_pilot, inventory, rollback, validate_knowledge
 from .validation_cli import main as validation_main
+from .training_cli import main as training_main
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -102,6 +103,8 @@ def _parser() -> argparse.ArgumentParser:
     phase7_subcommands.add_parser("schemas", help="output Phase 7 schema/profile/source metadata")
     validation = subcommands.add_parser("validation", help="真实案例验证与发布授权工具")
     validation.add_argument("validation_args", nargs=argparse.REMAINDER)
+    training = subcommands.add_parser("training", help="日常测算训练闭环工具")
+    training.add_argument("training_args", nargs=argparse.REMAINDER)
     return parser
 
 
@@ -115,6 +118,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "validation":
             return validation_main(args.validation_args)
+        if args.command == "training":
+            return training_main(args.training_args)
         if args.command == "validate-spec":
             issues = validate_spec(args.path)
             if issues:
