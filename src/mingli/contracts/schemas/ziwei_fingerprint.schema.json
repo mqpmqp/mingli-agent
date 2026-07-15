@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_fingerprint.schema.json",
+  "type": "object",
+  "required": ["chart_fingerprint", "algorithm_version"],
+  "properties": {
+    "chart_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "algorithm_version": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

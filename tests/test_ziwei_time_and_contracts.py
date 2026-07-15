@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import date
 
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
@@ -154,4 +153,3 @@ def test_invalid_leap_month_and_missing_longitude_fail_explicitly() -> None:
         normalize_ziwei_birth(birth(leap_month=True))
     with pytest.raises(ZiweiContractError, match="longitude"):
         normalize_ziwei_birth(birth(longitude=None, solar_time_mode="apparent_solar"))
-
