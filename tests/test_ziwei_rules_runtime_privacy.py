@@ -6,6 +6,7 @@ from jsonschema import Draft202012Validator, ValidationError
 from mingli.contracts import get_schema
 from mingli.phase20 import DISCLAIMER
 from mingli.ziwei import build_ziwei_chart
+from mingli.ziwei_benchmark import summarize_ziwei_cases
 from mingli.ziwei_rules import (
     ZiweiRuleError,
     build_rule_coverage,
@@ -143,3 +144,29 @@ def test_anonymous_case_schema_requires_consent_and_withdrawal_state() -> None:
     with pytest.raises(ValidationError):
         Draft202012Validator(schema).validate({**valid, "consent": {}})
 
+
+def test_benchmark_framework_does_not_invent_cases_or_count_withdrawn_data() -> None:
+    empty = summarize_ziwei_cases([])
+    assert empty["total_cases"] == 0
+    assert empty["accuracy_rate"] is None
+
+    withdrawn = {
+        "case_id": "anonymous:withdrawn",
+        "chart_fingerprint": "sha256:" + "b" * 64,
+        "consent": {
+            "consent_for_storage": False,
+            "consent_for_model_improvement": False,
+            "consent_for_public_case": False,
+            "anonymization_status": "anonymized",
+            "retention_policy": "delete_on_withdrawal",
+            "withdrawal_status": "deleted",
+        },
+        "event_timeline": [],
+        "assessments": [{"classification": "hit"}],
+        "reviewer_notes": [],
+        "confidence_calibration": "not_evaluated",
+    }
+    result = summarize_ziwei_cases([withdrawn])
+    assert result["eligible_cases"] == 0
+    assert result["excluded_withdrawn_or_unconsented"] == 1
+    assert result["classifications"]["hit"] == 0
