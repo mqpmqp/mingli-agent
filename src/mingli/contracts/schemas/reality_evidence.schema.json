@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/reality_evidence.schema.json",
+  "title": "Reality Evidence",
+  "type": "object",
+  "required": ["evidence_id", "person_case_id", "scenario_id", "observed_at", "collected_at", "source_provenance", "evidence_quality", "canonical_hash"],
+  "properties": {
+    "evidence_id": {"type": "string"},
+    "person_case_id": {"type": "string", "pattern": "^person:"},
+    "scenario_id": {"type": "string"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "collected_at": {"type": "string", "format": "date-time"},
+    "source_provenance": {"type": "string"},
+    "evidence_quality": {"enum": ["high", "medium", "low", "conflicted"]},
+    "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

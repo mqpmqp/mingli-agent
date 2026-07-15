@@ -37,6 +37,7 @@ mingli-phase21 = "mingli.phase21_cli:main"
 mingli-phase22 = "mingli.phase22_cli:main"
 mingli-phase23 = "mingli.phase23_cli:main"
 mingli-phase24 = "mingli.phase24_cli:main"
+mingli-validation = "mingli.validation_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

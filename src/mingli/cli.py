@@ -31,6 +31,7 @@ from .models import RULE_STATUSES
 from .rule_loader import load_rules
 from .schema_loader import validate_spec
 from .knowledge import import_pilot, inventory, rollback, validate_knowledge
+from .validation_cli import main as validation_main
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -99,6 +100,8 @@ def _parser() -> argparse.ArgumentParser:
     phase7_subcommands.add_parser("benchmark", help="run Phase 7 assertion matrix")
     phase7_subcommands.add_parser("profiles", help="output Phase 7 profile manifest")
     phase7_subcommands.add_parser("schemas", help="output Phase 7 schema/profile/source metadata")
+    validation = subcommands.add_parser("validation", help="真实案例验证与发布授权工具")
+    validation.add_argument("validation_args", nargs=argparse.REMAINDER)
     return parser
 
 
@@ -110,6 +113,8 @@ def _read_json_argument(path: str) -> object:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.command == "validation":
+            return validation_main(args.validation_args)
         if args.command == "validate-spec":
             issues = validate_spec(args.path)
             if issues:

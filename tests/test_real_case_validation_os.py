@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 import tempfile
 import unittest
 
@@ -12,6 +13,11 @@ from mingli.validation_freeze import FreezeError, freeze_prediction, verify_pred
 from mingli.validation_intake import IntakeError, import_intakes, rollback_import, validate_intake
 from mingli.validation_privacy import public_case_manifest, scan_for_pii
 from mingli.validation_review import adjudicate_reviews, assess_review_coverage
+from mingli.validation_protocol import verify_validation_protocol
+from jsonschema.validators import Draft202012Validator
+from mingli.phase22 import run_case_benchmark
+from mingli.phase24 import assess_release_candidate
+from mingli.validation_cli import _controlled_store
 
 
 def intake(person: str = "person:001", *, publication: bool = False) -> dict[str, object]:
@@ -177,6 +183,9 @@ class ReviewAndMetricsTests(unittest.TestCase):
         self.assertEqual(1, metrics["comparable_claims"])
         self.assertEqual(1, metrics["not_comparable"])
         self.assertEqual(1.0, metrics["strict_score"])
+        self.assertEqual(0.5, metrics["coverage"])
+        self.assertIsNotNone(metrics["brier_score"])
+        self.assertIsNotNone(metrics["ece"])
 
     def test_reviewer_disagreement_requires_adjudication(self):
         reviews = [
@@ -195,7 +204,7 @@ class ReviewAndMetricsTests(unittest.TestCase):
 
 
 class DatasetAndAuthorizationTests(unittest.TestCase):
-    def _manifest(self, *, people: int = 30, gold: int = 10, silver: int = 20, claims: int = 100) -> dict[str, object]:
+    def _manifest(self, *, people: int = 30, gold: int = 10, silver: int = 20, claims: int = 100, assessment_hash: str | None = None) -> dict[str, object]:
         cases = []
         for index in range(people):
             cases.append(
@@ -221,6 +230,7 @@ class DatasetAndAuthorizationTests(unittest.TestCase):
             review_coverage_passed=True,
             privacy_coverage_passed=True,
             frozen_at="2026-03-01T00:00:00Z",
+            phase22_assessment_hash=assessment_hash,
         )
 
     def test_10_gold_20_silver_closes_validation_not_accuracy(self):
@@ -255,6 +265,20 @@ class DatasetAndAuthorizationTests(unittest.TestCase):
         )
         self.assertEqual(1, manifest["unique_person_count"])
         self.assertFalse(manifest["product_accuracy_claim_allowed"])
+
+    def test_bronze_people_never_count_toward_closure(self):
+        cases = [
+            {"person_case_id": f"person:bronze:{index}", "evidence_tier": "bronze", "scenario_ids": [f"scenario:{index % 3}"], "qualified": True, "withdrawn": False, "manifest_hash": "sha256:" + f"{index + 1:064x}"}
+            for index in range(30)
+        ]
+        manifest = build_dataset_manifest(
+            dataset_id="bronze", dataset_version="1.0.0", source_commit_sha="3" * 40,
+            protocol_hash="sha256:" + "a" * 64, cases=cases, prediction_hashes=[], reality_evidence_hashes=[], review_hashes=[],
+            comparable_claims_count=120, review_coverage_passed=True, privacy_coverage_passed=True, frozen_at="2026-03-01T00:00:00Z",
+        )
+        self.assertEqual(0, manifest["unique_person_count"])
+        self.assertEqual(30, manifest["bronze_count"])
+        self.assertFalse(manifest["validation_closure_passed"])
 
     def test_conflicting_tier_is_conservative_and_blocks_closure(self):
         manifest = self._manifest()
@@ -301,7 +325,7 @@ class DatasetAndAuthorizationTests(unittest.TestCase):
             "authorized_by_role": "independent-product-reviewer",
             "authorized_at": "2026-03-02T00:00:00Z",
             "review_due_at": "2027-03-02T00:00:00Z",
-            "source_commit_sha": "3" * 40,
+            "source_commit_sha": manifest["source_commit_sha"],
         }
         gates = {"p1_findings": 0, "p2_findings": 0, "privacy_gate": True, "package_gate": True, "main_ci": True}
         self.assertEqual("PRODUCT_RELEASE_HOLD", evaluate_product_release(manifest, base, gates, now=datetime(2026, 4, 1, tzinfo=timezone.utc))["status"])
@@ -312,6 +336,130 @@ class DatasetAndAuthorizationTests(unittest.TestCase):
         self.assertEqual("PRODUCT_RELEASE_HOLD", evaluate_product_release(manifest, expired, gates, now=datetime(2026, 4, 1, tzinfo=timezone.utc))["status"])
         revoked = dict(approved, authorization_status="revoked")
         self.assertEqual("PRODUCT_RELEASE_HOLD", evaluate_product_release(manifest, revoked, gates, now=datetime(2026, 4, 1, tzinfo=timezone.utc))["status"])
+        self.assertEqual("PRODUCT_RELEASE_HOLD", evaluate_product_release(manifest, approved, dict(gates, p1_findings=False), now=datetime(2026, 4, 1, tzinfo=timezone.utc))["status"])
+
+    def test_tampered_manifest_is_rejected(self):
+        manifest = self._manifest()
+        manifest["unique_person_count"] = 999
+        self.assertFalse(verify_dataset_manifest(manifest))
+
+    def test_unfrozen_manifest_cannot_authorize_release(self):
+        manifest = self._manifest()
+        manifest["freeze_status"] = "fixture"
+        authorization = {
+            "authorization_status": "approved",
+            "dataset_id": manifest["dataset_id"],
+            "dataset_manifest_sha": manifest["aggregate_canonical_hash"],
+            "validation_closure_passed": True,
+            "review_due_at": "2027-01-01T00:00:00Z",
+        }
+        gates = {"p1_findings": 0, "p2_findings": 0, "privacy_gate": True, "package_gate": True, "main_ci": True}
+        result = evaluate_product_release(manifest, authorization, gates, now=datetime(2026, 4, 1, tzinfo=timezone.utc))
+        self.assertEqual("PRODUCT_RELEASE_HOLD", result["status"])
+        self.assertIn("P22_VALIDATION_CLOSURE", result["blockers"])
+
+    def test_phase24_formal_gate_allows_only_fully_approved_frozen_dataset(self):
+        cases = []
+        for index in range(30):
+            scenario = ("career", "wealth", "relationship")[index % 3]
+            claims = {f"{scenario}:{index}:{number}": "supportive" for number in range(4)}
+            cases.append(
+                {
+                    "case_id": f"gold:{index}", "person_case_id": f"person:{index}", "scenario_id": scenario,
+                    "case_class": "real", "evidence_tier": "gold", "consent_status": "granted", "deidentified": True,
+                    "source_ref": "authorized:private-store", "consent_record_id": f"consent:{index}",
+                    "provenance_class": "external_observation", "observed_at": "2026-03-01T00:00:00Z",
+                    "double_review_complete": True, "review_disagreement": False, "prospective_prediction": True,
+                    "prediction_freeze_hash": "sha256:" + f"{index + 1:064x}", "prediction_frozen_at": "2026-02-01T00:00:00Z",
+                    "predicted_claims": claims, "observed_claims": claims,
+                }
+            )
+        case_report = run_case_benchmark({"registry_id": "private-frozen", "pii_leak_count": 0, "cases": cases})
+        manifest = self._manifest(gold=30, silver=0, claims=120, assessment_hash=case_report.canonical_hash)
+        authorization = {
+            "authorization_status": "approved", "dataset_id": manifest["dataset_id"],
+            "dataset_manifest_sha": manifest["aggregate_canonical_hash"], "validation_closure_passed": True,
+            "review_due_at": "2027-01-01T00:00:00Z",
+            "validation_report_sha": "sha256:" + "f" * 64,
+            "authorized_by_role": "independent-product-reviewer",
+            "authorized_at": "2026-03-02T00:00:00Z",
+            "approved_use_scope": ["traditional_culture_reference"],
+            "prohibited_claims": ["statistical_accuracy"],
+            "product_accuracy_claim_allowed": True,
+            "unresolved_conflicts": [],
+            "source_commit_sha": manifest["source_commit_sha"],
+        }
+        gates = {"p1_findings": 0, "p2_findings": 0, "privacy_gate": True, "package_gate": True, "main_ci": True}
+        result = assess_release_candidate(
+            case_report,
+            frozen_dataset_manifest=manifest,
+            product_release_authorization=authorization,
+            external_gates=gates,
+            now=datetime(2026, 4, 1, tzinfo=timezone.utc),
+        )
+        self.assertTrue(result.product_release_ready)
+        self.assertEqual("PRODUCT_RELEASE_ALLOWED", result.product_release_status)
+        self.assertEqual((), result.blockers)
+        self.assertEqual("evaluated", result.prediction_validity)
+
+    def test_phase24_pending_authorization_remains_hold(self):
+        manifest = self._manifest()
+        authorization = {
+            "authorization_status": "pending", "dataset_id": manifest["dataset_id"],
+            "dataset_manifest_sha": manifest["aggregate_canonical_hash"], "validation_closure_passed": True,
+            "review_due_at": "2027-01-01T00:00:00Z",
+            "validation_report_sha": "sha256:" + "f" * 64,
+            "authorized_by_role": "independent-product-reviewer",
+            "authorized_at": "2026-03-02T00:00:00Z",
+            "approved_use_scope": ["traditional_culture_reference"],
+            "prohibited_claims": ["statistical_accuracy"],
+            "product_accuracy_claim_allowed": False,
+            "unresolved_conflicts": [],
+            "source_commit_sha": manifest["source_commit_sha"],
+        }
+        gates = {"p1_findings": 0, "p2_findings": 0, "privacy_gate": True, "package_gate": True, "main_ci": True}
+        result = assess_release_candidate(
+            frozen_dataset_manifest=manifest,
+            product_release_authorization=authorization,
+            external_gates=gates,
+            now=datetime(2026, 4, 1, tzinfo=timezone.utc),
+        )
+        self.assertFalse(result.product_release_ready)
+        self.assertEqual("PRODUCT_RELEASE_HOLD", result.product_release_status)
+
+
+class PackagingAndStoreBoundaryTests(unittest.TestCase):
+    def test_validation_schemas_are_valid_draft_2020_12(self):
+        schema_dir = Path(__file__).parents[1] / "src" / "mingli" / "contracts" / "schemas"
+        names = {
+            "real_case_intake.schema.json", "prediction_snapshot.schema.json", "reality_evidence.schema.json",
+            "claim_comparison.schema.json", "reviewer_assessment.schema.json",
+            "validation_dataset_manifest.schema.json", "product_release_authorization.schema.json",
+        }
+        for name in names:
+            Draft202012Validator.check_schema(json.loads((schema_dir / name).read_text(encoding="utf-8")))
+
+    def test_preregistered_protocol_hash_is_valid(self):
+        protocol = json.loads((Path(__file__).parents[1] / "validation_protocol.json").read_text(encoding="utf-8"))
+        self.assertTrue(verify_validation_protocol(protocol))
+
+    def test_controlled_store_must_be_outside_checkout(self):
+        with self.assertRaises(ValueError):
+            _controlled_store(Path.cwd() / "validation" / "private", Path.cwd())
+
+    def test_package_data_contains_no_real_case_or_verse_assets(self):
+        package_files = list((Path(__file__).parents[1] / "src" / "mingli").rglob("*.json"))
+        for path in package_files:
+            name = str(path).lower()
+            self.assertFalse("verse" in name or "歌诀" in name)
+            if "real_case" in name and "schema" not in name:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual([], payload.get("cases", []), path)
+
+    def test_consent_record_reference_never_appears_in_public_manifest(self):
+        manifest = public_case_manifest(intake(publication=True))
+        self.assertTrue(manifest["publication_eligible"])
+        self.assertNotIn("consent:irreversible", str(manifest))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,11 @@
+{
+  "consent_status": "granted",
+  "consent_scope": ["research", "benchmark"],
+  "consent_recorded_at": "ISO-8601",
+  "consent_record_ref": "consent:IRREVERSIBLE_REFERENCE",
+  "withdrawal_supported": true,
+  "research_use_allowed": true,
+  "benchmark_use_allowed": true,
+  "publication_use_allowed": false,
+  "raw_data_retention_policy": "controlled_off_git"
+}

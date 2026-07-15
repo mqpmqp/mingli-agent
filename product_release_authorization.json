@@ -1,0 +1,18 @@
+{
+  "authorization_id": "pending:no-frozen-dataset",
+  "dataset_id": null,
+  "dataset_manifest_sha": null,
+  "validation_report_sha": null,
+  "validation_closure_passed": false,
+  "product_accuracy_claim_allowed": false,
+  "known_limitations": ["no authorized private real-case dataset has been supplied"],
+  "unresolved_conflicts": [],
+  "approved_use_scope": [],
+  "prohibited_claims": ["product accuracy", "validated prediction effectiveness", "Product-Validated release"],
+  "authorization_status": "pending",
+  "authorized_by_role": null,
+  "authorized_at": null,
+  "expires_at": null,
+  "review_due_at": null,
+  "source_commit_sha": "393c9ff791d0091176ea8dcba5f50b8ddde6fbd9"
+}

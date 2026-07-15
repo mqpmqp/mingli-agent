@@ -165,6 +165,21 @@ python -m mingli.phase24_cli assess
 python -m mingli.phase24_cli benchmark
 ```
 
+真实案例验证 OS 使用 Git 外受控 store 完成 intake、隐私处理、预测冻结、现实证据、盲评、dataset freeze 和独立产品授权。公开仓库只包含协议、schema、空模板、聚合结果与不可逆 hash。当前没有授权真实案例，因而 `PRODUCT_RELEASE_HOLD` 与 `prediction_validity=not_evaluated` 保持不变。
+
+```bash
+python -m mingli.cli validation verify-protocol
+python -m mingli.cli validation validate-intake --file case.json
+python -m mingli.cli validation intake --file case.json --store /private/mingli-validation --source-ref authorized:program --dry-run
+python -m mingli.cli validation freeze-prediction --file prediction.json --store /private/mingli-validation
+python -m mingli.cli validation verify-freeze --file frozen_prediction.json
+python -m mingli.cli validation privacy-scan validation validation_dataset_manifest.json product_release_authorization.json
+python -m mingli.cli validation verify-dataset --file validation_dataset_manifest.json
+python -m mingli.cli validation benchmark
+```
+
+完整数据合同、隐私政策和人工审查步骤分别见 `REAL_CASE_DATA_MODEL.md`、`PRIVACY_AND_CONSENT_POLICY.md` 与 `REVIEWER_RUNBOOK.md`。不得把填写后的模板、原始同意文件或真实案例提交到 Git。
+
 ## 核心约束
 
 - 生产规则检索默认只返回 `reviewed` 与 `verified`，现实规则始终先于普通结构规则，再按优先级降序排列。

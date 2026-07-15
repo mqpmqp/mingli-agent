@@ -1,0 +1,13 @@
+{
+  "status": "data_collection_required",
+  "real_case_count": 0,
+  "gold_unique_person_count": 0,
+  "silver_unique_person_count": 0,
+  "bronze_count": 0,
+  "comparable_claims_count": 0,
+  "scenario_coverage": [],
+  "validation_closure_passed": false,
+  "product_accuracy_claim_allowed": false,
+  "product_release_status": "PRODUCT_RELEASE_HOLD",
+  "prediction_validity": "not_evaluated"
+}

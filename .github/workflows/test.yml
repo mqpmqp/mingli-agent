@@ -158,3 +158,9 @@ jobs:
 
       - name: Confirm knowledge is unchanged
         run: git diff --exit-code origin/main...HEAD -- knowledge
+
+      - name: Verify real-case validation privacy and package boundaries
+        run: |
+          python scripts/check_validation_privacy.py
+          python scripts/check_validation_privacy.py --archives dist
+          python -m mingli.cli validation benchmark

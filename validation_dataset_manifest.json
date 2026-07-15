@@ -1,0 +1,19 @@
+{
+  "dataset_id": null,
+  "dataset_version": null,
+  "freeze_status": "not_frozen_no_authorized_real_data",
+  "case_count": 0,
+  "unique_person_count": 0,
+  "gold_unique_person_count": 0,
+  "silver_unique_person_count": 0,
+  "bronze_count": 0,
+  "comparable_claims_count": 0,
+  "scenario_coverage": [],
+  "review_coverage_passed": false,
+  "privacy_coverage_passed": false,
+  "conflicting_person_tiers": [],
+  "validation_closure_passed": false,
+  "product_accuracy_claim_allowed": false,
+  "aggregate_canonical_hash": null,
+  "prediction_validity": "not_evaluated"
+}
