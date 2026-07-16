@@ -263,6 +263,11 @@ class SourceAndPackagingTests(unittest.TestCase):
             self.assertIn("mingli/contracts/schemas/phase16_domain_contract_result.schema.json", packaged)
             self.assertIn("mingli/contracts/schemas/real_case_intake.schema.json", packaged)
             self.assertIn("mingli/contracts/schemas/product_release_authorization.schema.json", packaged)
+            with zipfile.ZipFile(wheel) as archive:
+                self.assertIn(
+                    "mingli/derived/data/ziwei_traditional_rules_v1.json",
+                    archive.namelist(),
+                )
             environment = temp_path / "installed"
             venv.EnvBuilder(with_pip=True).create(environment)
             python = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")

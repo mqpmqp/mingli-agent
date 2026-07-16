@@ -1,0 +1,261 @@
+from __future__ import annotations
+
+from copy import deepcopy
+
+import pytest
+from jsonschema import Draft202012Validator
+
+from mingli.contracts import get_schema
+from mingli.ziwei import build_ziwei_chart
+from mingli.ziwei_rules import (
+    PALACES,
+    PRIMARY_STAR_IDS,
+    ZIWEI_RULE_CONTENT_VERSION,
+    ZiweiRuleError,
+    build_rule_coverage,
+    evaluate_ziwei_chart_rules,
+    evaluate_ziwei_rules,
+    extract_ziwei_rule_facts,
+    load_ziwei_rule_content,
+    load_ziwei_rule_payload,
+    validate_rule_card,
+)
+from mingli.ziwei_runtime import run_ziwei_runtime
+
+
+def complete_chart() -> dict[str, object]:
+    return build_ziwei_chart(
+        {
+            "calendar_type": "lunar",
+            "birth_date": "1984-01-13",
+            "birth_time": "00:30",
+            "timezone": "Asia/Shanghai",
+            "longitude": 121.4737,
+            "latitude": 31.2304,
+            "solar_time_mode": "civil",
+            "late_zi_policy": "midnight",
+            "leap_month": False,
+            "gender": "male",
+        }
+    )
+
+
+def degraded_chart() -> dict[str, object]:
+    return build_ziwei_chart(
+        {
+            "calendar_type": "solar",
+            "birth_date": "2000-01-07",
+            "birth_time": None,
+            "birth_time_known": False,
+            "timezone": "Asia/Shanghai",
+            "longitude": 121.4737,
+            "latitude": 31.2304,
+            "solar_time_mode": "civil",
+            "late_zi_policy": "midnight",
+            "gender": "unspecified",
+        }
+    )
+
+
+def test_packaged_rule_payload_has_real_versioned_source_backed_content() -> None:
+    payload = load_ziwei_rule_payload()
+    rules = load_ziwei_rule_content()
+    source_ids = {item["source_id"] for item in payload["sources"]}
+    schema = Draft202012Validator(get_schema("ziwei_rule_card.schema.json"))
+
+    assert payload["schema_version"] == "ziwei-traditional-rules@1.0"
+    assert payload["content_version"] == ZIWEI_RULE_CONTENT_VERSION
+    assert len(rules) == 184
+    assert len({rule["rule_id"] for rule in rules}) == len(rules)
+    assert {rule["source_id"] for rule in rules}.issubset(source_ids)
+    assert {rule["lifecycle"] for rule in rules} == {"draft"}
+    assert {rule["confidence"] for rule in rules}.issubset({"low", "medium"})
+    assert all(
+        rule["compatibility"]["chart_algorithm"]
+        == "ziwei-traditional-natal@1.0.0"
+        for rule in rules
+    )
+    for rule in rules:
+        schema.validate(rule)
+        validate_rule_card(rule)
+
+
+def test_primary_star_palace_matrix_is_complete_unique_and_not_name_only_templates() -> None:
+    rules = [
+        rule
+        for rule in load_ziwei_rule_content()
+        if rule["subject"] == "primary_star_palace"
+    ]
+    pairs = {(rule["star"], rule["palace"]) for rule in rules}
+    expected = {(star, palace) for star in PRIMARY_STAR_IDS for palace in PALACES}
+    labels = tuple(PALACES) + (
+        "紫微", "天机", "太阳", "武曲", "天同", "廉贞", "天府",
+        "太阴", "贪狼", "巨门", "天相", "天梁", "七杀", "破军",
+    )
+
+    assert len(rules) == 168
+    assert pairs == expected
+    assert len({rule["plain_language"] for rule in rules}) == 168
+    normalized: set[str] = set()
+    for rule in rules:
+        text = rule["plain_language"]
+        assert 18 <= len(text) <= 120
+        assert not any(token in text for token in ("TODO", "占位", "模板", "一定", "必然", "注定", "保证"))
+        for label in labels:
+            text = text.replace(label, "")
+        normalized.add(text)
+        assert rule["exclusions"]
+        assert rule["themes"]
+    assert len(normalized) == 168
+
+
+def test_chart_fact_extraction_and_rules_are_behaviorally_evaluable() -> None:
+    rules = load_ziwei_rule_content()
+    facts = extract_ziwei_rule_facts(complete_chart())
+    matches = evaluate_ziwei_rules(facts, rules)
+    base_matches = [item for item in matches if item.subject == "primary_star_palace"]
+
+    assert len(facts["star_palace_pairs"]) == 14
+    assert len(base_matches) == 14
+    assert {item.star for item in base_matches} == set(PRIMARY_STAR_IDS)
+    assert {item.subject for item in matches}.issuperset(
+        {"primary_star_palace", "transformation", "brightness"}
+    )
+
+    without_ziwei = dict(facts)
+    without_ziwei["star_palace_pairs"] = [
+        item for item in facts["star_palace_pairs"] if item["star"] != "ziwei"
+    ]
+    assert not any(
+        item.star == "ziwei" and item.subject == "primary_star_palace"
+        for item in evaluate_ziwei_rules(without_ziwei, rules)
+    )
+
+
+def test_exclusions_priority_conflict_and_combination_rules_are_executable() -> None:
+    rules = load_ziwei_rule_content()
+    combo = next(rule for rule in rules if rule["subject"] == "combination")
+    facts = {
+        "algorithm_version": "ziwei-traditional-natal@1.0.0",
+        "calculation_status": "complete",
+        "unsupported_fields": [],
+        "star_palace_pairs": [],
+        "transformations": [],
+        "brightness_states": [],
+        "co_locations": [combo["trigger"]["value"]],
+    }
+    assert [item.rule_id for item in evaluate_ziwei_rules(facts, [combo])] == [
+        combo["rule_id"]
+    ]
+    assert evaluate_ziwei_rules({**facts, "calculation_status": "degraded"}, [combo]) == ()
+
+    high = deepcopy(combo)
+    high.update(rule_id="high", domain="career", priority=90, direction="support")
+    low = deepcopy(combo)
+    low.update(rule_id="low", domain="career", priority=10, direction="contradict")
+    ranked = evaluate_ziwei_rules(facts, [low, high])
+    assert [(item.rule_id, item.resolution) for item in ranked] == [
+        ("high", "matched"),
+        ("low", "suppressed_by_higher_priority"),
+    ]
+    peer = deepcopy(high)
+    peer.update(rule_id="peer", direction="contradict")
+    conflict = evaluate_ziwei_rules(facts, [high, peer])
+    assert {item.resolution for item in conflict} == {"unresolved_conflict"}
+
+
+def test_unsupported_and_algorithm_mismatch_fail_closed() -> None:
+    with pytest.raises(ZiweiRuleError, match="complete"):
+        extract_ziwei_rule_facts(degraded_chart())
+    with pytest.raises(ZiweiRuleError, match="complete"):
+        evaluate_ziwei_chart_rules(degraded_chart())
+
+    chart = complete_chart()
+    chart["algorithm_version"] = "ziwei-traditional-natal@99"
+    with pytest.raises(ZiweiRuleError, match="algorithm"):
+        evaluate_ziwei_chart_rules(chart)
+
+
+def test_coverage_is_computed_from_real_records_and_behavior_not_hardcoded() -> None:
+    rules = list(load_ziwei_rule_content())
+    coverage = build_rule_coverage(rules)
+    assert coverage["star_palace_total"] == 168
+    assert coverage["star_palace_records"] == 168
+    assert coverage["star_palace_behaviorally_evaluated"] == 168
+    assert coverage["star_palace_implemented"] == 168
+    assert coverage["duplicate_pairs"] == 0
+    assert coverage["release_gate"] == "REVIEW_REQUIRED"
+
+    removed = build_rule_coverage(rules[1:])
+    assert removed["star_palace_implemented"] == 167
+    assert removed["release_gate"] == "NO-GO"
+
+    mutated_rules = deepcopy(rules)
+    target = next(
+        item for item in mutated_rules if item["subject"] == "primary_star_palace"
+    )
+    target["trigger"]["value"] = {"star": "tianji", "palace": "命宫"}
+    mutated = build_rule_coverage(mutated_rules)
+    assert mutated["star_palace_records"] == 168
+    assert mutated["star_palace_behaviorally_evaluated"] == 167
+    assert mutated["release_gate"] == "NO-GO"
+
+    duplicate_rules = deepcopy(rules)
+    duplicate = deepcopy(target)
+    duplicate["rule_id"] = "ziwei:duplicate:pair"
+    duplicate_rules.append(duplicate)
+    duplicated = build_rule_coverage(duplicate_rules)
+    assert duplicated["duplicate_pairs"] == 1
+    assert duplicated["release_gate"] == "NO-GO"
+
+
+def test_reality_evidence_still_hard_overrides_effective_packaged_rule() -> None:
+    chart = complete_chart()
+    rules = load_ziwei_rule_content()
+    matches = evaluate_ziwei_chart_rules(chart, rules)
+    target = next(
+        item
+        for item in matches
+        if item.domain == "career" and item.resolution == "matched"
+    )
+    result = run_ziwei_runtime(
+        chart,
+        facts={},
+        rules=rules,
+        reality={"verified_constraint": True},
+        reality_evidence=[
+            {
+                "evidence_id": "reality:career:override",
+                "claim_id": target.rule_id,
+                "scope": "career",
+                "source_type": "reality",
+                "source_id": "user-confirmed",
+                "direction": "contradict",
+                "weight": 0,
+                "priority": 100,
+                "verified": True,
+                "detail_code": "verified_constraint",
+            }
+        ],
+        start_year=2028,
+    )
+    claim = next(
+        item
+        for item in result["evidence_fusion"]["claims"]
+        if item["claim_id"] == target.rule_id
+    )
+    assert claim["status"] == "resolved_by_reality_override"
+    assert claim["hard_override_direction"] == "contradict"
+
+
+def test_invalid_rule_model_and_unknown_source_are_rejected() -> None:
+    payload = load_ziwei_rule_payload()
+    rule = deepcopy(payload["rules"][0])
+    rule.pop("compatibility")
+    with pytest.raises(ZiweiRuleError, match="compatibility"):
+        validate_rule_card(rule)
+
+    rule = deepcopy(payload["rules"][0])
+    rule["source_id"] = "source:missing"
+    with pytest.raises(ZiweiRuleError, match="source"):
+        load_ziwei_rule_content(payload={**payload, "rules": [rule]})
