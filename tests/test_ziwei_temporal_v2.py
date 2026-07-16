@@ -242,6 +242,21 @@ def test_decade_year_month_overlays_produce_only_bounded_event_windows() -> None
         "bounded": True,
         "precision": "month",
     }
+
+
+def test_mixed_temporal_overlays_require_parent_window_containment() -> None:
+    chart = synthetic_contract_chart()
+    overlays = synthetic_contract_overlays()
+
+    year_outside_decade = deepcopy(overlays)
+    year_outside_decade[1]["year"] = 2034
+    with pytest.raises(ZiweiTemporalV2Error, match="contained.*decade"):
+        evaluate_ziwei_temporal_v2(chart, overlays=year_outside_decade)
+
+    month_outside_year = deepcopy(overlays)
+    month_outside_year[2]["year"] = 2029
+    with pytest.raises(ZiweiTemporalV2Error, match="contained.*year"):
+        evaluate_ziwei_temporal_v2(chart, overlays=month_outside_year)
     assert "event_prediction" not in result
     assert all(
         item["event_time_window"] is None

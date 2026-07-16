@@ -110,7 +110,20 @@ def prediction_record(
                 "specificity_level": "bounded",
                 "exclusion_conditions": [],
                 "rule_ids": ["rule:synthetic:career:001"],
-            }
+            },
+            {
+                "claim_id": "claim:career:prior:001",
+                "scope": "career:prior:2025-01",
+                "domain": "career",
+                "time_window": "2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+                "claim_type": "state",
+                "predicted_direction": "support",
+                "predicted_event_or_state": "bounded_prior_state",
+                "confidence": 0.6,
+                "specificity_level": "bounded",
+                "exclusion_conditions": [],
+                "rule_ids": ["rule:synthetic:career:prior:001"],
+            },
         ],
         "confidence": 0.6,
         "blocked_fields": [],
@@ -126,16 +139,18 @@ def evidence_record(
     observed_at: str,
     collected_at: str,
     direction: str,
+    claim_id: str = "claim:career:001",
     scope: str = "career:2025-h2",
+    event_window: str = "2025-07-01T00:00:00Z/2025-12-31T23:59:59Z",
     source_provenance: str = "synthetic_contract_fixture",
 ) -> dict[str, object]:
     return {
         "evidence_id": evidence_id,
         "person_case_id": case["person_case_id"],
         "scenario_id": case["scenario_id"],
-        "claim_id": "claim:career:001",
+        "claim_id": claim_id,
         "scope": scope,
-        "event_window": "2025-07-01T00:00:00Z/2025-12-31T23:59:59Z",
+        "event_window": event_window,
         "observed_at": observed_at,
         "collected_at": collected_at,
         "source_provenance": source_provenance,
@@ -284,6 +299,9 @@ def test_prior_event_and_future_outcome_enforce_prediction_time_boundary() -> No
         observed_at="2025-01-15T00:00:00Z",
         collected_at="2025-01-16T00:00:00Z",
         direction="support",
+        claim_id="claim:career:prior:001",
+        scope="career:prior:2025-01",
+        event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
     )
     with_prior = record_prior_event_validation(case, prior)
     assert with_prior["lifecycle_status"] == "prior_event_validated"
@@ -293,9 +311,46 @@ def test_prior_event_and_future_outcome_enforce_prediction_time_boundary() -> No
     with pytest.raises(RealCaseLearningV2Error, match="PRIOR_EVENT_AFTER_PREDICTION"):
         record_prior_event_validation(case, leaked_prior)
 
+    mismatched_prior_window = {
+        **prior,
+        "evidence_id": "prior:mismatched-window",
+        "event_window": "2024-01-01T00:00:00Z/2024-01-31T23:59:59Z",
+    }
+    with pytest.raises(RealCaseLearningV2Error, match="EVENT_WINDOW_MISMATCH"):
+        record_prior_event_validation(case, mismatched_prior_window)
+
+    future_window_as_prior = evidence_record(
+        case,
+        evidence_id="prior:future-window",
+        observed_at="2025-01-15T00:00:00Z",
+        collected_at="2025-01-16T00:00:00Z",
+        direction="support",
+    )
+    with pytest.raises(RealCaseLearningV2Error, match="PRIOR_EVENT_WINDOW_NOT_PRIOR"):
+        record_prior_event_validation(case, future_window_as_prior)
+
     premature_future = {**prior, "evidence_id": "outcome:premature"}
     with pytest.raises(RealCaseLearningV2Error, match="FUTURE_OUTCOME_NOT_FUTURE"):
         record_future_outcome(case, premature_future)
+
+    pre_freeze_window_as_future = {
+        **prior,
+        "evidence_id": "outcome:pre-freeze-window",
+        "observed_at": "2025-03-01T00:00:00Z",
+        "collected_at": "2025-03-02T00:00:00Z",
+    }
+    with pytest.raises(RealCaseLearningV2Error, match="FUTURE_OUTCOME_WINDOW_NOT_FUTURE"):
+        record_future_outcome(case, pre_freeze_window_as_future)
+
+    observed_outside_window = evidence_record(
+        case,
+        evidence_id="outcome:outside-window",
+        observed_at="2026-01-01T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+        direction="support",
+    )
+    with pytest.raises(RealCaseLearningV2Error, match="OBSERVATION_OUTSIDE_EVENT_WINDOW"):
+        record_future_outcome(case, observed_outside_window)
 
 
 def test_future_reality_hard_override_is_claim_and_scope_specific() -> None:

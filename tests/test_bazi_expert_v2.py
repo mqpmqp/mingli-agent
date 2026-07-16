@@ -184,6 +184,22 @@ def test_composed_structural_temporal_and_domain_views_are_source_backed(
     )
 
 
+def test_annual_scope_rejects_non_liunian_target(
+    synthetic_graph: dict[str, object],
+) -> None:
+    timeline = synthetic_graph["timeline"]
+    assert isinstance(timeline, dict)
+    dayun = timeline["dayun_periods"]
+    assert isinstance(dayun, list)
+    first_decade = dayun[0]
+    assert isinstance(first_decade, dict)
+
+    with pytest.raises(BaziExpertV2InputError, match="liunian"):
+        orchestrate_bazi_expert_v2(
+            _request(synthetic_graph, target_id=first_decade["period_id"])
+        )
+
+
 def test_exam_reunion_compatibility_and_prior_events_remain_bounded(
     complete_payload: dict[str, object],
 ) -> None:
