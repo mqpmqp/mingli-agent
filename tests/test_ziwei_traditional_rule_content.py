@@ -227,6 +227,30 @@ def test_coverage_is_computed_from_real_records_and_behavior_not_hardcoded() -> 
     assert duplicated["release_gate"] == "NO-GO"
 
 
+def test_coverage_rejects_false_passes_outside_primary_matrix() -> None:
+    rules = list(load_ziwei_rule_content())
+
+    extra_combination_rules = deepcopy(rules)
+    extra_combination = deepcopy(
+        next(rule for rule in rules if rule["subject"] == "combination")
+    )
+    extra_combination["rule_id"] = "ziwei:v1:test:extra-combination"
+    extra_combination_rules.append(extra_combination)
+    assert build_rule_coverage(extra_combination_rules)["release_gate"] == "NO-GO"
+
+    trigger_mutations = {
+        "transformation": {"transformation": "quan"},
+        "brightness": {"state": "fallen"},
+        "combination": "ziwei+qisha",
+    }
+    for subject, wrong_value in trigger_mutations.items():
+        mutated_rules = deepcopy(rules)
+        target = next(rule for rule in mutated_rules if rule["subject"] == subject)
+        assert target["trigger"]["value"] != wrong_value
+        target["trigger"]["value"] = wrong_value
+        assert build_rule_coverage(mutated_rules)["release_gate"] == "NO-GO"
+
+
 def test_reality_evidence_still_hard_overrides_effective_packaged_rule() -> None:
     chart = complete_chart()
     rules = load_ziwei_rule_content()
@@ -386,6 +410,9 @@ def test_condition_groups_and_negative_operators_are_executable() -> None:
         lambda value: value.update(palaces=[]),
         lambda value: value["palaces"].__setitem__(0, "invalid"),
         lambda value: value["palaces"][0].update(palace_name="未知宫"),
+        lambda value: value["palaces"][1].update(
+            palace_name=value["palaces"][0]["palace_name"]
+        ),
         lambda value: value["palaces"][0].update(primary_stars=[{"star_id": "unknown"}]),
         lambda value: value["palaces"][0].update(transformations=["invalid"]),
         lambda value: value["palaces"][0].update(
