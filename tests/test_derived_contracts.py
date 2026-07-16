@@ -263,6 +263,11 @@ class SourceAndPackagingTests(unittest.TestCase):
             self.assertIn("mingli/contracts/schemas/phase16_domain_contract_result.schema.json", packaged)
             self.assertIn("mingli/contracts/schemas/real_case_intake.schema.json", packaged)
             self.assertIn("mingli/contracts/schemas/product_release_authorization.schema.json", packaged)
+            with zipfile.ZipFile(wheel) as archive:
+                self.assertIn(
+                    "mingli/derived/data/ziwei_traditional_rules_v1.json",
+                    archive.namelist(),
+                )
             environment = temp_path / "installed"
             venv.EnvBuilder(with_pip=True).create(environment)
             python = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
@@ -276,6 +281,7 @@ class SourceAndPackagingTests(unittest.TestCase):
             )
             code = (
                 "from mingli.contracts import get_schema; "
+                "from importlib import resources; import json; "
                 "from mingli.derived import benchmark_static_mappings, derive_static_chart, "
                 "load_packaged_capability_manifest, load_packaged_source_manifest; "
                 "base={'method_id':'bazi-deterministic-lichun-jie-noaa-v0.1','calculation_version':'0.1.0',"
@@ -285,7 +291,8 @@ class SourceAndPackagingTests(unittest.TestCase):
                 "load_packaged_capability_manifest()['decision_id'], "
                 "load_packaged_source_manifest()['manifest_version'], "
                 "str(benchmark_static_mappings().passed), "
-                "derive_static_chart(base).status"
+                "derive_static_chart(base).status, "
+                "str(len(json.loads(resources.files('mingli.derived.data').joinpath('ziwei_traditional_rules_v1.json').read_text(encoding='utf-8'))['rules']))"
                 "]))"
             )
             probe = subprocess.run(
@@ -298,7 +305,7 @@ class SourceAndPackagingTests(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(
-                "object|PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED|phase6-source-manifest@0.1|352|complete",
+                "object|PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED|phase6-source-manifest@0.1|352|complete|184",
                 probe.stdout.strip(),
             )
 

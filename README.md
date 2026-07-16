@@ -1,6 +1,6 @@
 # MingLi Agent Core Runtime
 
-## 紫微确定性排盘 v1
+## 紫微确定性排盘与传统规则内容 v1
 
 `mingli ziwei chart` 已从空结构壳升级为版本化确定性排盘。已知出生时辰时，`ziwei-traditional-natal@1.0.0` 会输出命宫、身宫、十二宫干支、五行局、十四主星、十四辅煞、年干四化及版本化亮度状态；未知时辰仍返回 `degraded`，不会默认子时。公历/农历、闰月、IANA 时区、地方平太阳时、真太阳时和晚子时政策继续由既有输入归一化层处理。
 
@@ -8,9 +8,11 @@
 python -m mingli.cli ziwei chart --input birth.json
 python -m mingli.cli ziwei benchmark
 python -m mingli.cli ziwei coverage
+python -m mingli.cli ziwei rules-validate
+python -m mingli.cli ziwei rules-evaluate --input chart.json
 ```
 
-固定盘 benchmark 覆盖水二、木三、金四、土五、火六局。算法 profile 明确采用农历新年年界、闰月同月数、寅宫顺时针宫环和《紫微斗数全集》四化变体。实现不调用 LLM 或外部排盘 API，不包含传统解释规则，也不表示预测有效；规则层、真实案例 benchmark 和商业发布仍保持 Release Hold。详细公式、来源和边界见 `docs/ziwei/README.md` 与 `ZIWEI_DETERMINISTIC_ENGINE_V1_REPORT.md`。
+固定盘 benchmark 覆盖水二、木三、金四、土五、火六局。规则内容 profile 为 `ziwei-traditional-rule-content@1.0.0`，打包 168 条主星×宫位短句规则、4 条四化、7 条亮度状态和 5 条同宫组合；每条规则均可由完整命盘事实实际匹配，coverage 由逐条行为求值计算。规则保持 `draft`，结果固定 `prediction_validity=not_evaluated`，不能替代现实证据、专业判断或真实案例验证。实现不调用 LLM、外部排盘 API，也不复制第三方平台解释。详细公式、来源和边界见 `docs/ziwei/README.md`、`docs/ziwei/RULE_SOURCES.md` 与对应实现报告。
 
 ## Astro 来源资料导入
 

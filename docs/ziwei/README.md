@@ -13,7 +13,20 @@
 - 有版本化表项的庙、旺、得/利、平、不、陷基础状态；
 - Chart JSON、严格嵌套 Schema、canonical hash、fingerprint、CLI 与五局固定盘 benchmark。
 
-出生时辰未知时状态仍为 `degraded`，命身宫、局数、星曜等字段保持空值并列入 `unsupported_fields`。本阶段不包含星曜解释、主星×宫位规则、格局、三方四正推断、流限推断、真实案例准确率或商业发布。
+出生时辰未知时状态仍为 `degraded`，命身宫、局数、星曜等字段保持空值并列入 `unsupported_fields`。Traditional Rule Content v1 只接受 `complete` 且 `unsupported_fields=[]` 的同版本命盘；不包含三方四正、对宫、完整格局、流限推断、真实案例准确率或商业发布。
+
+## Traditional Rule Content v1
+
+规则版本为 `ziwei-traditional-rule-content@1.0.0`，与 `ziwei-traditional-natal@1.0.0` 精确绑定：
+
+- 168 条十四主星×十二宫规则，每一 pair 都有独立短句、主题、方向、排除条件、来源和生命周期；
+- 4 条禄/权/科/忌规则、7 条版本化亮度状态规则、5 条最小同宫组合；
+- 事业、财运、感情、学业主题映射；只有同一 domain、subject 与触发目标的规则才按最高 priority 取舍，同目标同优先级相反方向保持 `unresolved_conflict`，不同目标不会互相压掉；
+- Reality Evidence 继续按同一 claim/scope 硬覆盖，低优先级规则不会覆盖现实证据；
+- coverage 对 168 个 pair 及 4 条四化、7 条亮度、5 条组合分别构造独立事实并调用真实 evaluator；每条规则还必须通过空目标、degraded、unsupported 负样本与 canonical trigger/exclusions 校验，删除、错触发、过宽触发、重复或额外规则都会关闭门禁；
+- 所有内容为 `draft`、低或中置信传统转述，不自动升级为 verified，也不构成预测有效性证据。
+
+来源登记、转述策略和禁止复制边界见 `RULE_SOURCES.md`。
 
 ## 算法 profile
 
@@ -48,14 +61,16 @@
 python -m mingli.cli ziwei chart --input birth.json
 python -m mingli.cli ziwei benchmark
 python -m mingli.cli ziwei coverage
+python -m mingli.cli ziwei rules-validate
+python -m mingli.cli ziwei rules-evaluate --input chart.json
 ```
 
-`chart` 的已知时辰输出为 `ziwei-chart@1.0`，包含 `algorithm_profile`、`placement_lunar_date`、12 个严格宫位对象及来源。`benchmark` 从 wheel 内的固定数据运行五局回归。`coverage` 仍只统计传统解释规则；PR A 不硬编码 168 个规则覆盖率，因此该命令仍为 0/168 与 `NO-GO`。
+`chart` 的已知时辰输出为 `ziwei-chart@1.0`，包含 `algorithm_profile`、`placement_lunar_date`、12 个严格宫位对象及来源。`benchmark` 从 wheel 内的固定数据运行五局回归。`coverage` 从打包规则索引和实际求值计算 168/168，并返回 `REVIEW_REQUIRED` 而不是自动解除 Hold。`rules-evaluate` 拒绝 degraded、算法版本不匹配或含 unsupported 字段的命盘。
 
 ## Release Hold
 
 - Traditional Engine Hold：本实现完成后进入独立审查资格；Draft PR 或未合并状态下保持 ACTIVE。
-- Rule Content Hold：ACTIVE，规则仍为 0/168，等待 PR B。
+- Rule Content Hold：ACTIVE；本地工程覆盖达到行为性 168/168，但规则仍为 draft，等待 PR B 审查与合并。
 - Real Benchmark Hold：ACTIVE，没有授权真实案例，等待 PR C。
 - Commercial Release Hold：ACTIVE，不能由前三项自动解除。
 

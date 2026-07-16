@@ -8,6 +8,7 @@ from mingli.phase20 import DISCLAIMER
 from mingli.ziwei import build_ziwei_chart
 from mingli.ziwei_benchmark import summarize_ziwei_cases
 from mingli.ziwei_rules import (
+    ZIWEI_RULE_CONTENT_VERSION,
     ZiweiRuleError,
     build_rule_coverage,
     evaluate_ziwei_rules,
@@ -34,19 +35,29 @@ def chart() -> dict[str, object]:
 
 def rule(**overrides: object) -> dict[str, object]:
     value: dict[str, object] = {
-        "rule_id": "ziwei:test:1",
+        "rule_id": "ziwei:v1:test:one",
+        "content_version": ZIWEI_RULE_CONTENT_VERSION,
+        "subject": "primary_star_palace",
+        "star": "ziwei",
+        "palace": "命宫",
+        "transformation": None,
+        "state": None,
         "domain": "career",
-        "trigger": {"fact": "verified_signal", "equals": True},
-        "required_facts": ["verified_signal"],
-        "exclusions": [{"fact": "blocked", "equals": True}],
+        "themes": ["career", "study"],
+        "trigger": {"fact": "verified_signal", "operator": "equals", "value": True},
+        "exclusions": [
+            {"fact": "blocked", "operator": "equals", "value": True}
+        ],
         "priority": 50,
         "confidence": "low",
-        "deterministic_or_inferential": "inferential",
-        "traditional_claim": "仓库内已审核来源所支持的条件性倾向。",
         "plain_language": "现有证据只支持低置信趋势，应结合现实条件。",
-        "evidence_refs": ["source:test:reviewed"],
-        "source_level": "reviewed_repository_source",
-        "lifecycle": "active",
+        "evidence_level": "traditional_paraphrase",
+        "source_id": "source:test:reviewed",
+        "lifecycle": "draft",
+        "compatibility": {
+            "chart_algorithm": "ziwei-traditional-natal@1.0.0",
+            "rule_content": ZIWEI_RULE_CONTENT_VERSION,
+        },
         "conflict_policy": "higher_priority_then_unresolved",
         "output_constraints": ["no_absolute_claims", "reality_override"],
         "direction": "support",
@@ -56,24 +67,41 @@ def rule(**overrides: object) -> dict[str, object]:
 
 
 def test_rule_contract_requires_provenance_and_rejects_strong_low_confidence_language() -> None:
-    assert validate_rule_card(rule())["rule_id"] == "ziwei:test:1"
-    with pytest.raises(ZiweiRuleError, match="evidence_refs"):
-        validate_rule_card(rule(evidence_refs=[]))
+    assert validate_rule_card(rule())["rule_id"] == "ziwei:v1:test:one"
+    with pytest.raises(ZiweiRuleError, match="source_id"):
+        validate_rule_card(rule(source_id=""))
     with pytest.raises(ZiweiRuleError, match="absolute"):
         validate_rule_card(rule(plain_language="一定会成功"))
 
 
 def test_rule_required_facts_exclusions_priority_and_conflicts_are_stable() -> None:
-    low = rule(rule_id="low", priority=10)
-    high = rule(rule_id="high", priority=90)
-    assert evaluate_ziwei_rules({}, [low]) == ()
-    assert evaluate_ziwei_rules({"verified_signal": True, "blocked": True}, [low]) == ()
-    matches = evaluate_ziwei_rules({"verified_signal": True}, [low, high])
-    assert [item.rule_id for item in matches] == ["high", "low"]
+    low = rule(rule_id="ziwei:v1:test:low", priority=10)
+    high = rule(rule_id="ziwei:v1:test:high", priority=90)
+    facts = {
+        "algorithm_version": "ziwei-traditional-natal@1.0.0",
+        "calculation_status": "complete",
+        "unsupported_fields": [],
+    }
+    assert evaluate_ziwei_rules(facts, [low]) == ()
+    assert evaluate_ziwei_rules(
+        {**facts, "verified_signal": True, "blocked": True}, [low]
+    ) == ()
+    matches = evaluate_ziwei_rules({**facts, "verified_signal": True}, [low, high])
+    assert [(item.rule_id, item.resolution) for item in matches] == [
+        ("ziwei:v1:test:high", "matched"),
+        ("ziwei:v1:test:low", "suppressed_by_higher_priority"),
+    ]
 
     conflict = evaluate_ziwei_rules(
-        {"verified_signal": True},
-        [high, rule(rule_id="opposite", priority=90, direction="contradict")],
+        {**facts, "verified_signal": True},
+        [
+            high,
+            rule(
+                rule_id="ziwei:v1:test:opposite",
+                priority=90,
+                direction="contradict",
+            ),
+        ],
     )
     assert all(item.resolution == "unresolved_conflict" for item in conflict[:2])
 
@@ -85,7 +113,7 @@ def test_rule_coverage_is_honest_instead_of_filling_unverified_content() -> None
     assert coverage["star_palace_total"] == 168
     assert coverage["star_palace_implemented"] == 0
     assert coverage["release_gate"] == "NO-GO"
-    assert set(coverage["primary_stars"].values()) == {"research_required"}
+    assert set(coverage["primary_stars"].values()) == {"incomplete"}
 
 
 def test_runtime_preserves_reality_hard_override_and_yuan_contract() -> None:
@@ -97,7 +125,7 @@ def test_runtime_preserves_reality_hard_override_and_yuan_contract() -> None:
         reality_evidence=[
             {
                 "evidence_id": "reality:career",
-                "claim_id": "ziwei:test:1",
+                "claim_id": "ziwei:v1:test:one",
                 "scope": "career",
                 "source_type": "reality",
                 "source_id": "user-confirmed",
@@ -136,8 +164,7 @@ def test_runtime_accepts_complete_deterministic_chart() -> None:
 
 def test_runtime_rejects_unsupported_chart_facts_before_rule_evaluation() -> None:
     unsupported_rule = rule(
-        trigger={"fact": "life_palace", "equals": 0},
-        required_facts=["life_palace"],
+        trigger={"fact": "life_palace", "operator": "equals", "value": 0},
         confidence="high",
     )
 
@@ -155,7 +182,7 @@ def test_runtime_rejects_unsupported_chart_facts_before_rule_evaluation() -> Non
             "gender": "male",
         }
     )
-    with pytest.raises(ValueError, match="unsupported Ziwei facts"):
+    with pytest.raises(ValueError, match="complete|unsupported Ziwei facts"):
         run_ziwei_runtime(
             degraded,
             facts={"life_palace": 0},

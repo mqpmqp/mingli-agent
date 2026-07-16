@@ -4,14 +4,18 @@ from typing import Mapping, Sequence
 
 from .phase18 import orchestrate_evidence_fusion
 from .phase20 import render_yuan_eight_sections
-from .ziwei_rules import evaluate_ziwei_rules
+from .ziwei_rules import (
+    evaluate_ziwei_rules,
+    extract_ziwei_rule_facts,
+    load_ziwei_rule_content,
+)
 
 
 def run_ziwei_runtime(
     chart: Mapping[str, object],
     *,
     facts: Mapping[str, object],
-    rules: Sequence[Mapping[str, object]],
+    rules: Sequence[Mapping[str, object]] | None,
     reality: Mapping[str, object],
     reality_evidence: Sequence[Mapping[str, object]],
     start_year: int,
@@ -28,8 +32,27 @@ def run_ziwei_runtime(
     injected = sorted(unsupported.intersection(facts))
     if injected:
         raise ValueError(f"unsupported Ziwei facts cannot enter rule evaluation: {', '.join(injected)}")
-    matches = evaluate_ziwei_rules(facts, rules)
-    rule_evidence = [item.to_evidence() for item in matches]
+    cards = load_ziwei_rule_content() if rules is None else tuple(rules)
+    if cards:
+        derived_facts = extract_ziwei_rule_facts(chart)
+        protected = set(derived_facts).intersection(facts)
+        mismatched = sorted(
+            name for name in protected if facts[name] != derived_facts[name]
+        )
+        if mismatched:
+            raise ValueError(
+                "derived Ziwei facts cannot be overridden: " + ", ".join(mismatched)
+            )
+        merged_facts = {**derived_facts, **facts}
+    else:
+        merged_facts = dict(facts)
+    matches = evaluate_ziwei_rules(merged_facts, cards)
+    effective_matches = [
+        item
+        for item in matches
+        if item.resolution != "suppressed_by_higher_priority"
+    ]
+    rule_evidence = [item.to_evidence() for item in effective_matches]
     fusion = orchestrate_evidence_fusion(reality, [*rule_evidence, *reality_evidence])
 
     domain_status = {"career": "unresolved", "wealth": "unresolved", "relationship": "unresolved"}
@@ -89,6 +112,10 @@ def run_ziwei_runtime(
                 for item in matches
             ],
             "confidence_gate": "low_only",
+            "rule_content_version": (
+                str(cards[0]["content_version"]) if cards else None
+            ),
+            "effective_match_count": len(effective_matches),
             "warnings": [
                 f"ziwei_chart_placement_is_{calculation_status}",
                 "only_source_backed_rule_cards_are_evaluated",
