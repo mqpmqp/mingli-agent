@@ -531,6 +531,11 @@ def record_future_outcome(
             "FUTURE_OUTCOME_WINDOW_NOT_FUTURE",
             "future outcome window must start after the initial prediction is frozen",
         )
+    if observed < window_start:
+        raise RealCaseLearningV2Error(
+            "FUTURE_OUTCOME_BEFORE_WINDOW",
+            "future outcome cannot be observed before its frozen event window starts",
+        )
     chart_evidence = {
         "evidence_id": f"prediction:{result['case_id']}:{claim['claim_id']}",
         "claim_id": claim["claim_id"],
@@ -645,6 +650,29 @@ def adjudicate_outcome(
         raise RealCaseLearningV2Error(
             "LEAKAGE_RISK",
             "rule recommendations require a leakage-clean temporal test comparison",
+        )
+    partition_manifest = comparison.get("partition_manifest")
+    if not isinstance(partition_manifest, Mapping):
+        raise RealCaseLearningV2Error(
+            "PARTITION_MANIFEST_REQUIRED",
+            "rule recommendations require a frozen V2 temporal partition manifest",
+        )
+    if (
+        partition_manifest.get("record_type")
+        != "RealCaseLearningV2PartitionManifest"
+        or partition_manifest.get("schema_version") != PARTITION_SCHEMA_VERSION
+        or partition_manifest.get("leakage_detected") is not False
+        or not verify_learning_record(partition_manifest)
+    ):
+        raise RealCaseLearningV2Error(
+            "PARTITION_MANIFEST_INVALID",
+            "temporal partition manifest failed its frozen hash or leakage boundary",
+        )
+    test_case_ids = partition_manifest.get("test_case_ids")
+    if not isinstance(test_case_ids, list) or result.get("case_id") not in test_case_ids:
+        raise RealCaseLearningV2Error(
+            "PARTITION_CASE_MISMATCH",
+            "adjudicated case must belong to the manifest's leakage-clean test partition",
         )
     dataset_manifest = comparison.get("dataset_manifest")
     if dataset_manifest is not None and (

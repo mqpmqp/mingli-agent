@@ -216,6 +216,7 @@ def _records(
     name: str,
     *,
     required_fields: frozenset[str] = frozenset(),
+    allowed_fields: frozenset[str] | None = None,
 ) -> tuple[dict[str, object], ...]:
     if value is None:
         return ()
@@ -231,6 +232,12 @@ def _records(
             raise BaziExpertV2InputError(
                 f"{name} entry is missing fields: {sorted(missing)}"
             )
+        if allowed_fields is not None:
+            extra = set(record) - allowed_fields
+            if extra:
+                raise BaziExpertV2InputError(
+                    f"{name} entry contains unsupported fields: {sorted(extra)}"
+                )
         records.append(record)
     return tuple(sorted(records, key=canonical_json))
 
@@ -912,36 +919,40 @@ def orchestrate_bazi_expert_v2(
     if not isinstance(target_id, str) or not target_id:
         raise BaziExpertV2InputError("target_id must be a non-empty string")
     raw_reality = _mapping(request.get("reality_context", {}), "reality_context")
+    temporal_reality_fields = frozenset(
+        {
+            "evidence_id",
+            "target_id",
+            "direction",
+            "detail",
+            "weight",
+            "verified",
+            "source_id",
+        }
+    )
     temporal_reality = _records(
         request.get("temporal_reality_evidence", []),
         "temporal_reality_evidence",
-        required_fields=frozenset(
-            {
-                "evidence_id",
-                "target_id",
-                "direction",
-                "detail",
-                "weight",
-                "verified",
-                "source_id",
-            }
-        ),
+        required_fields=temporal_reality_fields,
+        allowed_fields=temporal_reality_fields,
+    )
+    domain_reality_fields = frozenset(
+        {
+            "evidence_id",
+            "target_id",
+            "domain",
+            "direction",
+            "detail",
+            "weight",
+            "verified",
+            "source_id",
+        }
     )
     domain_reality = _records(
         request.get("domain_reality_evidence", []),
         "domain_reality_evidence",
-        required_fields=frozenset(
-            {
-                "evidence_id",
-                "target_id",
-                "domain",
-                "direction",
-                "detail",
-                "weight",
-                "verified",
-                "source_id",
-            }
-        ),
+        required_fields=domain_reality_fields,
+        allowed_fields=domain_reality_fields,
     )
     prior_events = _records(
         request.get("prior_event_evidence", []),
