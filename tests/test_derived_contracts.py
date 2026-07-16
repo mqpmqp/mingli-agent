@@ -17,7 +17,6 @@ from mingli.bazi import DeterministicBaziEngine
 from mingli.contracts import (
     DERIVED_METHOD_ID,
     DERIVED_SCHEMA_VERSION,
-    BaseChartRef,
     DependencyAmbiguity,
     DerivedChartResult,
     DerivedContractError,
@@ -65,17 +64,25 @@ class CanonicalContractTests(unittest.TestCase):
         self.assertTrue(ref.base_result_sha256.startswith("sha256:"))
 
         unsupported = dict(base, calculation_version="9.9.9")
-        with self.assertRaisesRegex(DerivedContractError, "DERIVED_BASE_METHOD_UNSUPPORTED"):
+        with self.assertRaisesRegex(
+            DerivedContractError, "DERIVED_BASE_METHOD_UNSUPPORTED"
+        ):
             adapt_base_chart(unsupported)
         invalid = dict(base)
         invalid.pop("pillars")
-        with self.assertRaisesRegex(DerivedContractError, "DERIVED_BASE_RESULT_INVALID"):
+        with self.assertRaisesRegex(
+            DerivedContractError, "DERIVED_BASE_RESULT_INVALID"
+        ):
             adapt_base_chart(invalid)
-        with self.assertRaisesRegex(DerivedContractError, "DERIVED_BASE_FINGERPRINT_MISMATCH"):
+        with self.assertRaisesRegex(
+            DerivedContractError, "DERIVED_BASE_FINGERPRINT_MISMATCH"
+        ):
             adapt_base_chart(base, expected_pillar_fingerprint="sha256:wrong")
 
     def test_unknown_profile_and_local_paths_are_rejected(self) -> None:
-        with self.assertRaisesRegex(DerivedContractError, "DERIVED_CONVENTION_UNSUPPORTED"):
+        with self.assertRaisesRegex(
+            DerivedContractError, "DERIVED_CONVENTION_UNSUPPORTED"
+        ):
             load_convention_profile("unknown")
         with self.assertRaisesRegex(ValueError, "absolute local path"):
             canonical_json({"source": "C:\\Users\\person\\fixture.json"})
@@ -102,10 +109,14 @@ class CanonicalContractTests(unittest.TestCase):
             self.assertEqual(DERIVED_METHOD_ID, payload["method_id"])
             self.assertEqual("not_evaluated", payload["prediction_validity"])
             self.assertEqual(digest(payload), digest(result))
-            Draft202012Validator(get_schema("derived_chart_result.schema.json")).validate(payload)
+            Draft202012Validator(
+                get_schema("derived_chart_result.schema.json")
+            ).validate(payload)
 
         with self.assertRaises(ValueError):
-            DerivedChartResult(base_ref=base, convention_profile=profile, status="partial")
+            DerivedChartResult(
+                base_ref=base, convention_profile=profile, status="partial"
+            )
         with self.assertRaises(TypeError):
             DerivedChartResult(  # type: ignore[call-arg]
                 base_ref=base,
@@ -119,12 +130,30 @@ class CanonicalContractTests(unittest.TestCase):
             stem="甲",
             branch="子",
             stem_ten_god=TenGodRecord("authority_same_polarity", "七杀", ("a", "b")),
-            hidden_stems=(HiddenStemRecord(1, "癸", TenGodRecord("wealth_opposite_polarity", "正财", ("a", "b"))),),
+            hidden_stems=(
+                HiddenStemRecord(
+                    1,
+                    "癸",
+                    TenGodRecord("wealth_opposite_polarity", "正财", ("a", "b")),
+                ),
+            ),
             nayin=NayinRecord("sea_gold", "海中金", ("a", "b")),
             xunkong=XunKongRecord("甲子", 1, ("戌", "亥"), ("a", "b")),
         )
         payload = pillar.to_dict()
-        forbidden = {"good", "bad", "auspicious", "inauspicious", "personality", "wealth", "marriage", "career", "health", "prediction", "recommendation"}
+        forbidden = {
+            "good",
+            "bad",
+            "auspicious",
+            "inauspicious",
+            "personality",
+            "wealth",
+            "marriage",
+            "career",
+            "health",
+            "prediction",
+            "recommendation",
+        }
         self.assertTrue(forbidden.isdisjoint(payload))
 
     def test_structured_error_schema(self) -> None:
@@ -136,16 +165,28 @@ class CanonicalContractTests(unittest.TestCase):
             method_id=DERIVED_METHOD_ID,
             profile_id="derived-static-r1@0.1",
         )
-        Draft202012Validator(get_schema("derived_error.schema.json")).validate(error.to_dict())
+        Draft202012Validator(get_schema("derived_error.schema.json")).validate(
+            error.to_dict()
+        )
 
 
 class SourceAndPackagingTests(unittest.TestCase):
     def test_r1_capability_manifest_is_frozen(self) -> None:
-        path = Path(__file__).parent / "fixtures" / "phase6_capability_manifest_v0.1.json"
+        path = (
+            Path(__file__).parent / "fixtures" / "phase6_capability_manifest_v0.1.json"
+        )
         manifest = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual("PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED", manifest["decision_id"])
         self.assertEqual(
-            {"hidden_stems", "visible_stem_ten_gods", "hidden_stem_ten_gods", "nayin", "xunkong"},
+            "PHASE_6_R1_CONSERVATIVE_BOUNDARY_APPROVED", manifest["decision_id"]
+        )
+        self.assertEqual(
+            {
+                "hidden_stems",
+                "visible_stem_ten_gods",
+                "hidden_stem_ten_gods",
+                "nayin",
+                "xunkong",
+            },
             set(manifest["enabled"]),
         )
         self.assertFalse(manifest["unresolved_counts_as_pass"])
@@ -157,10 +198,18 @@ class SourceAndPackagingTests(unittest.TestCase):
         result = validate_source_manifest(manifest)
         self.assertEqual((), result.issues)
         self.assertEqual(
-            {"hidden_stems", "visible_stem_ten_gods", "hidden_stem_ten_gods", "nayin", "xunkong"},
+            {
+                "hidden_stems",
+                "visible_stem_ten_gods",
+                "hidden_stem_ten_gods",
+                "nayin",
+                "xunkong",
+            },
             set(result.implementation_ready),
         )
-        Draft202012Validator(get_schema("source_manifest.schema.json")).validate(manifest)
+        Draft202012Validator(get_schema("source_manifest.schema.json")).validate(
+            manifest
+        )
 
         same_group = json.loads(path.read_text(encoding="utf-8"))
         for source in same_group["sources"]:
@@ -186,7 +235,8 @@ class SourceAndPackagingTests(unittest.TestCase):
             clean_env = {
                 key: value
                 for key, value in os.environ.items()
-                if key.upper() in {"COMSPEC", "PATH", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP", "WINDIR"}
+                if key.upper()
+                in {"COMSPEC", "PATH", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP", "WINDIR"}
             }
             clean_env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
             clean_env["PYTHONIOENCODING"] = "utf-8"
@@ -226,8 +276,12 @@ class SourceAndPackagingTests(unittest.TestCase):
             import zipfile
 
             with zipfile.ZipFile(wheel) as archive:
-                packaged = {name for name in archive.namelist() if "/schemas/" in name and name.endswith(".json")}
-            self.assertEqual(33, len(packaged))
+                packaged = {
+                    name
+                    for name in archive.namelist()
+                    if "/schemas/" in name and name.endswith(".json")
+                }
+            self.assertEqual(40, len(packaged))
             ziwei_schemas = {
                 f"ziwei_{name}.schema.json"
                 for name in (
@@ -243,26 +297,52 @@ class SourceAndPackagingTests(unittest.TestCase):
                     "temporal_context",
                     "time_correction",
                     "transformation",
+                    "temporal_v2_result",
+                    "temporal_v2_rule_pack",
                 )
             }
             self.assertEqual(
                 ziwei_schemas,
-                {Path(name).name for name in packaged if Path(name).name.startswith("ziwei_")},
+                {
+                    Path(name).name
+                    for name in packaged
+                    if Path(name).name.startswith("ziwei_")
+                },
             )
             packaged_names = {Path(name).name for name in packaged}
-            self.assertTrue({
-                "product_runtime_input.schema.json",
-                "product_runtime_envelope.schema.json",
-                "training_case.schema.json",
-                "analysis_run.schema.json",
-                "user_feedback.schema.json",
-                "outcome_observation.schema.json",
-                "rule_review_candidate.schema.json",
-                "training_iteration.schema.json",
-            }.issubset(packaged_names))
-            self.assertIn("mingli/contracts/schemas/phase16_domain_contract_result.schema.json", packaged)
-            self.assertIn("mingli/contracts/schemas/real_case_intake.schema.json", packaged)
-            self.assertIn("mingli/contracts/schemas/product_release_authorization.schema.json", packaged)
+            surge_v2_schemas = {
+                "bazi_expert_v2_result.schema.json",
+                "ziwei_temporal_v2_result.schema.json",
+                "ziwei_temporal_v2_rule_pack.schema.json",
+                "real_case_learning_v2_case.schema.json",
+                "real_case_learning_v2_partition.schema.json",
+                "real_case_learning_v2_withdrawal.schema.json",
+                "capability_surge_v2_result.schema.json",
+            }
+            self.assertTrue(surge_v2_schemas.issubset(packaged_names))
+            self.assertTrue(
+                {
+                    "product_runtime_input.schema.json",
+                    "product_runtime_envelope.schema.json",
+                    "training_case.schema.json",
+                    "analysis_run.schema.json",
+                    "user_feedback.schema.json",
+                    "outcome_observation.schema.json",
+                    "rule_review_candidate.schema.json",
+                    "training_iteration.schema.json",
+                }.issubset(packaged_names)
+            )
+            self.assertIn(
+                "mingli/contracts/schemas/phase16_domain_contract_result.schema.json",
+                packaged,
+            )
+            self.assertIn(
+                "mingli/contracts/schemas/real_case_intake.schema.json", packaged
+            )
+            self.assertIn(
+                "mingli/contracts/schemas/product_release_authorization.schema.json",
+                packaged,
+            )
             with zipfile.ZipFile(wheel) as archive:
                 self.assertIn(
                     "mingli/derived/data/ziwei_traditional_rules_v1.json",
@@ -270,7 +350,9 @@ class SourceAndPackagingTests(unittest.TestCase):
                 )
             environment = temp_path / "installed"
             venv.EnvBuilder(with_pip=True).create(environment)
-            python = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+            python = environment / (
+                "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
+            )
             subprocess.run(
                 [str(python), "-m", "pip", "install", "--no-deps", str(wheel)],
                 check=True,
