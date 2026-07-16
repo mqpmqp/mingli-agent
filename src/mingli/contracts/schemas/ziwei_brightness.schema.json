@@ -2,12 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mingli.local/schemas/ziwei_brightness.schema.json",
   "type": "object",
-  "required": ["star_id", "state", "field_status", "source_provenance"],
+  "additionalProperties": false,
+  "required": ["star_id", "state", "source_value", "field_status", "source_provenance"],
   "properties": {
-    "star_id": {"type": "string"},
-    "state": {"enum": ["temple", "prosperous", "beneficial", "neutral", "fallen", "unsupported"]},
+    "star_id": {"type": "string", "minLength": 1},
+    "state": {"enum": ["temple", "prosperous", "beneficial", "neutral", "weak", "unfavorable", "fallen", "unsupported"]},
+    "source_value": {"type": "string", "minLength": 1},
     "field_status": {"enum": ["supported", "unsupported", "research_required"]},
-    "source_provenance": {"type": "array", "items": {"type": "string"}}
-  },
-  "additionalProperties": false
+    "source_provenance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+  }
 }

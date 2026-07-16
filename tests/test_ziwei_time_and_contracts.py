@@ -93,11 +93,11 @@ def test_unknown_birth_time_degrades_without_defaulting_to_a_shichen() -> None:
     assert all(palace["primary_stars"] == [] for palace in chart["palaces"])
 
 
-def test_partial_chart_has_twelve_explicit_unsupported_palaces_and_stable_json() -> None:
+def test_complete_chart_has_twelve_supported_palaces_and_stable_json() -> None:
     first = build_ziwei_chart(birth(name="Alice", display_age=20))
     second = build_ziwei_chart(birth(name="Bob", display_age=99))
 
-    assert first["calculation_status"] == "partial"
+    assert first["calculation_status"] == "complete"
     assert len(first["palaces"]) == 12
     assert [item["palace_index"] for item in first["palaces"]] == list(range(12))
     assert first["chart_fingerprint"] == second["chart_fingerprint"]
@@ -105,9 +105,7 @@ def test_partial_chart_has_twelve_explicit_unsupported_palaces_and_stable_json()
         build_ziwei_chart(birth(name="Alice", display_age=20)), ensure_ascii=False, sort_keys=True
     )
     assert first["algorithm_version"] == ZIWEI_ALGORITHM_VERSION
-    assert {"life_palace", "body_palace", "bureau", "primary_stars"}.issubset(
-        first["unsupported_fields"]
-    )
+    assert first["unsupported_fields"] == []
 
 
 def test_algorithm_version_participates_in_fingerprint() -> None:

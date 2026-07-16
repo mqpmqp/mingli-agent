@@ -1,5 +1,7 @@
 # Ziwei Verification Report
 
+> 历史基线：本报告记录 PR #27 的验证。PR A 当前验证见 `ZIWEI_DETERMINISTIC_ENGINE_V1_REPORT.md` 和 `docs/testing/ziwei-deterministic-engine-v1.tdd.md`。
+
 日期：2026-07-16
 
 Python：3.11.15

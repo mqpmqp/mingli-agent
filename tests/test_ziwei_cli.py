@@ -30,9 +30,17 @@ def test_ziwei_chart_cli_smoke(monkeypatch, capsys) -> None:
 
     assert main(["ziwei", "chart", "--input", "-"]) == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["calculation_status"] == "partial"
+    assert output["calculation_status"] == "complete"
     assert len(output["palaces"]) == 12
-    assert "primary_stars" in output["unsupported_fields"]
+    assert output["unsupported_fields"] == []
+
+
+def test_ziwei_engine_benchmark_cli(capsys) -> None:
+    assert main(["ziwei", "benchmark"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["total_cases"] == 5
+    assert output["passed_cases"] == 5
+    assert output["failed_cases"] == 0
 
 
 def test_ziwei_coverage_cli_reports_no_go_without_rules(capsys) -> None:

@@ -2,20 +2,23 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, time, timedelta, timezone
 import re
-from typing import Mapping
+from typing import Mapping, NoReturn
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .bazi import equation_of_time_minutes, lunar_to_solar
+from .bazi import BRANCHES, STEMS, equation_of_time_minutes, lunar_to_solar
 from .contracts.serialization import digest
 from .phase19 import solar_to_lunar
-
-ZIWEI_SCHEMA_VERSION = "ziwei-chart@0.1"
-ZIWEI_METHOD_ID = "ziwei-contract-shell@0.1.0"
-ZIWEI_ALGORITHM_VERSION = "ziwei-normalization@0.1.0"
-PALACE_NAMES = (
-    "命宫", "兄弟宫", "夫妻宫", "子女宫", "财帛宫", "疾厄宫",
-    "迁移宫", "交友宫", "官禄宫", "田宅宫", "福德宫", "父母宫",
+from .ziwei_engine import (
+    ALGORITHM_PROFILE,
+    PALACE_BRANCHES,
+    PALACE_NAMES,
+    ZIWEI_ENGINE_VERSION,
+    build_traditional_ziwei,
 )
+
+ZIWEI_SCHEMA_VERSION = "ziwei-chart@1.0"
+ZIWEI_METHOD_ID = "ziwei-traditional-natal@1.0.0"
+ZIWEI_ALGORITHM_VERSION = ZIWEI_ENGINE_VERSION
 UNSUPPORTED_CHART_FIELDS = (
     "life_palace", "body_palace", "bureau", "heavenly_stems", "earthly_branches",
     "primary_stars", "supporting_stars", "malefic_stars", "transformations", "brightness_state",
@@ -26,7 +29,7 @@ class ZiweiContractError(ValueError):
     pass
 
 
-def _fail(message: str) -> None:
+def _fail(message: str) -> NoReturn:
     raise ZiweiContractError(message)
 
 
@@ -257,49 +260,89 @@ def build_temporal_context(level: str, **values: object) -> dict[str, object]:
 def build_ziwei_chart(raw: Mapping[str, object], *, algorithm_version: str = ZIWEI_ALGORITHM_VERSION) -> dict[str, object]:
     normalized = normalize_ziwei_birth(raw)
     known = bool(normalized["birth_time_known"])
-    unsupported = list(UNSUPPORTED_CHART_FIELDS)
-    warnings = [
-        "traditional_ziwei_placement_algorithm_not_available",
-        "no_interpretation_may_be_derived_from_empty_palace_fields",
-    ]
-    if not known:
-        unsupported.insert(0, "birth_time")
-        warnings.insert(0, "unknown_birth_time_degraded_without_default_shichen")
-    palaces = [
-        {
-            "palace_index": index,
-            "palace_name": name,
-            "heavenly_stem": None,
-            "earthly_branch": None,
-            "primary_stars": [],
-            "supporting_stars": [],
-            "malefic_stars": [],
-            "transformations": [],
-            "brightness_state": [],
-            "field_status": "unsupported",
+    placement_date = solar_to_lunar(date.fromisoformat(str(normalized["chart_date"])))
+    placement_lunar_date = {
+        "year": placement_date.year,
+        "month": placement_date.month,
+        "day": placement_date.day,
+        "leap_month": placement_date.is_leap_month,
+        "year_stem": STEMS[(placement_date.year - 4) % 10],
+        "year_branch": BRANCHES[(placement_date.year - 4) % 12],
+    }
+    if known:
+        engine = build_traditional_ziwei(normalized)
+        unsupported: list[str] = []
+        warnings = [
+            "traditional_rule_content_not_included_in_engine_v1",
+            "prediction_validity_not_evaluated",
+        ]
+        status = "complete"
+        confidence = "medium"
+    else:
+        unsupported = ["birth_time", *UNSUPPORTED_CHART_FIELDS]
+        warnings = [
+            "unknown_birth_time_degraded_without_default_shichen",
+            "no_interpretation_may_be_derived_from_empty_palace_fields",
+        ]
+        status = "degraded"
+        confidence = "low"
+        engine = {
+            "placement_lunar_date": placement_lunar_date,
+            "life_palace": None,
+            "body_palace": None,
+            "bureau": None,
+            "palaces": [
+                {
+                    "palace_index": index,
+                    "palace_name": name,
+                    "heavenly_stem": None,
+                    "earthly_branch": PALACE_BRANCHES[index],
+                    "is_body_palace": None,
+                    "primary_stars": [],
+                    "supporting_stars": [],
+                    "malefic_stars": [],
+                    "transformations": [],
+                    "brightness_state": [],
+                    "field_status": "unsupported",
+                }
+                for index, name in enumerate(PALACE_NAMES)
+            ],
         }
-        for index, name in enumerate(PALACE_NAMES)
-    ]
     result: dict[str, object] = {
         "schema_version": ZIWEI_SCHEMA_VERSION,
         "method_id": ZIWEI_METHOD_ID,
         "algorithm_version": algorithm_version,
-        "calculation_status": "partial" if known else "degraded",
+        "algorithm_profile": dict(ALGORITHM_PROFILE),
+        "calculation_status": status,
         "chart_fingerprint": _fingerprint(normalized, algorithm_version),
         "time_correction": normalized,
         "temporal_context": build_temporal_context("natal"),
-        "life_palace": None,
-        "body_palace": None,
-        "bureau": None,
-        "palaces": palaces,
+        "placement_lunar_date": engine["placement_lunar_date"],
+        "life_palace": engine["life_palace"],
+        "body_palace": engine["body_palace"],
+        "bureau": engine["bureau"],
+        "palaces": engine["palaces"],
         "unsupported_fields": unsupported,
         "warnings": warnings,
         "source_provenance": [
             {"source_id": "mingli:bazi:calendar-conversion", "role": "calendar_normalization"},
             {"source_id": "mingli:bazi:noaa-eot", "role": "equation_of_time"},
             {"source_id": "mingli:phase19:solar-lunar", "role": "canonical_lunar_identity"},
+            {
+                "source_id": "classical:ziwei-doushu-quanji-placement",
+                "role": "traditional_formula_profile",
+            },
+            {
+                "source_id": "public:zhwiki:ziwei-calculation@2026-07-16",
+                "role": "reviewable_formula_transcription",
+            },
+            {
+                "source_id": "oss:iztro@f3dc6c547420b063109251d7c7132fa3cb41e06e",
+                "role": "independent_cross_check",
+                "license": "MIT",
+            },
         ],
-        "confidence": "low",
+        "confidence": confidence,
         "prediction_validity": "not_evaluated",
     }
     result["canonical_hash"] = digest({"record_type": "ZiweiChart", "payload": result})

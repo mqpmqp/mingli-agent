@@ -1,0 +1,36 @@
+{
+  "schema_version": "ziwei-engine-benchmarks@1.0",
+  "algorithm_version": "ziwei-traditional-natal@1.0.0",
+  "source_provenance": [
+    "classical:ziwei-doushu-quanji-placement",
+    "public:zhwiki:ziwei-calculation@2026-07-16",
+    "oss:iztro@f3dc6c547420b063109251d7c7132fa3cb41e06e"
+  ],
+  "cases": [
+    {
+      "case_id": "fire6-jiazi-day13",
+      "input": {"calendar_type":"lunar","birth_date":"1984-01-13","birth_time":"00:30","timezone":"Asia/Shanghai","longitude":121.4737,"latitude":31.2304,"solar_time_mode":"civil","late_zi_policy":"midnight","leap_month":false,"gender":"male"},
+      "expected": {"life_palace_branch":"寅","body_palace_branch":"寅","bureau":"火六局","ziwei_branch":"亥","tianfu_branch":"巳"}
+    },
+    {
+      "case_id": "earth5-yichou-day6",
+      "input": {"calendar_type":"lunar","birth_date":"1985-01-06","birth_time":"00:30","timezone":"Asia/Shanghai","longitude":121.4737,"latitude":31.2304,"solar_time_mode":"civil","late_zi_policy":"midnight","leap_month":false,"gender":"female"},
+      "expected": {"life_palace_branch":"寅","body_palace_branch":"寅","bureau":"土五局","ziwei_branch":"未","tianfu_branch":"酉"}
+    },
+    {
+      "case_id": "wood3-bingyin-day27",
+      "input": {"calendar_type":"lunar","birth_date":"1986-01-27","birth_time":"00:30","timezone":"Asia/Shanghai","longitude":121.4737,"latitude":31.2304,"solar_time_mode":"civil","late_zi_policy":"midnight","leap_month":false,"gender":"male"},
+      "expected": {"life_palace_branch":"寅","body_palace_branch":"寅","bureau":"木三局","ziwei_branch":"戌","tianfu_branch":"午"}
+    },
+    {
+      "case_id": "metal4-dingmao-day1",
+      "input": {"calendar_type":"lunar","birth_date":"1987-01-01","birth_time":"00:30","timezone":"Asia/Shanghai","longitude":121.4737,"latitude":31.2304,"solar_time_mode":"civil","late_zi_policy":"midnight","leap_month":false,"gender":"female"},
+      "expected": {"life_palace_branch":"寅","body_palace_branch":"寅","bureau":"金四局","ziwei_branch":"亥","tianfu_branch":"巳"}
+    },
+    {
+      "case_id": "water2-wuchen-day1",
+      "input": {"calendar_type":"lunar","birth_date":"1988-01-01","birth_time":"00:30","timezone":"Asia/Shanghai","longitude":121.4737,"latitude":31.2304,"solar_time_mode":"civil","late_zi_policy":"midnight","leap_month":false,"gender":"male"},
+      "expected": {"life_palace_branch":"寅","body_palace_branch":"寅","bureau":"水二局","ziwei_branch":"丑","tianfu_branch":"卯"}
+    }
+  ]
+}

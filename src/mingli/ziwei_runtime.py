@@ -16,8 +16,9 @@ def run_ziwei_runtime(
     reality_evidence: Sequence[Mapping[str, object]],
     start_year: int,
 ) -> dict[str, object]:
-    if chart.get("calculation_status") not in {"partial", "degraded"}:
-        raise ValueError("Ziwei runtime accepts partial or degraded charts only")
+    calculation_status = chart.get("calculation_status")
+    if calculation_status not in {"complete", "partial", "degraded"}:
+        raise ValueError("Ziwei runtime accepts complete, partial, or degraded charts only")
     if isinstance(start_year, bool) or not isinstance(start_year, int):
         raise ValueError("start_year must be an integer")
     unsupported_raw = chart.get("unsupported_fields")
@@ -89,7 +90,7 @@ def run_ziwei_runtime(
             ],
             "confidence_gate": "low_only",
             "warnings": [
-                "ziwei_chart_placement_is_partial",
+                f"ziwei_chart_placement_is_{calculation_status}",
                 "only_source_backed_rule_cards_are_evaluated",
                 "reality_evidence_has_claim_scoped_hard_override",
             ],

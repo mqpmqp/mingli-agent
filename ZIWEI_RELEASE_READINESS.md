@@ -5,9 +5,9 @@
 | 组件 | 决策 | 证据与限制 |
 |---|---|---|
 | 时间/输入确定性合同 | GO | 边界测试、稳定序列化、Schema、fingerprint 已验证 |
-| Deterministic Ziwei engine | **NO-GO** | 只有 partial/degraded 壳；传统宫星安置算法未实现 |
+| Deterministic Ziwei engine | **GO（本地独立审查通过，待推送/远端审查/合并）** | `ziwei-traditional-natal@1.0.0` 已实现命身宫、五行局、十四主星、十四辅煞、四化、基础状态与五局固定盘；benchmark false-pass 缺陷已按 TDD 修复；未推送状态下 Hold 仍 ACTIVE |
 | Ziwei Rule Layer | **NO-GO** | 合同与 evaluator 可用，但可靠规则内容为 0，覆盖 0/168 |
-| Runtime Integration | GO（受限） | 只接受结构化 partial/degraded 和来源规则；low-only gate |
+| Runtime Integration | GO（受限） | 接受 complete/partial/degraded 结构化命盘和来源规则；规则推断仍保持 low-only gate |
 | Evidence Fusion | GO（接口） | reality claim/scope hard override 回归通过 |
 | Yuan Integration | GO（接口） | 八段、受控 status/confidence、免责声明合同通过 |
 | Real Case Benchmark | **NO-GO** | Schema/汇总框架可用；没有授权真实案例 |
@@ -15,13 +15,15 @@
 
 ## 可进入下一阶段的范围
 
-- 使用合成输入验证历法、太阳时、fingerprint、缓存和异步隔离。
+- 使用合成输入和固定盘验证历法、太阳时、fingerprint、命身宫、五行局、星曜、四化、缓存和异步隔离。
 - 接入经过单独来源审查的规则卡，但默认保持 draft 和 Release Hold。
 - 招募明确授权、完成匿名化且可撤回的真实案例用于离线验证。
 - 对未来独立算法实现做双来源验证、边界 benchmark 和版本化迁移。
 
 ## Release Hold
 
-不得将当前 `partial` 输出称为完整紫微命盘，不得基于空星曜字段生成解释，不得宣传预测准确率，不得用于医疗、法律、投资或婚姻决定，不得自动把咨询记录用于训练。
+Traditional Engine Hold 的本地独立代码/来源审查已通过，但分支尚未推送，也没有远端审查或合并，因此仍为 ACTIVE；完成远端 Merge Gate 并合并后才可解除。Rule Content Hold、Real Benchmark Hold 和 Commercial Release Hold 均保持 ACTIVE。
 
-解除传统引擎 NO-GO 至少需要：独立算法说明、来源/许可审查、完整边界测试、非同源 benchmark、版本迁移计划和人工复核。解除规则层 NO-GO 还需要来源卡、冲突审查与覆盖门禁。解除商业 NO-GO 另需真实案例校准、隐私/安全/法务与产品风险评审。
+不得把确定性排盘等同于预测有效，不得在 0/168 规则状态下生成传统解释，不得宣传预测准确率，不得用于医疗、法律、投资或婚姻决定，不得自动把咨询记录用于训练。
+
+解除传统引擎 Hold 仍需获得外部写操作授权、推送 PR A、完成远端审查/CI 与合并。解除规则层 NO-GO 还需要来源卡、冲突审查与覆盖门禁。解除商业 NO-GO 另需真实案例校准、隐私/安全/法务与产品风险评审。
