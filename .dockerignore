@@ -1,0 +1,23 @@
+# Send only the files copied by Dockerfile.
+*
+!pyproject.toml
+!README.md
+!src
+!src/**
+
+# Explicit local/private state exclusions retained for auditability.
+.git
+.github
+.env
+.env.*
+.venv
+.venv-validation
+.pytest_cache
+.coverage
+htmlcov
+build
+dist
+tests
+validation
+knowledge
+spec
