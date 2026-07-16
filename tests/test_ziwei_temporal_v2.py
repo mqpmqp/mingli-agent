@@ -243,7 +243,12 @@ def test_decade_year_month_overlays_produce_only_bounded_event_windows() -> None
         "precision": "month",
     }
     assert "event_prediction" not in result
-    assert all(item["event_time_window"] in (None, windows[item["scope"]]) for item in result["findings"])
+    assert all(
+        item["event_time_window"] is None
+        if item["scope"] == "natal"
+        else item["event_time_window"] == windows[item["scope"]]
+        for item in result["findings"]
+    )
 
 
 def test_priority_suppression_and_equal_priority_conflict_demote_confidence() -> None:
