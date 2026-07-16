@@ -1,8 +1,8 @@
 # MINGLI Core Capability Surge V2 Architecture
 
-Status: **FROZEN BASELINE / IMPLEMENTATION CONTRACT**  
-Baseline main SHA: `00eeaad66a2a36684ae2ad0b5b0074fcdf700640`  
-Release Hold: **ACTIVE**  
+Status: **FROZEN BASELINE / IMPLEMENTATION CONTRACT**
+Baseline main SHA: `00eeaad66a2a36684ae2ad0b5b0074fcdf700640`
+Release Hold: **ACTIVE**
 Prediction boundary: `prediction_validity=not_evaluated`
 
 ## Purpose

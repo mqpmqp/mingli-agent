@@ -270,4 +270,3 @@ def test_mcp_surface_lists_and_calls_read_only_unified_tool() -> None:
     content = called.json()["result"]["structuredContent"]
     assert content["prediction_validity"] == "not_evaluated"
     assert content["release_hold"] == "ACTIVE"
-
