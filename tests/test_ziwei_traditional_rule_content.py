@@ -352,6 +352,15 @@ def test_coverage_rejects_false_passes_outside_primary_matrix() -> None:
         assert build_rule_coverage(generic_rules)["release_gate"] == "NO-GO"
 
 
+def test_coverage_requires_fail_closed_chart_exclusions() -> None:
+    rules = deepcopy(list(load_ziwei_rule_content()))
+    target = next(rule for rule in rules if rule["subject"] == "primary_star_palace")
+    target["exclusions"] = [
+        {"fact": "unrelated", "operator": "equals", "value": True}
+    ]
+    assert build_rule_coverage(rules)["release_gate"] == "NO-GO"
+
+
 def test_reality_evidence_still_hard_overrides_effective_packaged_rule() -> None:
     chart = complete_chart()
     rules = load_ziwei_rule_content()
