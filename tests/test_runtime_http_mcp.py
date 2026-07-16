@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+import logging
 
 import pytest
 from starlette.testclient import TestClient
 
-from mingli.service_app import MAX_REQUEST_BYTES, create_app
+from mingli.service_app import MAX_REQUEST_BYTES, create_app, create_mcp
 
 MCP_HEADERS = {
     "accept": "application/json, text/event-stream",
@@ -196,3 +197,76 @@ def test_mcp_analyze_tool_has_explicit_machine_friendly_input_schema(client) -> 
         "solar",
         "lunar",
     ]
+
+
+def test_mcp_transport_allows_only_configured_public_host_and_origin() -> None:
+    public_app = create_app(
+        create_mcp(
+            host="0.0.0.0",
+            allowed_hosts=["runtime.example.com"],
+            allowed_origins=["https://chatgpt.com"],
+        )
+    )
+    with TestClient(public_app, base_url="https://runtime.example.com") as public:
+        accepted = public.post(
+            "/mcp",
+            headers={**MCP_HEADERS, "origin": "https://chatgpt.com"},
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "public-host-test", "version": "1.0"},
+                },
+            },
+        )
+        rejected_host = public.post(
+            "/mcp",
+            headers={
+                **MCP_HEADERS,
+                "host": "attacker.example.com",
+                "origin": "https://chatgpt.com",
+            },
+            json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        )
+        rejected_origin = public.post(
+            "/mcp",
+            headers={**MCP_HEADERS, "origin": "https://attacker.example.com"},
+            json={"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}},
+        )
+
+    assert accepted.status_code == 200
+    assert rejected_host.status_code == 421
+    assert rejected_origin.status_code == 403
+
+
+def test_request_policy_rejects_chunked_oversized_mcp_body(client) -> None:
+    def oversized_body() -> Iterator[bytes]:
+        yield b"x" * (MAX_REQUEST_BYTES + 1)
+
+    response = client.post(
+        "/mcp",
+        content=oversized_body(),
+        headers=MCP_HEADERS,
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "request_too_large"
+
+
+def test_request_policy_logs_sanitized_request_metadata(client, caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="mingli.service"):
+        response = client.get(
+            "/healthz",
+            headers={"x-request-id": "runtime-observability-test"},
+        )
+
+    record = next(item for item in caplog.records if item.message == "request_complete")
+    assert response.status_code == 200
+    assert record.request_id == "runtime-observability-test"
+    assert record.http_method == "GET"
+    assert record.http_path == "/healthz"
+    assert record.http_status == 200
+    assert record.duration_ms >= 0
