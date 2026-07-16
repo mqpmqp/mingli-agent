@@ -2,7 +2,7 @@
 
 ## Source plan
 
-用户 Epic 要求 stacked PR B 在 PR A `82bca1599aefde27332eab055ce7f8a57d121ed1` 上实现真实可执行的 Traditional Rule Content v1；没有单独 `*.plan.md`。
+用户 Epic 要求 stacked PR B 在 PR A 上实现真实可执行的 Traditional Rule Content v1；PR A #28 合并后，本分支已 restack 到 `main@40bab90dde185ff97fa983f5a50ce7b8208cb11e`。没有单独 `*.plan.md`。
 
 ## User journeys
 
@@ -14,19 +14,19 @@
 
 ## RED / GREEN checkpoints
 
-- RED commit：`8ff4dd7cb1e5704621a42a75a0cfeb519f3d9cc7`。
+- RED commit：`cfa35005f1a04a78e1572bc1c9ab1ec7b4e90ad0`。
 - RED 命令：`pytest ... test_ziwei_traditional_rule_content.py ...`。
 - RED 结果：2 个 collection errors，缺失 `PRIMARY_STAR_IDS`、`ZIWEI_RULE_CONTENT_VERSION` 等目标 API；失败来自待实现合同，不是环境或语法。
-- GREEN commit：`940a4f99a2c2255394334c9063f4fbdefedaa94b`。
+- GREEN commit：`d37d50edbcd7d8fd8a47cfbb825299767c7b38dd`。
 - GREEN 结果：21 个聚焦测试通过，wheel package-data 探针通过，Ruff/Pyright/compileall 通过。
-- 防伪加固 commit：`cc9ec9f35a67e32b2d0b5fa0962b9491b1d8221d`；补充非法模型、递归 condition、畸形命盘、protected fact 和 loader 错误路径。
-- 独立审查 RED 1：`d538241`；额外第六条组合规则仍得到 `REVIEW_REQUIRED`，重复宫名仍被提取，结果 2 failed / 9 passed。
-- 独立审查 RED 2：`6e7c13e`；完整盘 14 条主星落宫证据全部被跨 subject priority 压制，非法修饰星和重复宫序仍被接受，结果 4 failed / 9 passed。
-- 独立审查 GREEN：`8691d7c`；按同一 domain/subject/触发目标处理冲突，严格校验完整命盘交叉约束，并对 184 条规则逐类行为求值；受影响目标 14 passed。
-- 终审 RED：`fc8036c`；同 state 不同星仍互压、四类嵌套非 supported 事实仍被接受、过宽 generic trigger 仍通过 coverage，共 6 failed。
-- 终审补充 RED：`156bfa7`；移除 complete/unsupported exclusions 后 coverage 仍通过，1 failed。
-- 终审 GREEN：`840872d`；规范化 trigger 冲突键、嵌套 supported gate、canonical trigger/exclusions 与四类正负行为样本闭环；定向 7 passed，规则内容文件 45 passed。
-- 终审测试闭环：`cab5d73`；显式参数化五类嵌套字段与 unsupported/research_required 两种状态，10 passed。
+- 防伪加固 commit：`fcd3681d02b874dde7e6633f715b341aa30882fb`；补充非法模型、递归 condition、畸形命盘、protected fact 和 loader 错误路径。
+- 独立审查 RED 1：`00cb96d`；额外第六条组合规则仍得到 `REVIEW_REQUIRED`，重复宫名仍被提取，结果 2 failed / 9 passed。
+- 独立审查 RED 2：`cef9774`；完整盘 14 条主星落宫证据全部被跨 subject priority 压制，非法修饰星和重复宫序仍被接受，结果 4 failed / 9 passed。
+- 独立审查 GREEN：`819e409`；按同一 domain/subject/触发目标处理冲突，严格校验完整命盘交叉约束，并对 184 条规则逐类行为求值；受影响目标 14 passed。
+- 终审 RED：`7c189f6`；同 state 不同星仍互压、四类嵌套非 supported 事实仍被接受、过宽 generic trigger 仍通过 coverage，共 6 failed。
+- 终审补充 RED：`da20289`；移除 complete/unsupported exclusions 后 coverage 仍通过，1 failed。
+- 终审 GREEN：`e864f71`；规范化 trigger 冲突键、嵌套 supported gate、canonical trigger/exclusions 与四类正负行为样本闭环；定向 7 passed，规则内容文件 45 passed。
+- 终审测试闭环：`4448d51`；显式参数化五类嵌套字段与 unsupported/research_required 两种状态，10 passed。
 
 ## Test specification
 
@@ -50,6 +50,7 @@
 - PR B 目标模块：`ziwei_rules` 89%，`ziwei_runtime` 86%，合计 88.24%，超过 80% 门禁。
 - 规则/Runtime/CLI 聚焦：63 passed；紫微全集：96 passed。
 - 完整 gate 与 full pytest 结果在 Local Merge Gate 报告中记录；未完成命令不标记为 PASS。
+- PR A 合并后的 restack 复验：focused 63 passed / 88.24%；full 363 passed、1 skipped；fast 267 passed、1 skipped；benchmark 38 passed；real-case 58 passed；Ruff、Pyright、compileall、build、隔离 wheel 与 `pip-audit . --strict` 均 PASS。
 
 ## Known gaps
 
