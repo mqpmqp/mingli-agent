@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/contracts/bazi_expert_v2_result.schema.json",
+  "title": "Bazi Expert Rules V2 Orchestration Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_hash",
+    "selected_target_id",
+    "source_results",
+    "facets",
+    "facet_summary",
+    "evidence_fusion",
+    "calibrated_claims",
+    "yuan",
+    "fixture_provenance",
+    "confidence",
+    "confidence_reason_codes",
+    "warnings",
+    "unsupported",
+    "canonical_hash",
+    "schema_version",
+    "method_id",
+    "calculation_version",
+    "prediction_validity",
+    "release_hold",
+    "accuracy_claim_allowed"
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sourceResult": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "method_id",
+        "calculation_version",
+        "canonical_hash"
+      ],
+      "properties": {
+        "schema_version": {"type": "string", "minLength": 1},
+        "method_id": {"type": "string", "minLength": 1},
+        "calculation_version": {"type": "string", "minLength": 1},
+        "canonical_hash": {"$ref": "#/$defs/hash"},
+        "component_hashes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/hash"},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "facet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "facet_id",
+        "status",
+        "availability",
+        "confidence",
+        "source_phases",
+        "boundary_codes",
+        "data",
+        "canonical_digest"
+      ],
+      "properties": {
+        "facet_id": {"type": "string", "minLength": 1},
+        "status": {
+          "enum": ["implemented", "conditional", "unsupported"]
+        },
+        "availability": {"type": "string", "minLength": 1},
+        "confidence": {
+          "enum": ["high", "medium", "low", "not_applicable"]
+        },
+        "source_phases": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^phase([0-9]+)$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "boundary_codes": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "data": {"type": "object"},
+        "canonical_digest": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "calibratedClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "scope",
+        "status",
+        "confidence",
+        "confidence_score",
+        "reality_override",
+        "reason_codes"
+      ],
+      "properties": {
+        "claim_id": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "status": {"type": "string", "minLength": 1},
+        "confidence": {"enum": ["high", "medium", "low"]},
+        "confidence_score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "reality_override": {"type": "boolean"},
+        "reason_codes": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    }
+  },
+  "properties": {
+    "request_hash": {"$ref": "#/$defs/hash"},
+    "selected_target_id": {"type": "string", "minLength": 1},
+    "source_results": {
+      "type": "object",
+      "required": [
+        "phase9",
+        "phase10",
+        "phase11",
+        "phase12",
+        "phase13",
+        "phase14",
+        "phase15",
+        "phase16",
+        "phase17",
+        "phase18"
+      ],
+      "additionalProperties": {"$ref": "#/$defs/sourceResult"}
+    },
+    "facets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "five_element_strength",
+        "same_kind_different_kind",
+        "pattern",
+        "yongshen_climate_regulation",
+        "ten_god_combinations",
+        "punishment_clash_combine_harm",
+        "decadal_luck",
+        "annual_scope",
+        "monthly_scope",
+        "career",
+        "wealth",
+        "relationship",
+        "marriage",
+        "study",
+        "family",
+        "civil_service_exam",
+        "relationship_reunion",
+        "dual_person_compatibility",
+        "prior_event_validation",
+        "reality_evidence_override",
+        "confidence_calibration",
+        "yuan_renderer_adapter"
+      ],
+      "properties": {
+        "five_element_strength": {"$ref": "#/$defs/facet"},
+        "same_kind_different_kind": {"$ref": "#/$defs/facet"},
+        "pattern": {"$ref": "#/$defs/facet"},
+        "yongshen_climate_regulation": {"$ref": "#/$defs/facet"},
+        "ten_god_combinations": {"$ref": "#/$defs/facet"},
+        "punishment_clash_combine_harm": {"$ref": "#/$defs/facet"},
+        "decadal_luck": {"$ref": "#/$defs/facet"},
+        "annual_scope": {"$ref": "#/$defs/facet"},
+        "monthly_scope": {"$ref": "#/$defs/facet"},
+        "career": {"$ref": "#/$defs/facet"},
+        "wealth": {"$ref": "#/$defs/facet"},
+        "relationship": {"$ref": "#/$defs/facet"},
+        "marriage": {"$ref": "#/$defs/facet"},
+        "study": {"$ref": "#/$defs/facet"},
+        "family": {"$ref": "#/$defs/facet"},
+        "civil_service_exam": {"$ref": "#/$defs/facet"},
+        "relationship_reunion": {"$ref": "#/$defs/facet"},
+        "dual_person_compatibility": {"$ref": "#/$defs/facet"},
+        "prior_event_validation": {"$ref": "#/$defs/facet"},
+        "reality_evidence_override": {"$ref": "#/$defs/facet"},
+        "confidence_calibration": {"$ref": "#/$defs/facet"},
+        "yuan_renderer_adapter": {"$ref": "#/$defs/facet"}
+      }
+    },
+    "facet_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["implemented", "conditional", "unsupported"],
+      "properties": {
+        "implemented": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "conditional": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "unsupported": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "evidence_fusion": {
+      "type": "object",
+      "required": [
+        "claims",
+        "canonical_hash",
+        "prediction_validity",
+        "schema_version",
+        "method_id",
+        "calculation_version"
+      ]
+    },
+    "calibrated_claims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/calibratedClaim"}
+    },
+    "yuan": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": [
+            "sections",
+            "rendered_text",
+            "canonical_hash",
+            "prediction_validity"
+          ]
+        }
+      ]
+    },
+    "fixture_provenance": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["synthetic", "purpose", "accuracy_eligible"],
+          "properties": {
+            "synthetic": {"const": true},
+            "purpose": {"const": "contract_test_only"},
+            "accuracy_eligible": {"const": false}
+          }
+        }
+      ]
+    },
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "confidence_reason_codes": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "unsupported": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "canonical_hash": {"$ref": "#/$defs/hash"},
+    "schema_version": {"const": "bazi-expert-orchestration-result@2.0"},
+    "method_id": {"const": "bazi-expert-orchestration@2.0.0"},
+    "calculation_version": {"const": "2.0.0"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "release_hold": {"const": "ACTIVE"},
+    "accuracy_claim_allowed": {"const": false}
+  }
+}
