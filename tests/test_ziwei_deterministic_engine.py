@@ -268,6 +268,19 @@ def test_complete_chart_and_nested_objects_validate_against_schemas() -> None:
             brightness_validator.validate(brightness)
 
 
+def test_brightness_normalization_preserves_seven_level_source_order() -> None:
+    chart = build_ziwei_chart(lunar_birth())
+    brightness = {
+        item["star_id"]: (item["state"], item["source_value"])
+        for palace in chart["palaces"]
+        for item in palace["brightness_state"]
+    }
+    assert brightness["ziwei"] == ("prosperous", "旺")
+    assert brightness["lianzhen"] == ("weak", "平")
+    assert brightness["taiyin"] == ("unfavorable", "不")
+    assert brightness["tiantong"] == ("fallen", "陷")
+
+
 def test_fixed_engine_benchmark_covers_all_five_bureaus() -> None:
     report = run_ziwei_engine_benchmarks()
     assert report["schema_version"] == "ziwei-engine-benchmark-report@1.0"
