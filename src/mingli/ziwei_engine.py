@@ -119,9 +119,9 @@ _BRIGHTNESS_NORMALIZATION = {
     "miao": ("temple", "庙"),
     "wang": ("prosperous", "旺"),
     "de": ("beneficial", "得"),
-    "li": ("beneficial", "利"),
-    "ping": ("neutral", "平"),
-    "bu": ("neutral", "不"),
+    "li": ("neutral", "利"),
+    "ping": ("weak", "平"),
+    "bu": ("unfavorable", "不"),
     "xian": ("fallen", "陷"),
 }
 

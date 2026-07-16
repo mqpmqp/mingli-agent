@@ -30,7 +30,7 @@
 | 紫微 | 出生日补至可被局数整除；补数偶数顺加、奇数逆减，从寅起商数 |
 | 天府 | 与紫微按寅宫索引镜像；其余十三主星按两星系固定偏移 |
 | 四化 | `ziwei-doushu-quanji`，明确保留庚、壬等流派差异，不混用其他表 |
-| 亮度 | `iztro` 固定 revision 的传统表，规范化为 temple/prosperous/beneficial/neutral/fallen |
+| 亮度 | `iztro` 固定 revision 的七级传统表，依序规范化为 temple/prosperous/beneficial/neutral/weak/unfavorable/fallen，并保留中文 source_value |
 
 算法版本、时间政策、位置、时区、性别与规范农历身份进入 fingerprint。姓名、昵称、显示年龄和会话 ID 不进入 fingerprint。
 
