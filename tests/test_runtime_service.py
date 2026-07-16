@@ -70,7 +70,7 @@ def test_full_runtime_adapter_is_deterministic_and_preserves_safety_contract() -
     second = analyze_mingli_payload(mingli_payload())
 
     assert first == second
-    assert first["schema_version"] == "phase23-runtime-result@1.0"
+    assert first["schema_version"] == "mingli-agent-runtime-result@0.3"
     assert first["prediction_validity"] == "not_evaluated"
     assert first["final_answer"].endswith(DISCLAIMER)
     assert first["final_answer"].count(DISCLAIMER) == 1
