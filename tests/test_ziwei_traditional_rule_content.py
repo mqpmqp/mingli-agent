@@ -138,6 +138,16 @@ def test_chart_fact_extraction_and_rules_are_behaviorally_evaluable() -> None:
     assert {item.subject for item in effective}.issuperset(
         {"primary_star_palace", "transformation", "brightness"}
     )
+    runtime = run_ziwei_runtime(
+        complete_chart(),
+        facts={},
+        rules=rules,
+        reality={},
+        reality_evidence=[],
+        start_year=2028,
+    )
+    assert runtime["inference"]["effective_match_count"] == len(effective)
+    assert len(runtime["evidence_fusion"]["claims"]) == len(effective)
 
     without_ziwei = dict(facts)
     without_ziwei["star_palace_pairs"] = [

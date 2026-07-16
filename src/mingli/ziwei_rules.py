@@ -11,6 +11,12 @@ from typing import Mapping, Sequence, TypedDict, cast
 from jsonschema import Draft202012Validator, ValidationError
 
 from .contracts import get_schema
+from .ziwei_engine import (
+    AUXILIARY_STAR_IDS,
+    MALEFIC_STAR_NAMES,
+    PALACE_BRANCHES,
+    SUPPORTING_STAR_NAMES,
+)
 
 ZIWEI_RULE_CONTENT_VERSION = "ziwei-traditional-rule-content@1.0.0"
 ZIWEI_CHART_ALGORITHM = "ziwei-traditional-natal@1.0.0"
@@ -57,6 +63,13 @@ BRIGHTNESS_STATES = (
     "unfavorable",
     "fallen",
 )
+COMBINATION_FACTS = {
+    "ziwei:v1:combination:ziwei-tianfu": "ziwei+tianfu",
+    "ziwei:v1:combination:ziwei-qisha": "ziwei+qisha",
+    "ziwei:v1:combination:wuqu-tanlang": "wuqu+tanlang",
+    "ziwei:v1:combination:taiyang-taiyin": "taiyang+taiyin",
+    "ziwei:v1:combination:lianzhen-qisha": "lianzhen+qisha",
+}
 SUBJECTS = ("primary_star_palace", "transformation", "brightness", "combination")
 DOMAINS = ("career", "wealth", "relationship")
 THEMES = ("career", "wealth", "relationship", "study")
@@ -433,6 +446,24 @@ def _matches(condition: Mapping[str, object], facts: Mapping[str, object]) -> bo
     return actual is _MISSING or not _contains(actual, expected)
 
 
+def _rule_conflict_key(card: Mapping[str, object]) -> tuple[str, str, str]:
+    subject = str(card["subject"])
+    if subject == "primary_star_palace":
+        target = f"{card['star']}:{card['palace']}"
+    elif subject == "transformation":
+        target = str(card["transformation"])
+    elif subject == "brightness":
+        target = str(card["state"])
+    else:
+        target = json.dumps(
+            card["trigger"],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    return str(card["domain"]), subject, target
+
+
 def evaluate_ziwei_rules(
     facts: Mapping[str, object], rules: Sequence[Mapping[str, object]]
 ) -> tuple[ZiweiRuleMatch, ...]:
@@ -447,28 +478,29 @@ def evaluate_ziwei_rules(
     ]
     candidates.sort(key=lambda card: (-int(card["priority"]), str(card["rule_id"])))
     highest_priority = {
-        domain: max(
+        key: max(
             int(card["priority"])
             for card in candidates
-            if str(card["domain"]) == domain
+            if _rule_conflict_key(card) == key
         )
-        for domain in {str(card["domain"]) for card in candidates}
+        for key in {_rule_conflict_key(card) for card in candidates}
     }
     top_directions = {
-        domain: {
+        key: {
             str(card["direction"])
             for card in candidates
-            if str(card["domain"]) == domain
-            and int(card["priority"]) == highest_priority[domain]
+            if _rule_conflict_key(card) == key
+            and int(card["priority"]) == highest_priority[key]
         }
-        for domain in highest_priority
+        for key in highest_priority
     }
     matches: list[ZiweiRuleMatch] = []
     for card in candidates:
         domain = str(card["domain"])
-        if int(card["priority"]) < highest_priority[domain]:
+        conflict_key = _rule_conflict_key(card)
+        if int(card["priority"]) < highest_priority[conflict_key]:
             resolution = "suppressed_by_higher_priority"
-        elif len(top_directions[domain]) > 1:
+        elif len(top_directions[conflict_key]) > 1:
             resolution = "unresolved_conflict"
         else:
             resolution = "matched"
@@ -506,6 +538,10 @@ def _require_sequence(value: object, name: str) -> Sequence[object]:
 def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
     if not isinstance(chart, Mapping):
         raise ZiweiRuleError("Ziwei chart must be an object")
+    try:
+        Draft202012Validator(get_schema("ziwei_chart.schema.json")).validate(chart)
+    except ValidationError as exc:
+        raise ZiweiRuleError(f"Ziwei chart schema validation failed: {exc.message}") from exc
     if chart.get("calculation_status") != "complete":
         raise ZiweiRuleError("Ziwei traditional rules require a complete chart")
     if chart.get("algorithm_version") != ZIWEI_CHART_ALGORITHM:
@@ -522,6 +558,13 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
     brightness_states: list[dict[str, str]] = []
     co_locations: list[str] = []
     seen_stars: list[str] = []
+    seen_all_stars: list[str] = []
+    seen_palaces: list[str] = []
+    seen_palace_indexes: list[int] = []
+    seen_branches: list[str] = []
+    seen_transformations: list[str] = []
+    seen_brightness_stars: list[str] = []
+    body_palace_count = 0
     star_order = {star_id: index for index, star_id in enumerate(PRIMARY_STAR_IDS)}
     for palace in palaces:
         if not isinstance(palace, Mapping):
@@ -529,6 +572,16 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
         palace_name = palace.get("palace_name")
         if palace_name not in PALACES:
             raise ZiweiRuleError("Ziwei palace_name is unsupported")
+        palace_index = palace.get("palace_index")
+        branch = palace.get("earthly_branch")
+        if isinstance(palace_index, bool) or not isinstance(palace_index, int):
+            raise ZiweiRuleError("Ziwei palace_index is invalid")
+        if branch not in PALACE_BRANCHES:
+            raise ZiweiRuleError("Ziwei earthly_branch is unsupported")
+        seen_palaces.append(str(palace_name))
+        seen_palace_indexes.append(palace_index)
+        seen_branches.append(str(branch))
+        body_palace_count += palace.get("is_body_palace") is True
         primary = _require_sequence(palace.get("primary_stars"), "primary_stars")
         palace_star_ids: list[str] = []
         for star in primary:
@@ -536,10 +589,27 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
                 raise ZiweiRuleError("Ziwei primary star is unsupported")
             star_id = str(star["star_id"])
             seen_stars.append(star_id)
+            seen_all_stars.append(star_id)
             palace_star_ids.append(star_id)
             star_palace_pairs.append({"star": star_id, "palace": str(palace_name)})
+        for field, supported_ids in (
+            ("supporting_stars", SUPPORTING_STAR_NAMES),
+            ("malefic_stars", MALEFIC_STAR_NAMES),
+        ):
+            for star in _require_sequence(palace.get(field), field):
+                if not isinstance(star, Mapping) or star.get("star_id") not in supported_ids:
+                    raise ZiweiRuleError(f"Ziwei {field} contains an unsupported star")
+                star_id = str(star["star_id"])
+                seen_all_stars.append(star_id)
+                palace_star_ids.append(star_id)
+        if len(set(palace_star_ids)) != len(palace_star_ids):
+            raise ZiweiRuleError("Ziwei palace contains duplicate stars")
         for first, second in combinations(
-            sorted(palace_star_ids, key=star_order.__getitem__), 2
+            sorted(
+                (star_id for star_id in palace_star_ids if star_id in star_order),
+                key=star_order.__getitem__,
+            ),
+            2,
         ):
             co_locations.append(f"{first}+{second}")
         for item in _require_sequence(palace.get("transformations"), "transformations"):
@@ -551,8 +621,10 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
                 transformation not in TRANSFORMATIONS
                 or not isinstance(star_id, str)
                 or not star_id
+                or star_id not in palace_star_ids
             ):
                 raise ZiweiRuleError("Ziwei transformation is unsupported")
+            seen_transformations.append(str(transformation))
             transformations.append(
                 {
                     "star": str(star_id),
@@ -565,13 +637,36 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
                 raise ZiweiRuleError("Ziwei brightness state must be an object")
             state = item.get("state")
             star_id = item.get("star_id")
-            if state not in BRIGHTNESS_STATES or not isinstance(star_id, str):
+            if (
+                state not in BRIGHTNESS_STATES
+                or not isinstance(star_id, str)
+                or not star_id
+                or star_id not in palace_star_ids
+            ):
                 raise ZiweiRuleError("Ziwei brightness state is unsupported")
+            seen_brightness_stars.append(star_id)
             brightness_states.append(
                 {"star": star_id, "state": str(state), "palace": str(palace_name)}
             )
+    if Counter(seen_palaces) != Counter({palace: 1 for palace in PALACES}):
+        raise ZiweiRuleError("Ziwei complete chart must contain each palace exactly once")
+    if Counter(seen_palace_indexes) != Counter({index: 1 for index in range(12)}):
+        raise ZiweiRuleError("Ziwei complete chart must contain each palace_index exactly once")
+    if Counter(seen_branches) != Counter({branch: 1 for branch in PALACE_BRANCHES}):
+        raise ZiweiRuleError("Ziwei complete chart must contain each earthly branch exactly once")
+    if body_palace_count != 1:
+        raise ZiweiRuleError("Ziwei complete chart must identify one body palace")
     if Counter(seen_stars) != Counter({star_id: 1 for star_id in PRIMARY_STAR_IDS}):
         raise ZiweiRuleError("Ziwei complete chart must contain each primary star exactly once")
+    supported_star_ids = (*PRIMARY_STAR_IDS, *AUXILIARY_STAR_IDS)
+    if Counter(seen_all_stars) != Counter({star_id: 1 for star_id in supported_star_ids}):
+        raise ZiweiRuleError("Ziwei complete chart must contain each supported star exactly once")
+    if Counter(seen_transformations) != Counter(
+        {transformation: 1 for transformation in TRANSFORMATIONS}
+    ):
+        raise ZiweiRuleError("Ziwei complete chart must contain each transformation exactly once")
+    if len(set(seen_brightness_stars)) != len(seen_brightness_stars):
+        raise ZiweiRuleError("Ziwei complete chart contains duplicate brightness states")
     return {
         "algorithm_version": ZIWEI_CHART_ALGORITHM,
         "calculation_status": "complete",
@@ -603,6 +698,36 @@ def _synthetic_pair_facts(star: str, palace: str) -> dict[str, object]:
     }
 
 
+def _synthetic_rule_facts(card: Mapping[str, object]) -> dict[str, object] | None:
+    facts = _synthetic_pair_facts("ziwei", "命宫")
+    subject = card["subject"]
+    if subject == "primary_star_palace":
+        facts["star_palace_pairs"] = [
+            {"star": str(card["star"]), "palace": str(card["palace"])}
+        ]
+    elif subject == "transformation":
+        facts["star_palace_pairs"] = []
+        facts["transformations"] = [
+            {
+                "star": "ziwei",
+                "transformation": str(card["transformation"]),
+                "palace": "命宫",
+            }
+        ]
+    elif subject == "brightness":
+        facts["star_palace_pairs"] = []
+        facts["brightness_states"] = [
+            {"star": "ziwei", "state": str(card["state"]), "palace": "命宫"}
+        ]
+    else:
+        facts["star_palace_pairs"] = []
+        combination = COMBINATION_FACTS.get(str(card["rule_id"]))
+        if combination is None:
+            return None
+        facts["co_locations"] = [combination]
+    return facts
+
+
 def build_rule_coverage(
     rules: Sequence[Mapping[str, object]] | None = None,
 ) -> dict[str, object]:
@@ -616,36 +741,67 @@ def build_rule_coverage(
     pairs = [(str(card["star"]), str(card["palace"])) for card in base_cards]
     pair_counts = Counter(pairs)
     duplicate_pairs = sum(count - 1 for count in pair_counts.values() if count > 1)
-    behavior_pairs: set[tuple[str, str]] = set()
-    for card in base_cards:
-        pair = (str(card["star"]), str(card["palace"]))
-        matches = evaluate_ziwei_rules(_synthetic_pair_facts(*pair), [card])
+    behavior_rule_ids: set[str] = set()
+    for card in validated:
+        facts = _synthetic_rule_facts(card)
+        if facts is None:
+            continue
+        matches = evaluate_ziwei_rules(facts, [card])
         if (
-            pair_counts[pair] == 1
-            and len(matches) == 1
+            len(matches) == 1
             and matches[0].rule_id == card["rule_id"]
             and matches[0].resolution == "matched"
         ):
+            behavior_rule_ids.add(str(card["rule_id"]))
+    behavior_pairs: set[tuple[str, str]] = set()
+    for card in base_cards:
+        pair = (str(card["star"]), str(card["palace"]))
+        if (
+            pair_counts[pair] == 1
+            and str(card["rule_id"]) in behavior_rule_ids
+        ):
             behavior_pairs.add(pair)
     expected_pairs = {(star, palace) for star in PRIMARY_STAR_IDS for palace in PALACES}
+    transformation_cards = [
+        card for card in validated if card["subject"] == "transformation"
+    ]
     transformation_rules = {
         str(card["transformation"])
-        for card in validated
-        if card["subject"] == "transformation"
+        for card in transformation_cards
+        if str(card["rule_id"]) in behavior_rule_ids
     }
+    brightness_cards = [card for card in validated if card["subject"] == "brightness"]
     brightness_rules = {
         str(card["state"])
-        for card in validated
-        if card["subject"] == "brightness"
+        for card in brightness_cards
+        if str(card["rule_id"]) in behavior_rule_ids
     }
-    combination_count = sum(card["subject"] == "combination" for card in validated)
+    combination_cards = [card for card in validated if card["subject"] == "combination"]
+    combination_rules = {
+        str(card["rule_id"])
+        for card in combination_cards
+        if str(card["rule_id"]) in behavior_rule_ids
+    }
+    transformations_complete = (
+        len(transformation_cards) == len(TRANSFORMATIONS)
+        and transformation_rules == set(TRANSFORMATIONS)
+    )
+    brightness_complete = (
+        len(brightness_cards) == len(BRIGHTNESS_STATES)
+        and brightness_rules == set(BRIGHTNESS_STATES)
+    )
+    combinations_complete = (
+        len(combination_cards) == len(COMBINATION_FACTS)
+        and combination_rules == set(COMBINATION_FACTS)
+    )
     complete = (
-        behavior_pairs == expected_pairs
+        len(validated) == 184
+        and behavior_pairs == expected_pairs
         and duplicate_pairs == 0
         and duplicate_rule_ids == 0
-        and transformation_rules == set(TRANSFORMATIONS)
-        and brightness_rules == set(BRIGHTNESS_STATES)
-        and combination_count >= 5
+        and transformations_complete
+        and brightness_complete
+        and combinations_complete
     )
     return {
         "content_version": ZIWEI_RULE_CONTENT_VERSION,
@@ -672,20 +828,22 @@ def build_rule_coverage(
         "star_palace_implemented": len(behavior_pairs),
         "duplicate_rule_ids": duplicate_rule_ids,
         "duplicate_pairs": duplicate_pairs,
+        "transformation_records": len(transformation_cards),
+        "transformation_behaviorally_evaluated": len(transformation_rules),
+        "brightness_records": len(brightness_cards),
+        "brightness_behaviorally_evaluated": len(brightness_rules),
+        "combination_records": len(combination_cards),
+        "combination_behaviorally_evaluated": len(combination_rules),
         "contracts": {
-            "dual_star": "implemented" if combination_count >= 5 else "incomplete",
+            "dual_star": "implemented" if combinations_complete else "incomplete",
             "three_directions_four_orthogonals": "contract_only",
             "opposite_palace": "contract_only",
             "four_transformations": (
-                "implemented"
-                if transformation_rules == set(TRANSFORMATIONS)
-                else "incomplete"
+                "implemented" if transformations_complete else "incomplete"
             ),
             "supporting_and_malefic": "contract_only",
             "brightness": (
-                "implemented"
-                if brightness_rules == set(BRIGHTNESS_STATES)
-                else "incomplete"
+                "implemented" if brightness_complete else "incomplete"
             ),
             "pattern_recognition": "contract_only",
             "temporal_overlay": "contract_only",
