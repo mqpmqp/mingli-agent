@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/real_case_learning_v2_partition.schema.json",
+  "title": "Real Case Learning OS V2 Temporal Partition Manifest",
+  "type": "object",
+  "required": [
+    "record_type",
+    "schema_version",
+    "cutoff_at",
+    "assignment_basis",
+    "ingestion_order_used",
+    "deduplication_keys",
+    "train_case_ids",
+    "test_case_ids",
+    "forced_test_case_ids",
+    "withdrawn_case_refs",
+    "synthetic_case_ids",
+    "accuracy_eligible_case_ids",
+    "leakage_detected",
+    "leakage_prevention",
+    "product_claim_eligible",
+    "commercial_release_hold",
+    "prediction_validity",
+    "canonical_hash"
+  ],
+  "properties": {
+    "record_type": {"const": "RealCaseLearningV2PartitionManifest"},
+    "schema_version": {"const": "real-case-learning-partition@2.0"},
+    "cutoff_at": {"type": "string", "format": "date-time"},
+    "assignment_basis": {"const": "event_and_observation_time"},
+    "ingestion_order_used": {"const": false},
+    "deduplication_keys": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "person_case_id",
+          "prediction_id",
+          "event_window",
+          "derived_fingerprint",
+          "near_duplicate_fingerprint"
+        ]
+      },
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "train_case_ids": {"$ref": "#/$defs/caseIds"},
+    "test_case_ids": {"$ref": "#/$defs/caseIds"},
+    "forced_test_case_ids": {"$ref": "#/$defs/caseIds"},
+    "withdrawn_case_refs": {"$ref": "#/$defs/hashes"},
+    "synthetic_case_ids": {"$ref": "#/$defs/caseIds"},
+    "accuracy_eligible_case_ids": {"type": "array", "maxItems": 0},
+    "leakage_detected": {"const": false},
+    "leakage_prevention": {"const": "duplicate_components_use_test_partition"},
+    "product_claim_eligible": {"const": false},
+    "commercial_release_hold": {"const": "ACTIVE"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "canonical_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "hashes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/hash"},
+      "uniqueItems": true
+    },
+    "caseIds": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^case:[0-9a-f]{64}$"},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}
