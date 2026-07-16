@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_temporal_v2_result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "method_id",
+    "ruleset_version",
+    "ruleset_hash",
+    "chart_fingerprint",
+    "findings",
+    "event_time_windows",
+    "reality_evidence_applied",
+    "fixture_classification",
+    "accuracy_assessment",
+    "warnings",
+    "release_hold",
+    "prediction_validity",
+    "canonical_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "ziwei-temporal-combination-result@2.0"},
+    "method_id": {"const": "ziwei-temporal-combination@2.0.0"},
+    "ruleset_version": {"const": "ziwei-temporal-combination-rules@2.0.0"},
+    "ruleset_hash": {"$ref": "#/$defs/hash"},
+    "chart_fingerprint": {"$ref": "#/$defs/hash"},
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "event_time_windows": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/window"}
+    },
+    "reality_evidence_applied": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "fixture_classification": {"const": "synthetic_contract_only"},
+    "accuracy_assessment": {"const": "not_assessed"},
+    "warnings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "release_hold": {"const": "ACTIVE"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "canonical_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "level", "start", "end", "bounded", "precision"],
+      "properties": {
+        "scope": {"type": "string", "minLength": 1},
+        "level": {"enum": ["decade", "year", "month"]},
+        "start": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$"},
+        "end": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$"},
+        "bounded": {"const": true},
+        "precision": {"const": "month"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_id",
+        "category",
+        "topics",
+        "claim_id",
+        "scope",
+        "temporal_level",
+        "direction",
+        "priority",
+        "confidence",
+        "resolution",
+        "confidence_demotion_reasons",
+        "reality_evidence_ids",
+        "event_time_window",
+        "prediction_validity"
+      ],
+      "properties": {
+        "rule_id": {"type": "string", "minLength": 1},
+        "category": {
+          "enum": [
+            "four_transformation_combination",
+            "primary_supporting_combination",
+            "three_directions_four_orthogonals",
+            "sandwich",
+            "arch",
+            "convergence",
+            "aspect",
+            "life_body_relationship",
+            "brightness_state_combination",
+            "temporal_overlay"
+          ]
+        },
+        "topics": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["career", "wealth", "relationship", "study", "family", "migration"]
+          }
+        },
+        "claim_id": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "temporal_level": {"enum": ["natal", "decade", "year", "month"]},
+        "direction": {"enum": ["support", "contradict"]},
+        "priority": {"type": "integer", "minimum": 1, "maximum": 100},
+        "confidence": {"enum": ["low", "medium", "high"]},
+        "resolution": {
+          "enum": [
+            "matched",
+            "suppressed_by_higher_priority",
+            "unresolved_conflict",
+            "reality_override",
+            "unresolved_reality_conflict"
+          ]
+        },
+        "confidence_demotion_reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "reality_evidence_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "event_time_window": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/window"}
+          ]
+        },
+        "prediction_validity": {"const": "not_evaluated"}
+      }
+    }
+  }
+}

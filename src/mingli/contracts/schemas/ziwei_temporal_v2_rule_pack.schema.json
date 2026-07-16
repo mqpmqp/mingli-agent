@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_temporal_v2_rule_pack.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "content_version",
+    "method_id",
+    "chart_algorithm",
+    "sources",
+    "fixture_classification",
+    "accuracy_assessment",
+    "prediction_validity",
+    "release_hold",
+    "rules",
+    "canonical_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "ziwei-temporal-combination-rule-pack@2.0"},
+    "content_version": {"const": "ziwei-temporal-combination-rules@2.0.0"},
+    "method_id": {"const": "ziwei-temporal-combination@2.0.0"},
+    "chart_algorithm": {"const": "ziwei-traditional-natal@1.0.0"},
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_id", "evidence_level", "prediction_validation"],
+        "properties": {
+          "source_id": {"type": "string", "minLength": 1},
+          "evidence_level": {"const": "traditional_paraphrase"},
+          "prediction_validation": {"const": "not_evaluated"}
+        }
+      }
+    },
+    "fixture_classification": {"const": "synthetic_contract_only"},
+    "accuracy_assessment": {"const": "not_assessed"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "release_hold": {"const": "ACTIVE"},
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/rule"}
+    },
+    "canonical_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "tokens": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_id",
+        "content_version",
+        "category",
+        "topics",
+        "temporal_level",
+        "claim_id",
+        "conflict_group",
+        "direction",
+        "priority",
+        "canonical_priority",
+        "confidence",
+        "trigger",
+        "canonical_trigger",
+        "exclusions",
+        "conflict_policy",
+        "compatibility",
+        "source_id",
+        "lifecycle",
+        "synthetic_contract_fixture",
+        "canonical_hash"
+      ],
+      "properties": {
+        "rule_id": {"type": "string", "minLength": 1},
+        "content_version": {"const": "ziwei-temporal-combination-rules@2.0.0"},
+        "category": {
+          "enum": [
+            "four_transformation_combination",
+            "primary_supporting_combination",
+            "three_directions_four_orthogonals",
+            "sandwich",
+            "arch",
+            "convergence",
+            "aspect",
+            "life_body_relationship",
+            "brightness_state_combination",
+            "temporal_overlay"
+          ]
+        },
+        "topics": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["career", "wealth", "relationship", "study", "family", "migration"]
+          }
+        },
+        "temporal_level": {"enum": ["natal", "decade", "year", "month"]},
+        "claim_id": {"type": "string", "minLength": 1},
+        "conflict_group": {"type": "string", "minLength": 1},
+        "direction": {"enum": ["support", "contradict"]},
+        "priority": {"type": "integer", "minimum": 1, "maximum": 100},
+        "canonical_priority": {"type": "integer", "minimum": 1, "maximum": 100},
+        "confidence": {"enum": ["low", "medium"]},
+        "trigger": {"$ref": "#/$defs/trigger"},
+        "canonical_trigger": {"$ref": "#/$defs/trigger"},
+        "exclusions": {"$ref": "#/$defs/tokens"},
+        "conflict_policy": {"const": "higher_priority_then_unresolved"},
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chart_algorithm", "rule_content"],
+          "properties": {
+            "chart_algorithm": {"const": "ziwei-traditional-natal@1.0.0"},
+            "rule_content": {"const": "ziwei-temporal-combination-rules@2.0.0"}
+          }
+        },
+        "source_id": {"type": "string", "minLength": 1},
+        "lifecycle": {"const": "draft"},
+        "synthetic_contract_fixture": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["classification", "tokens"],
+          "properties": {
+            "classification": {"const": "synthetic_contract_only"},
+            "tokens": {"$ref": "#/$defs/tokens"}
+          }
+        },
+        "canonical_hash": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["all"],
+      "properties": {
+        "all": {"$ref": "#/$defs/tokens"}
+      }
+    }
+  }
+}
