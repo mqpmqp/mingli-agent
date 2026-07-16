@@ -59,3 +59,16 @@ All fixtures remain explicitly synthetic contract fixtures. They are not accurac
 - Frozen-contract verifier: `ok=true`, `checked_count=78`, `violations=[]`.
 
 The fix deliberately leaves the frozen legacy prediction/evidence freezers unchanged. The additive V2 layer now rejects their open payloads when they enter a V2 case, supplies closed V2 prediction/evidence schemas, validates nested evidence entries and dependency binding, recomputes partition assignment from per-case temporal inputs, and binds recommendation eligibility to the current case hash and temporal input record.
+
+## Theme 1 Santa convergence round 3
+
+- Fresh dual-review result before the fix: FAIL / FAIL.
+- RED checkpoint: `012f5c1`.
+- RED focused result: `5 failed`; counterexamples covered missing Ziwei parents, prior observation before window, hash-valid prediction validity mutation, hash-valid evidence direction divergence, and injected prior temporal divergence.
+- GREEN checkpoint: `7f4afd7`.
+- Same counterexample target: `5 passed`.
+- Four V2 focused suites: `75 passed`.
+- Modified Real Case/Ziwei branch coverage: 81% each, 81% combined.
+- Ruff, compileall, diff check, and frozen-contract verifier: PASS.
+
+New guarantees: year/month overlays require an explicit decade parent and month overlays require an explicit year parent; prior observation cannot precede its frozen window; injected V2 predictions preserve `not_evaluated` and invisible-reality boundaries; verified frozen evidence direction equals the recorded Reality hard-override direction.
