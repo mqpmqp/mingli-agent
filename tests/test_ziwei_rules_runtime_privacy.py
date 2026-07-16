@@ -122,6 +122,39 @@ def test_runtime_preserves_reality_hard_override_and_yuan_contract() -> None:
     assert "internal_reasoning" not in result
 
 
+def test_runtime_rejects_complete_chart_until_traditional_engine_is_verified() -> None:
+    unsupported_complete = chart()
+    unsupported_complete["calculation_status"] = "complete"
+
+    with pytest.raises(ValueError, match="partial or degraded"):
+        run_ziwei_runtime(
+            unsupported_complete,
+            facts={},
+            rules=[],
+            reality={},
+            reality_evidence=[],
+            start_year=2028,
+        )
+
+
+def test_runtime_rejects_unsupported_chart_facts_before_rule_evaluation() -> None:
+    unsupported_rule = rule(
+        trigger={"fact": "life_palace", "equals": 0},
+        required_facts=["life_palace"],
+        confidence="high",
+    )
+
+    with pytest.raises(ValueError, match="unsupported Ziwei facts"):
+        run_ziwei_runtime(
+            chart(),
+            facts={"life_palace": 0},
+            rules=[unsupported_rule],
+            reality={},
+            reality_evidence=[],
+            start_year=2028,
+        )
+
+
 def test_anonymous_case_schema_requires_consent_and_withdrawal_state() -> None:
     schema = get_schema("ziwei_anonymous_case.schema.json")
     valid = {

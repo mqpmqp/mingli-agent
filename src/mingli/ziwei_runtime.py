@@ -16,10 +16,17 @@ def run_ziwei_runtime(
     reality_evidence: Sequence[Mapping[str, object]],
     start_year: int,
 ) -> dict[str, object]:
-    if chart.get("calculation_status") not in {"partial", "degraded", "complete"}:
-        raise ValueError("chart must be a structured Ziwei result")
+    if chart.get("calculation_status") not in {"partial", "degraded"}:
+        raise ValueError("Ziwei runtime accepts partial or degraded charts only")
     if isinstance(start_year, bool) or not isinstance(start_year, int):
         raise ValueError("start_year must be an integer")
+    unsupported_raw = chart.get("unsupported_fields")
+    if not isinstance(unsupported_raw, Sequence) or isinstance(unsupported_raw, (str, bytes)):
+        raise ValueError("chart.unsupported_fields must be an array")
+    unsupported = {str(name) for name in unsupported_raw}
+    injected = sorted(unsupported.intersection(facts))
+    if injected:
+        raise ValueError(f"unsupported Ziwei facts cannot enter rule evaluation: {', '.join(injected)}")
     matches = evaluate_ziwei_rules(facts, rules)
     rule_evidence = [item.to_evidence() for item in matches]
     fusion = orchestrate_evidence_fusion(reality, [*rule_evidence, *reality_evidence])
