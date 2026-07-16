@@ -1060,3 +1060,129 @@ def test_rule_recommendation_rejects_stale_partition_case_hash() -> None:
             recommendation="demote",
             adjudicated_at="2026-01-03T00:00:00Z",
         )
+
+
+def test_prior_observation_cannot_precede_its_frozen_event_window() -> None:
+    case = learning_case()
+    with pytest.raises(RealCaseLearningV2Error, match="PRIOR_EVENT_BEFORE_WINDOW"):
+        record_prior_event_validation(
+            case,
+            evidence_record(
+                case,
+                evidence_id="prior:before-window",
+                observed_at="2024-12-15T00:00:00Z",
+                collected_at="2024-12-15T00:00:00Z",
+                direction="support",
+                claim_id="claim:career:prior:001",
+                scope="career:prior:2025-01",
+                event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+            ),
+        )
+
+
+def test_v2_case_rejects_hash_valid_prediction_validity_mutation() -> None:
+    case = learning_case()
+    prediction = deepcopy(case["prediction_snapshot"])
+    original_hash = prediction["canonical_hash"]
+    for field in ("freeze_status", "freeze_timestamp", "canonical_hash"):
+        prediction.pop(field)
+    prediction["prediction_validity"] = "evaluated"
+    forged = freeze_prediction(
+        prediction, frozen_at=str(case["prediction_snapshot"]["freeze_timestamp"])
+    )
+    assert verify_prediction_snapshot(forged)
+    case["prediction_snapshot"] = forged
+    case["dependency_hashes"] = sorted(
+        forged["canonical_hash"] if value == original_hash else value
+        for value in case["dependency_hashes"]
+    )
+    _reseal(case)
+    assert verify_learning_record(case)
+
+    with pytest.raises(RealCaseLearningV2Error, match="CASE_PREDICTION_CONTRACT_INVALID"):
+        record_future_outcome(
+            case,
+            evidence_record(
+                case,
+                evidence_id="outcome:mutated-validity",
+                observed_at="2025-12-31T00:00:00Z",
+                collected_at="2026-01-02T00:00:00Z",
+                direction="support",
+            ),
+        )
+
+
+def test_v2_case_rejects_frozen_evidence_direction_resolution_divergence() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-direction-divergence",
+        scenario_id="career:synthetic:direction-divergence",
+        prediction_id="prediction:synthetic:direction-divergence",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    entry = case["future_outcomes"][0]
+    original_entry_hash = entry["canonical_hash"]
+    assert entry["reality_resolution"]["hard_override_direction"] == "contradict"
+    evidence = deepcopy(entry["evidence_snapshot"])
+    for field in ("freeze_status", "canonical_hash"):
+        evidence.pop(field)
+    evidence["direction"] = "support"
+    entry["evidence_snapshot"] = freeze_reality_evidence(evidence)
+    _reseal(entry)
+    case["dependency_hashes"] = sorted(
+        entry["canonical_hash"] if value == original_entry_hash else value
+        for value in case["dependency_hashes"]
+    )
+    _reseal(case)
+    assert verify_learning_record(case)
+
+    with pytest.raises(RealCaseLearningV2Error, match="CASE_EVIDENCE_CONTRACT_INVALID"):
+        build_temporal_partitions([case], cutoff_at="2026-01-01T00:00:00Z")
+
+
+def test_v2_case_rejects_hash_valid_prior_observation_before_window() -> None:
+    case = learning_case()
+    case = record_prior_event_validation(
+        case,
+        evidence_record(
+            case,
+            evidence_id="prior:injected-before-window",
+            observed_at="2025-01-15T00:00:00Z",
+            collected_at="2025-01-15T00:00:00Z",
+            direction="support",
+            claim_id="claim:career:prior:001",
+            scope="career:prior:2025-01",
+            event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+        ),
+    )
+    entry = case["prior_event_validations"][0]
+    original_entry_hash = entry["canonical_hash"]
+    evidence = deepcopy(entry["evidence_snapshot"])
+    for field in ("freeze_status", "canonical_hash"):
+        evidence.pop(field)
+    evidence["observed_at"] = "2024-12-15T00:00:00Z"
+    evidence["collected_at"] = "2024-12-15T00:00:00Z"
+    entry["observed_at"] = evidence["observed_at"]
+    entry["collected_at"] = evidence["collected_at"]
+    entry["evidence_snapshot"] = freeze_reality_evidence(evidence)
+    _reseal(entry)
+    case["dependency_hashes"] = sorted(
+        entry["canonical_hash"] if value == original_entry_hash else value
+        for value in case["dependency_hashes"]
+    )
+    _reseal(case)
+    assert verify_learning_record(case)
+
+    with pytest.raises(RealCaseLearningV2Error, match="CASE_EVIDENCE_CONTRACT_INVALID"):
+        record_future_outcome(
+            case,
+            evidence_record(
+                case,
+                evidence_id="outcome:after-injected-prior",
+                observed_at="2025-12-31T00:00:00Z",
+                collected_at="2026-01-02T00:00:00Z",
+                direction="support",
+            ),
+        )

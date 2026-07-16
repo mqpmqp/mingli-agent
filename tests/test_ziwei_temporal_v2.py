@@ -266,6 +266,20 @@ def test_mixed_temporal_overlays_require_parent_window_containment() -> None:
         evaluate_ziwei_temporal_v2(chart, overlays=month_outside_year)
 
 
+def test_child_temporal_overlays_require_explicit_parent_hierarchy() -> None:
+    chart = synthetic_contract_chart()
+    decade, year, month = synthetic_contract_overlays()
+
+    with pytest.raises(ZiweiTemporalV2Error, match="supplied decade"):
+        evaluate_ziwei_temporal_v2(chart, overlays=[year, month])
+
+    with pytest.raises(ZiweiTemporalV2Error, match="supplied year"):
+        evaluate_ziwei_temporal_v2(chart, overlays=[decade, month])
+
+    with pytest.raises(ZiweiTemporalV2Error, match="supplied (decade|year)"):
+        evaluate_ziwei_temporal_v2(chart, overlays=[month])
+
+
 def test_priority_suppression_and_equal_priority_conflict_demote_confidence() -> None:
     chart = synthetic_contract_chart()
 
