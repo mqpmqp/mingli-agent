@@ -88,6 +88,11 @@ _PREDICTION_CLAIM_FIELDS = frozenset(
         "rule_ids",
     }
 )
+_PREDICTION_SNAPSHOT_FIELDS = _PREDICTION_FIELDS | {
+    "freeze_status",
+    "freeze_timestamp",
+    "canonical_hash",
+}
 _REALITY_EVIDENCE_FIELDS = frozenset(
     {
         "evidence_id",
@@ -103,6 +108,39 @@ _REALITY_EVIDENCE_FIELDS = frozenset(
         "direction",
         "verified",
         "synthetic",
+    }
+)
+_REALITY_EVIDENCE_SNAPSHOT_FIELDS = _REALITY_EVIDENCE_FIELDS | {
+    "freeze_status",
+    "canonical_hash",
+}
+_PRIOR_EVIDENCE_ENTRY_FIELDS = frozenset(
+    {
+        "record_type",
+        "evidence_id",
+        "claim_id",
+        "scope",
+        "event_window",
+        "observed_at",
+        "collected_at",
+        "evidence_snapshot",
+        "canonical_hash",
+    }
+)
+_FUTURE_EVIDENCE_ENTRY_FIELDS = _PRIOR_EVIDENCE_ENTRY_FIELDS | {
+    "reality_resolution"
+}
+_PARTITION_INPUT_FIELDS = frozenset(
+    {
+        "person_case_id",
+        "prediction_id",
+        "event_windows",
+        "available_at",
+        "observed_at",
+        "event_window_end",
+        "derived_fingerprint",
+        "near_duplicate_fingerprint",
+        "base_assignment",
     }
 )
 _PARTITION_MANIFEST_FIELDS = frozenset(
@@ -122,6 +160,7 @@ _PARTITION_MANIFEST_FIELDS = frozenset(
         "synthetic_case_ids",
         "accuracy_eligible_case_ids",
         "case_dependency_hashes",
+        "case_partition_inputs",
         "withdrawal_dependency_hashes",
         "dependency_hashes",
         "corpus_hash",
@@ -335,6 +374,188 @@ def _validate_reality_evidence_contract(payload: Mapping[str, object]) -> None:
         )
 
 
+def _validate_v2_prediction_snapshot(snapshot: Mapping[str, object]) -> None:
+    if set(snapshot) != _PREDICTION_SNAPSHOT_FIELDS:
+        raise RealCaseLearningV2Error(
+            "CASE_PREDICTION_CONTRACT_INVALID",
+            "frozen prediction fields do not match the closed V2 snapshot contract",
+        )
+    payload = {key: snapshot[key] for key in _PREDICTION_FIELDS}
+    try:
+        _validate_prediction_contract(payload)
+    except RealCaseLearningV2Error as exc:
+        raise RealCaseLearningV2Error(
+            "CASE_PREDICTION_CONTRACT_INVALID", exc.message
+        ) from exc
+    if (
+        snapshot.get("freeze_status") != "frozen"
+        or not isinstance(snapshot.get("freeze_timestamp"), str)
+        or not verify_prediction_snapshot(snapshot)
+    ):
+        raise RealCaseLearningV2Error(
+            "CASE_PREDICTION_CONTRACT_INVALID",
+            "frozen prediction status, timestamp, or canonical hash is invalid",
+        )
+    _parse_time(
+        snapshot.get("freeze_timestamp"),
+        code="CASE_PREDICTION_CONTRACT_INVALID",
+        field="prediction.freeze_timestamp",
+    )
+
+
+def _validate_v2_reality_evidence_snapshot(snapshot: Mapping[str, object]) -> None:
+    if set(snapshot) != _REALITY_EVIDENCE_SNAPSHOT_FIELDS:
+        raise RealCaseLearningV2Error(
+            "CASE_EVIDENCE_CONTRACT_INVALID",
+            "frozen Reality Evidence fields do not match the closed V2 snapshot contract",
+        )
+    payload = {key: snapshot[key] for key in _REALITY_EVIDENCE_FIELDS}
+    try:
+        _validate_reality_evidence_contract(payload)
+    except RealCaseLearningV2Error as exc:
+        raise RealCaseLearningV2Error(
+            "CASE_EVIDENCE_CONTRACT_INVALID", exc.message
+        ) from exc
+    if snapshot.get("freeze_status") != "frozen" or not verify_reality_evidence(
+        snapshot
+    ):
+        raise RealCaseLearningV2Error(
+            "CASE_EVIDENCE_CONTRACT_INVALID",
+            "frozen Reality Evidence status or canonical hash is invalid",
+        )
+
+
+def _verify_sealed_record(record: Mapping[str, object]) -> bool:
+    body = {key: value for key, value in record.items() if key != "canonical_hash"}
+    expected = record.get("canonical_hash")
+    return isinstance(expected, str) and expected == digest(
+        {"record_type": str(body.get("record_type", "")), "payload": body}
+    )
+
+
+def _validate_v2_case_semantics(case: Mapping[str, object]) -> None:
+    prediction = case.get("prediction_snapshot")
+    if not isinstance(prediction, Mapping):
+        raise RealCaseLearningV2Error(
+            "CASE_PREDICTION_CONTRACT_INVALID", "prediction snapshot is missing"
+        )
+    _validate_v2_prediction_snapshot(prediction)
+    generated = _parse_time(
+        prediction.get("generated_at"),
+        code="CASE_PREDICTION_CONTRACT_INVALID",
+        field="prediction.generated_at",
+    )
+    frozen_at = _parse_time(
+        prediction.get("freeze_timestamp"),
+        code="CASE_PREDICTION_CONTRACT_INVALID",
+        field="prediction.freeze_timestamp",
+    )
+    dependency_hashes = case.get("dependency_hashes")
+    if not isinstance(dependency_hashes, list) or prediction.get(
+        "canonical_hash"
+    ) not in dependency_hashes:
+        raise RealCaseLearningV2Error(
+            "CASE_PREDICTION_CONTRACT_INVALID",
+            "prediction snapshot hash is not bound into case dependencies",
+        )
+    for relation, field, expected_fields in (
+        ("prior", "prior_event_validations", _PRIOR_EVIDENCE_ENTRY_FIELDS),
+        ("future", "future_outcomes", _FUTURE_EVIDENCE_ENTRY_FIELDS),
+    ):
+        entries = case.get(field)
+        if not isinstance(entries, list):
+            raise RealCaseLearningV2Error(
+                "CASE_EVIDENCE_CONTRACT_INVALID", f"{field} must be an array"
+            )
+        for entry in entries:
+            if (
+                not isinstance(entry, Mapping)
+                or set(entry) != expected_fields
+                or entry.get("record_type")
+                != (
+                    "PriorEventValidationV2"
+                    if relation == "prior"
+                    else "FutureOutcomeV2"
+                )
+                or not _verify_sealed_record(entry)
+            ):
+                raise RealCaseLearningV2Error(
+                    "CASE_EVIDENCE_CONTRACT_INVALID",
+                    f"{relation} evidence entry is not a closed hash-valid V2 record",
+                )
+            snapshot = entry.get("evidence_snapshot")
+            if not isinstance(snapshot, Mapping):
+                raise RealCaseLearningV2Error(
+                    "CASE_EVIDENCE_CONTRACT_INVALID",
+                    f"{relation} evidence snapshot is missing",
+                )
+            _validate_v2_reality_evidence_snapshot(snapshot)
+            matching_fields = (
+                "evidence_id",
+                "claim_id",
+                "scope",
+                "event_window",
+                "observed_at",
+                "collected_at",
+            )
+            if (
+                any(entry.get(key) != snapshot.get(key) for key in matching_fields)
+                or snapshot.get("person_case_id") != case.get("person_case_id")
+                or snapshot.get("scenario_id") != case.get("scenario_id")
+                or snapshot.get("synthetic") is not case.get("synthetic")
+                or entry.get("canonical_hash") not in dependency_hashes
+            ):
+                raise RealCaseLearningV2Error(
+                    "CASE_EVIDENCE_CONTRACT_INVALID",
+                    f"{relation} evidence top-level and frozen boundaries diverge",
+                )
+            observed = _parse_time(
+                snapshot.get("observed_at"),
+                code="CASE_EVIDENCE_CONTRACT_INVALID",
+                field=f"{relation}.observed_at",
+            )
+            collected = _parse_time(
+                snapshot.get("collected_at"),
+                code="CASE_EVIDENCE_CONTRACT_INVALID",
+                field=f"{relation}.collected_at",
+            )
+            window_start, window_end = _parse_event_window(
+                snapshot.get("event_window"),
+                code="CASE_EVIDENCE_CONTRACT_INVALID",
+            )
+            if collected < observed:
+                raise RealCaseLearningV2Error(
+                    "CASE_EVIDENCE_CONTRACT_INVALID",
+                    f"{relation} evidence collection precedes observation",
+                )
+            if relation == "prior" and (
+                observed > generated or collected > generated or window_end > generated
+            ):
+                raise RealCaseLearningV2Error(
+                    "CASE_EVIDENCE_CONTRACT_INVALID",
+                    "prior evidence escapes the prediction-time boundary",
+                )
+            if relation == "future" and (
+                observed <= frozen_at
+                or window_start <= frozen_at
+                or observed < window_start
+            ):
+                raise RealCaseLearningV2Error(
+                    "CASE_EVIDENCE_CONTRACT_INVALID",
+                    "future evidence escapes its frozen temporal boundary",
+                )
+            if relation == "future":
+                resolution = entry.get("reality_resolution")
+                if not isinstance(resolution, Mapping) or any(
+                    resolution.get(key) != entry.get(key)
+                    for key in ("claim_id", "scope")
+                ):
+                    raise RealCaseLearningV2Error(
+                        "CASE_EVIDENCE_CONTRACT_INVALID",
+                        "future evidence resolution diverges from claim and scope",
+                    )
+
+
 def _claim(snapshot: Mapping[str, object], claim_id: str, scope: str) -> dict[str, object]:
     claims = snapshot.get("structured_claims")
     if not isinstance(claims, Sequence) or isinstance(claims, (str, bytes)):
@@ -366,6 +587,7 @@ def _case_copy(case: Mapping[str, object]) -> dict[str, object]:
         raise RealCaseLearningV2Error("UNSUPPORTED_CASE_SCHEMA", "unsupported V2 learning case schema")
     if not verify_learning_record(payload):
         raise RealCaseLearningV2Error("CASE_HASH_INVALID", "learning case hash or boundary fields are invalid")
+    _validate_v2_case_semantics(payload)
     payload.pop("canonical_hash", None)
     return payload
 
@@ -513,11 +735,17 @@ def build_learning_case(
                 "each claim requires a scope and support/contradict direction",
             )
     try:
-        prediction_frozen = freeze_prediction(prediction_payload, frozen_at=frozen_at)
+        prediction_frozen = freeze_prediction(
+            prediction_payload, frozen_at=frozen_at
+        )
     except FreezeError as exc:
         raise RealCaseLearningV2Error("PREDICTION_REJECTED", str(exc)) from exc
-    if not verify_prediction_snapshot(prediction_frozen):
-        raise RealCaseLearningV2Error("PREDICTION_FREEZE_INVALID", "prediction snapshot failed hash verification")
+    try:
+        _validate_v2_prediction_snapshot(prediction_frozen)
+    except RealCaseLearningV2Error as exc:
+        raise RealCaseLearningV2Error(
+            "PREDICTION_FREEZE_INVALID", exc.message
+        ) from exc
 
     if near_duplicate_fingerprint is None:
         near_duplicate_fingerprint = digest(
@@ -643,8 +871,12 @@ def _freeze_case_evidence(
         frozen = freeze_reality_evidence(payload)
     except ValueError as exc:
         raise RealCaseLearningV2Error("REALITY_EVIDENCE_REJECTED", str(exc)) from exc
-    if not verify_reality_evidence(frozen):
-        raise RealCaseLearningV2Error("REALITY_EVIDENCE_HASH_INVALID", "Reality Evidence failed hash verification")
+    try:
+        _validate_v2_reality_evidence_snapshot(frozen)
+    except RealCaseLearningV2Error as exc:
+        raise RealCaseLearningV2Error(
+            "REALITY_EVIDENCE_HASH_INVALID", exc.message
+        ) from exc
     entry = {
         "record_type": "PriorEventValidationV2" if relation == "prior" else "FutureOutcomeV2",
         "evidence_id": frozen["evidence_id"],
@@ -865,6 +1097,24 @@ def adjudicate_outcome(
             "PARTITION_CASE_MISMATCH",
             "adjudicated case must belong to the manifest's leakage-clean test partition",
         )
+    case_dependencies = partition_manifest.get("case_dependency_hashes")
+    case_inputs = partition_manifest.get("case_partition_inputs")
+    case_id = str(result["case_id"])
+    cutoff = _parse_time(
+        partition_manifest.get("cutoff_at"),
+        code="PARTITION_CASE_STALE",
+        field="partition.cutoff_at",
+    )
+    if (
+        not isinstance(case_dependencies, Mapping)
+        or not isinstance(case_inputs, Mapping)
+        or case_dependencies.get(case_id) != case.get("canonical_hash")
+        or case_inputs.get(case_id) != _partition_input(case, cutoff=cutoff)
+    ):
+        raise RealCaseLearningV2Error(
+            "PARTITION_CASE_STALE",
+            "partition provenance does not match the current adjudicated case",
+        )
     dataset_manifest = comparison.get("dataset_manifest")
     if dataset_manifest is not None and (
         not isinstance(dataset_manifest, Mapping) or not verify_dataset_manifest(dataset_manifest)
@@ -965,6 +1215,10 @@ def _event_window_end(value: object) -> datetime:
     return _parse_time(value.split("/", 1)[1], code="TEMPORAL_BOUNDARY_MISSING", field="event_window.end")
 
 
+def _utc_iso(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _verified_for_partition(case: Mapping[str, object]) -> dict[str, object]:
     payload = cast(dict[str, object], _plain(case))
     ingested_at = payload.pop("ingested_at", None)
@@ -972,18 +1226,130 @@ def _verified_for_partition(case: Mapping[str, object]) -> dict[str, object]:
         raise RealCaseLearningV2Error("CASE_HASH_INVALID", "case changed outside ignored ingestion metadata")
     if ingested_at is None and not verify_learning_record(payload):
         raise RealCaseLearningV2Error("CASE_HASH_INVALID", "case hash is invalid")
+    if payload.get("record_type") == "RealCaseLearningV2Case":
+        _validate_v2_case_semantics(payload)
     return payload
+
+
+def _partition_input(
+    case: Mapping[str, object], *, cutoff: datetime
+) -> dict[str, object]:
+    outcomes = [
+        item
+        for item in cast(list[object], case.get("future_outcomes", []))
+        if isinstance(item, Mapping)
+    ]
+    if not outcomes:
+        raise RealCaseLearningV2Error(
+            "TEMPORAL_BOUNDARY_MISSING",
+            "partitioning requires at least one future outcome",
+        )
+    available_at = max(
+        _parse_time(
+            item.get("collected_at"),
+            code="TEMPORAL_BOUNDARY_MISSING",
+            field="collected_at",
+        )
+        for item in outcomes
+    )
+    observed_at = max(
+        _parse_time(
+            item.get("observed_at"),
+            code="TEMPORAL_BOUNDARY_MISSING",
+            field="observed_at",
+        )
+        for item in outcomes
+    )
+    event_end = max(
+        _event_window_end(item.get("event_window")) for item in outcomes
+    )
+    return {
+        "person_case_id": str(case["person_case_id"]),
+        "prediction_id": str(
+            cast(Mapping[str, object], case["prediction_snapshot"])[
+                "prediction_id"
+            ]
+        ),
+        "event_windows": sorted(
+            set(str(item["event_window"]) for item in outcomes)
+        ),
+        "available_at": _utc_iso(available_at),
+        "observed_at": _utc_iso(observed_at),
+        "event_window_end": _utc_iso(event_end),
+        "derived_fingerprint": str(case["derived_fingerprint"]),
+        "near_duplicate_fingerprint": str(case["near_duplicate_fingerprint"]),
+        "base_assignment": (
+            "train"
+            if max(available_at, observed_at, event_end) < cutoff
+            else "test"
+        ),
+    }
+
+
+def _partition_assignments(
+    metadata: Mapping[str, Mapping[str, object]],
+) -> tuple[dict[str, str], dict[str, str], list[str]]:
+    base = {
+        case_id: str(value["base_assignment"])
+        for case_id, value in metadata.items()
+    }
+    parent = {case_id: case_id for case_id in metadata}
+
+    def find(case_id: str) -> str:
+        while parent[case_id] != case_id:
+            parent[case_id] = parent[parent[case_id]]
+            case_id = parent[case_id]
+        return case_id
+
+    def union(left: str, right: str) -> None:
+        left_root, right_root = find(left), find(right)
+        if left_root != right_root:
+            parent[max(left_root, right_root)] = min(left_root, right_root)
+
+    case_ids = sorted(metadata)
+    for index, left in enumerate(case_ids):
+        for right in case_ids[index + 1 :]:
+            left_meta, right_meta = metadata[left], metadata[right]
+            duplicate = (
+                left_meta["person_case_id"] == right_meta["person_case_id"]
+                or left_meta["prediction_id"] == right_meta["prediction_id"]
+                or left_meta["derived_fingerprint"]
+                == right_meta["derived_fingerprint"]
+                or left_meta["near_duplicate_fingerprint"]
+                == right_meta["near_duplicate_fingerprint"]
+                or (
+                    left_meta["person_case_id"] == right_meta["person_case_id"]
+                    and left_meta["event_windows"] == right_meta["event_windows"]
+                )
+            )
+            if duplicate:
+                union(left, right)
+
+    groups: dict[str, list[str]] = {}
+    for case_id in case_ids:
+        groups.setdefault(find(case_id), []).append(case_id)
+    assignment = dict(base)
+    forced_test: list[str] = []
+    for group in groups.values():
+        if any(base[item] == "test" for item in group):
+            for item in group:
+                if base[item] == "train":
+                    forced_test.append(item)
+                assignment[item] = "test"
+    return base, assignment, sorted(forced_test)
 
 
 def _partition_corpus_hash(
     *,
     case_dependency_hashes: Mapping[str, object],
+    case_partition_inputs: Mapping[str, object],
     withdrawn_case_refs: Sequence[object],
     withdrawal_dependency_hashes: Sequence[object],
 ) -> str:
     return digest(
         {
             "case_dependency_hashes": dict(case_dependency_hashes),
+            "case_partition_inputs": dict(case_partition_inputs),
             "withdrawn_case_refs": sorted(str(item) for item in withdrawn_case_refs),
             "withdrawal_dependency_hashes": sorted(
                 str(item) for item in withdrawal_dependency_hashes
@@ -1034,7 +1400,7 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
             "near_duplicate_fingerprint",
         ]:
             return False
-        _parse_time(
+        cutoff = _parse_time(
             manifest.get("cutoff_at"),
             code="TEMPORAL_BOUNDARY_MISSING",
             field="cutoff_at",
@@ -1046,9 +1412,77 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
         forced = set(cast(list[str], manifest["forced_test_case_ids"]))
         synthetic = set(cast(list[str], manifest["synthetic_case_ids"]))
         case_dependencies = manifest.get("case_dependency_hashes")
-        if not isinstance(case_dependencies, Mapping):
+        case_inputs = manifest.get("case_partition_inputs")
+        if not isinstance(case_dependencies, Mapping) or not isinstance(
+            case_inputs, Mapping
+        ):
             return False
         dependency_cases = set(str(key) for key in case_dependencies)
+        if set(str(key) for key in case_inputs) != dependency_cases:
+            return False
+        normalized_inputs: dict[str, Mapping[str, object]] = {}
+        for case_id, value in case_inputs.items():
+            if not isinstance(value, Mapping) or set(value) != _PARTITION_INPUT_FIELDS:
+                return False
+            event_windows = value.get("event_windows")
+            if (
+                not _string_list(event_windows)
+                or cast(list[str], event_windows)
+                != sorted(set(cast(list[str], event_windows)))
+                or not cast(list[str], event_windows)
+                or not isinstance(value.get("person_case_id"), str)
+                or _PERSON_CASE_ID.fullmatch(str(value["person_case_id"])) is None
+                or not isinstance(value.get("prediction_id"), str)
+                or not value.get("prediction_id")
+                or value.get("base_assignment") not in {"train", "test"}
+                or any(
+                    not isinstance(value.get(field), str)
+                    or _SHA256.fullmatch(str(value[field])) is None
+                    for field in (
+                        "derived_fingerprint",
+                        "near_duplicate_fingerprint",
+                    )
+                )
+            ):
+                return False
+            available_at = _parse_time(
+                value.get("available_at"),
+                code="TEMPORAL_BOUNDARY_MISSING",
+                field="available_at",
+            )
+            observed_at = _parse_time(
+                value.get("observed_at"),
+                code="TEMPORAL_BOUNDARY_MISSING",
+                field="observed_at",
+            )
+            event_end = _parse_time(
+                value.get("event_window_end"),
+                code="TEMPORAL_BOUNDARY_MISSING",
+                field="event_window_end",
+            )
+            expected_base = (
+                "train"
+                if max(available_at, observed_at, event_end) < cutoff
+                else "test"
+            )
+            if value.get("base_assignment") != expected_base:
+                return False
+            normalized_inputs[str(case_id)] = value
+        recomputed_base, recomputed_assignment, recomputed_forced = (
+            _partition_assignments(normalized_inputs)
+        )
+        expected_base_train = sorted(
+            key for key, value in recomputed_base.items() if value == "train"
+        )
+        expected_base_test = sorted(
+            key for key, value in recomputed_base.items() if value == "test"
+        )
+        expected_train = sorted(
+            key for key, value in recomputed_assignment.items() if value == "train"
+        )
+        expected_test = sorted(
+            key for key, value in recomputed_assignment.items() if value == "test"
+        )
         if (
             any(_CASE_ID.fullmatch(case_id) is None for case_id in dependency_cases)
             or any(
@@ -1057,6 +1491,14 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
             )
             or base_train & base_test
             or train & test
+            or cast(list[str], manifest["base_train_case_ids"])
+            != expected_base_train
+            or cast(list[str], manifest["base_test_case_ids"])
+            != expected_base_test
+            or cast(list[str], manifest["train_case_ids"]) != expected_train
+            or cast(list[str], manifest["test_case_ids"]) != expected_test
+            or cast(list[str], manifest["forced_test_case_ids"])
+            != recomputed_forced
             or base_train | base_test != dependency_cases
             or train | test != dependency_cases
             or not forced <= base_train
@@ -1086,6 +1528,7 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
             or manifest.get("corpus_hash")
             != _partition_corpus_hash(
                 case_dependency_hashes=case_dependencies,
+                case_partition_inputs=case_inputs,
                 withdrawn_case_refs=cast(list[object], manifest["withdrawn_case_refs"]),
                 withdrawal_dependency_hashes=withdrawal_dependencies,
             )
@@ -1113,75 +1556,12 @@ def build_temporal_partitions(
             raise RealCaseLearningV2Error("UNSUPPORTED_CASE_SCHEMA", "partition input is not a V2 case")
         active.append(payload)
 
-    base: dict[str, str] = {}
     metadata: dict[str, dict[str, object]] = {}
     for case in active:
-        outcomes = [item for item in cast(list[object], case.get("future_outcomes", [])) if isinstance(item, Mapping)]
-        if not outcomes:
-            raise RealCaseLearningV2Error(
-                "TEMPORAL_BOUNDARY_MISSING",
-                "partitioning requires at least one future outcome",
-            )
         case_id = str(case["case_id"])
-        available_at = max(
-            _parse_time(item.get("collected_at"), code="TEMPORAL_BOUNDARY_MISSING", field="collected_at")
-            for item in outcomes
-        )
-        observed_at = max(
-            _parse_time(item.get("observed_at"), code="TEMPORAL_BOUNDARY_MISSING", field="observed_at")
-            for item in outcomes
-        )
-        event_end = max(_event_window_end(item.get("event_window")) for item in outcomes)
-        base[case_id] = "train" if max(available_at, observed_at, event_end) < cutoff else "test"
-        metadata[case_id] = {
-            "person_case_id": case["person_case_id"],
-            "prediction_id": cast(Mapping[str, object], case["prediction_snapshot"])["prediction_id"],
-            "event_window": sorted(str(item["event_window"]) for item in outcomes),
-            "derived_fingerprint": case["derived_fingerprint"],
-            "near_duplicate_fingerprint": case["near_duplicate_fingerprint"],
-        }
+        metadata[case_id] = _partition_input(case, cutoff=cutoff)
 
-    parent = {case_id: case_id for case_id in metadata}
-
-    def find(case_id: str) -> str:
-        while parent[case_id] != case_id:
-            parent[case_id] = parent[parent[case_id]]
-            case_id = parent[case_id]
-        return case_id
-
-    def union(left: str, right: str) -> None:
-        left_root, right_root = find(left), find(right)
-        if left_root != right_root:
-            parent[max(left_root, right_root)] = min(left_root, right_root)
-
-    case_ids = sorted(metadata)
-    for index, left in enumerate(case_ids):
-        for right in case_ids[index + 1 :]:
-            left_meta, right_meta = metadata[left], metadata[right]
-            duplicate = (
-                left_meta["person_case_id"] == right_meta["person_case_id"]
-                or left_meta["prediction_id"] == right_meta["prediction_id"]
-                or left_meta["derived_fingerprint"] == right_meta["derived_fingerprint"]
-                or left_meta["near_duplicate_fingerprint"] == right_meta["near_duplicate_fingerprint"]
-                or (
-                    left_meta["person_case_id"] == right_meta["person_case_id"]
-                    and left_meta["event_window"] == right_meta["event_window"]
-                )
-            )
-            if duplicate:
-                union(left, right)
-
-    groups: dict[str, list[str]] = {}
-    for case_id in case_ids:
-        groups.setdefault(find(case_id), []).append(case_id)
-    assignment = dict(base)
-    forced_test: list[str] = []
-    for group in groups.values():
-        if any(base[item] == "test" for item in group):
-            for item in group:
-                if base[item] == "train":
-                    forced_test.append(item)
-                assignment[item] = "test"
+    base, assignment, forced_test = _partition_assignments(metadata)
     train_ids = sorted(item for item, partition in assignment.items() if partition == "train")
     test_ids = sorted(item for item, partition in assignment.items() if partition == "test")
     synthetic_ids = sorted(str(item["case_id"]) for item in active if item.get("synthetic") is True)
@@ -1216,10 +1596,12 @@ def build_temporal_partitions(
         "synthetic_case_ids": synthetic_ids,
         "accuracy_eligible_case_ids": [],
         "case_dependency_hashes": case_dependency_hashes,
+        "case_partition_inputs": metadata,
         "withdrawal_dependency_hashes": sorted(withdrawal_dependency_hashes),
         "dependency_hashes": dependency_hashes,
         "corpus_hash": _partition_corpus_hash(
             case_dependency_hashes=case_dependency_hashes,
+            case_partition_inputs=metadata,
             withdrawn_case_refs=withdrawn_refs,
             withdrawal_dependency_hashes=withdrawal_dependency_hashes,
         ),

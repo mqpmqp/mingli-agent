@@ -281,7 +281,7 @@ class SourceAndPackagingTests(unittest.TestCase):
                     for name in archive.namelist()
                     if "/schemas/" in name and name.endswith(".json")
                 }
-            self.assertEqual(40, len(packaged))
+            self.assertEqual(42, len(packaged))
             ziwei_schemas = {
                 f"ziwei_{name}.schema.json"
                 for name in (
@@ -315,7 +315,9 @@ class SourceAndPackagingTests(unittest.TestCase):
                 "ziwei_temporal_v2_result.schema.json",
                 "ziwei_temporal_v2_rule_pack.schema.json",
                 "real_case_learning_v2_case.schema.json",
+                "real_case_learning_v2_evidence.schema.json",
                 "real_case_learning_v2_partition.schema.json",
+                "real_case_learning_v2_prediction.schema.json",
                 "real_case_learning_v2_withdrawal.schema.json",
                 "capability_surge_v2_result.schema.json",
             }

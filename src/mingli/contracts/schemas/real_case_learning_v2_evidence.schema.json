@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/real_case_learning_v2_evidence.schema.json",
+  "title": "Real Case Learning OS V2 Frozen Reality Evidence",
+  "type": "object",
+  "required": [
+    "evidence_id",
+    "person_case_id",
+    "scenario_id",
+    "claim_id",
+    "scope",
+    "event_window",
+    "observed_at",
+    "collected_at",
+    "source_provenance",
+    "evidence_quality",
+    "direction",
+    "verified",
+    "synthetic",
+    "freeze_status",
+    "canonical_hash"
+  ],
+  "properties": {
+    "evidence_id": {"type": "string", "minLength": 1},
+    "person_case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "claim_id": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "minLength": 1},
+    "event_window": {"type": "string", "minLength": 1},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "collected_at": {"type": "string", "format": "date-time"},
+    "source_provenance": {"type": "string", "minLength": 1},
+    "evidence_quality": {"type": "string", "minLength": 1},
+    "direction": {"enum": ["support", "contradict"]},
+    "verified": {"type": "boolean"},
+    "synthetic": {"type": "boolean"},
+    "freeze_status": {"const": "frozen"},
+    "canonical_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

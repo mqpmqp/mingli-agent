@@ -19,6 +19,7 @@
     "synthetic_case_ids",
     "accuracy_eligible_case_ids",
     "case_dependency_hashes",
+    "case_partition_inputs",
     "withdrawal_dependency_hashes",
     "dependency_hashes",
     "corpus_hash",
@@ -62,6 +63,11 @@
       "propertyNames": {"pattern": "^case:[0-9a-f]{64}$"},
       "additionalProperties": {"$ref": "#/$defs/hash"}
     },
+    "case_partition_inputs": {
+      "type": "object",
+      "propertyNames": {"pattern": "^case:[0-9a-f]{64}$"},
+      "additionalProperties": {"$ref": "#/$defs/partitionInput"}
+    },
     "withdrawal_dependency_hashes": {"$ref": "#/$defs/hashes"},
     "dependency_hashes": {"$ref": "#/$defs/hashes"},
     "corpus_hash": {"$ref": "#/$defs/hash"},
@@ -83,6 +89,37 @@
       "type": "array",
       "items": {"type": "string", "pattern": "^case:[0-9a-f]{64}$"},
       "uniqueItems": true
+    },
+    "partitionInput": {
+      "type": "object",
+      "required": [
+        "person_case_id",
+        "prediction_id",
+        "event_windows",
+        "available_at",
+        "observed_at",
+        "event_window_end",
+        "derived_fingerprint",
+        "near_duplicate_fingerprint",
+        "base_assignment"
+      ],
+      "properties": {
+        "person_case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+        "prediction_id": {"type": "string", "minLength": 1},
+        "event_windows": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "available_at": {"type": "string", "format": "date-time"},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "event_window_end": {"type": "string", "format": "date-time"},
+        "derived_fingerprint": {"$ref": "#/$defs/hash"},
+        "near_duplicate_fingerprint": {"$ref": "#/$defs/hash"},
+        "base_assignment": {"enum": ["train", "test"]}
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

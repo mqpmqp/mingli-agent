@@ -130,8 +130,14 @@
       },
       "additionalProperties": false
     },
-    "prior_event_validations": {"type": "array", "items": {"type": "object"}},
-    "future_outcomes": {"type": "array", "items": {"type": "object"}},
+    "prior_event_validations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/priorEvidenceEntry"}
+    },
+    "future_outcomes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/futureEvidenceEntry"}
+    },
     "adjudications": {"type": "array", "items": {"type": "object"}},
     "error_taxonomy": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "rule_attributions": {"type": "array", "items": {"type": "object"}},
@@ -187,6 +193,98 @@
           "minItems": 1,
           "uniqueItems": true
         }
+      },
+      "additionalProperties": false
+    },
+    "realityEvidenceSnapshot": {
+      "type": "object",
+      "required": [
+        "evidence_id",
+        "person_case_id",
+        "scenario_id",
+        "claim_id",
+        "scope",
+        "event_window",
+        "observed_at",
+        "collected_at",
+        "source_provenance",
+        "evidence_quality",
+        "direction",
+        "verified",
+        "synthetic",
+        "freeze_status",
+        "canonical_hash"
+      ],
+      "properties": {
+        "evidence_id": {"type": "string", "minLength": 1},
+        "person_case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+        "scenario_id": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "event_window": {"type": "string", "minLength": 1},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "collected_at": {"type": "string", "format": "date-time"},
+        "source_provenance": {"type": "string", "minLength": 1},
+        "evidence_quality": {"type": "string", "minLength": 1},
+        "direction": {"enum": ["support", "contradict"]},
+        "verified": {"type": "boolean"},
+        "synthetic": {"type": "boolean"},
+        "freeze_status": {"const": "frozen"},
+        "canonical_hash": {"$ref": "#/$defs/hash"}
+      },
+      "additionalProperties": false
+    },
+    "priorEvidenceEntry": {
+      "type": "object",
+      "required": [
+        "record_type",
+        "evidence_id",
+        "claim_id",
+        "scope",
+        "event_window",
+        "observed_at",
+        "collected_at",
+        "evidence_snapshot",
+        "canonical_hash"
+      ],
+      "properties": {
+        "record_type": {"const": "PriorEventValidationV2"},
+        "evidence_id": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "event_window": {"type": "string", "minLength": 1},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "collected_at": {"type": "string", "format": "date-time"},
+        "evidence_snapshot": {"$ref": "#/$defs/realityEvidenceSnapshot"},
+        "canonical_hash": {"$ref": "#/$defs/hash"}
+      },
+      "additionalProperties": false
+    },
+    "futureEvidenceEntry": {
+      "type": "object",
+      "required": [
+        "record_type",
+        "evidence_id",
+        "claim_id",
+        "scope",
+        "event_window",
+        "observed_at",
+        "collected_at",
+        "evidence_snapshot",
+        "reality_resolution",
+        "canonical_hash"
+      ],
+      "properties": {
+        "record_type": {"const": "FutureOutcomeV2"},
+        "evidence_id": {"type": "string", "minLength": 1},
+        "claim_id": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "event_window": {"type": "string", "minLength": 1},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "collected_at": {"type": "string", "format": "date-time"},
+        "evidence_snapshot": {"$ref": "#/$defs/realityEvidenceSnapshot"},
+        "reality_resolution": {"type": "object"},
+        "canonical_hash": {"$ref": "#/$defs/hash"}
       },
       "additionalProperties": false
     },
