@@ -348,3 +348,45 @@ def test_fail_closed_for_unknown_versions_tampering_and_private_fields(
     fact_graph["canonical_hash"] = "sha256:" + "0" * 64
     with pytest.raises(BaziExpertV2InputError, match="fact graph|canonical_hash"):
         orchestrate_bazi_expert_v2(tampered)
+
+
+@pytest.mark.parametrize(
+    ("field", "record"),
+    [
+        (
+            "domain_reality_evidence",
+            {
+                "evidence_id": "reality:domain:extra-scope",
+                "domain": "career",
+                "direction": "support",
+                "detail": "synthetic contract evidence",
+                "weight": 1,
+                "verified": True,
+                "source_id": "synthetic-contract-source",
+                "claim_id": "wrong:claim",
+                "scope": "wrong:scope",
+            },
+        ),
+        (
+            "temporal_reality_evidence",
+            {
+                "evidence_id": "reality:temporal:extra-scope",
+                "direction": "support",
+                "detail": "synthetic contract evidence",
+                "weight": 1,
+                "verified": True,
+                "source_id": "synthetic-contract-source",
+                "claim_id": "wrong:claim",
+                "scope": "wrong:scope",
+            },
+        ),
+    ],
+)
+def test_nested_reality_evidence_rejects_ignored_claim_scope_fields(
+    synthetic_graph: dict[str, object], field: str, record: dict[str, object]
+) -> None:
+    request = _request(synthetic_graph)
+    record["target_id"] = request["target_id"]
+    request[field] = [record]
+    with pytest.raises(BaziExpertV2InputError, match="unsupported fields"):
+        orchestrate_bazi_expert_v2(request)

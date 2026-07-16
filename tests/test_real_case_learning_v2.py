@@ -229,6 +229,24 @@ def observed_case(
     )
 
 
+def benchmark_comparison(
+    case: dict[str, Any], *, baseline_status: str, candidate_status: str
+) -> dict[str, object]:
+    partition_manifest = build_temporal_partitions(
+        [case], cutoff_at="2026-01-01T00:00:00Z"
+    )
+    assert case["case_id"] in partition_manifest["test_case_ids"]
+    return {
+        "baseline_version": "synthetic-rules@2.0.0",
+        "candidate_version": "synthetic-rules@2.0.1-draft",
+        "baseline_status": baseline_status,
+        "candidate_status": candidate_status,
+        "partition": "test",
+        "leakage_clean": True,
+        "partition_manifest": partition_manifest,
+    }
+
+
 def test_v2_schemas_are_packaged_and_real_case_gate_classifies_test() -> None:
     for name in (
         "real_case_learning_v2_case.schema.json",
@@ -342,6 +360,16 @@ def test_prior_event_and_future_outcome_enforce_prediction_time_boundary() -> No
     with pytest.raises(RealCaseLearningV2Error, match="FUTURE_OUTCOME_WINDOW_NOT_FUTURE"):
         record_future_outcome(case, pre_freeze_window_as_future)
 
+    observed_before_window = evidence_record(
+        case,
+        evidence_id="outcome:before-window",
+        observed_at="2025-03-01T00:00:00Z",
+        collected_at="2025-03-02T00:00:00Z",
+        direction="support",
+    )
+    with pytest.raises(RealCaseLearningV2Error, match="FUTURE_OUTCOME_BEFORE_WINDOW"):
+        record_future_outcome(case, observed_before_window)
+
 
 def test_future_reality_hard_override_is_claim_and_scope_specific() -> None:
     case = learning_case()
@@ -397,14 +425,9 @@ def test_miss_creates_negative_archive_revision_and_review_only_demotion() -> No
             "revision_id": "revision:synthetic:001",
             "proposal": "Narrow the synthetic trigger and require the missing context.",
         },
-        benchmark_comparison={
-            "baseline_version": "synthetic-rules@2.0.0",
-            "candidate_version": "synthetic-rules@2.0.1-draft",
-            "baseline_status": "miss",
-            "candidate_status": "partial",
-            "partition": "test",
-            "leakage_clean": True,
-        },
+        benchmark_comparison=benchmark_comparison(
+            case, baseline_status="miss", candidate_status="partial"
+        ),
         recommendation="demote",
         adjudicated_at="2026-01-03T00:00:00Z",
     )
@@ -447,14 +470,9 @@ def test_all_outcome_classes_are_supported_but_never_auto_promote(status: str) -
         error_taxonomy=[] if status == "hit" else ["insufficient_evidence" if status == "unverifiable" else "wrong_timing"],
         rule_attributions=[{"rule_id": "rule:synthetic:career:001", "attribution": "review_required"}],
         revision={"revision_id": f"revision:{status}", "proposal": "Synthetic contract revision."},
-        benchmark_comparison={
-            "baseline_version": "synthetic-rules@2.0.0",
-            "candidate_version": "synthetic-rules@2.0.1-draft",
-            "baseline_status": status,
-            "candidate_status": status,
-            "partition": "test",
-            "leakage_clean": True,
-        },
+        benchmark_comparison=benchmark_comparison(
+            case, baseline_status=status, candidate_status=status
+        ),
         recommendation="promote" if status == "hit" else "investigate",
         adjudicated_at="2026-01-03T00:00:00Z",
     )
@@ -654,7 +672,43 @@ def test_invalid_adjudication_and_leaky_benchmark_comparison_fail_closed() -> No
     with pytest.raises(RealCaseLearningV2Error, match="LEAKAGE_RISK"):
         adjudicate_outcome(case, **kwargs)
 
-    kwargs["benchmark_comparison"] = {**kwargs["benchmark_comparison"], "partition": "test", "leakage_clean": True}
+    kwargs["benchmark_comparison"] = {
+        **kwargs["benchmark_comparison"],
+        "partition": "test",
+        "leakage_clean": True,
+    }
+    with pytest.raises(RealCaseLearningV2Error, match="PARTITION_MANIFEST_REQUIRED"):
+        adjudicate_outcome(case, **kwargs)
+
+    comparison = benchmark_comparison(
+        case, baseline_status="miss", candidate_status="hit"
+    )
+    tampered_manifest = deepcopy(comparison["partition_manifest"])
+    tampered_manifest["test_case_ids"] = []
+    kwargs["benchmark_comparison"] = {
+        **comparison,
+        "partition_manifest": tampered_manifest,
+    }
+    with pytest.raises(RealCaseLearningV2Error, match="PARTITION_MANIFEST_INVALID"):
+        adjudicate_outcome(case, **kwargs)
+
+    other_case = observed_case(
+        raw_identifier="synthetic-other-partition",
+        scenario_id="career:synthetic:other-partition",
+        prediction_id="prediction:synthetic:other-partition",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    wrong_partition = benchmark_comparison(
+        other_case, baseline_status="miss", candidate_status="hit"
+    )
+    kwargs["benchmark_comparison"] = wrong_partition
+    with pytest.raises(RealCaseLearningV2Error, match="PARTITION_CASE_MISMATCH"):
+        adjudicate_outcome(case, **kwargs)
+
+    kwargs["benchmark_comparison"] = comparison
     kwargs["status"] = "fabricated-success"
     with pytest.raises(RealCaseLearningV2Error, match="UNSUPPORTED_ADJUDICATION_STATUS"):
         adjudicate_outcome(case, **kwargs)
