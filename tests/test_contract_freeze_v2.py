@@ -60,10 +60,15 @@ def test_contract_freeze_detects_raw_byte_tampering(tmp_path: Path) -> None:
     report = verify_frozen_contracts(tmp_path, MANIFEST_PATH)
 
     assert not report.ok
+    payload = report.to_dict()
+    assert payload["ok"] is False
+    assert payload["violations"]
     assert any(
         item.path == first["path"] and item.reason == "sha256_mismatch"
         for item in report.violations
     )
+    with pytest.raises(RuntimeError, match="frozen contract verification failed"):
+        report.raise_for_violations()
 
 
 def test_contract_freeze_allows_additive_versioned_files(tmp_path: Path) -> None:
@@ -120,4 +125,3 @@ def test_architecture_records_non_negotiable_boundaries() -> None:
         "integration/mingli-core-capability-surge-v2",
     ):
         assert term in document
-
