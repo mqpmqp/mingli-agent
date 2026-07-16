@@ -2,25 +2,153 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mingli.local/schemas/ziwei_chart.schema.json",
   "type": "object",
-  "required": ["schema_version", "method_id", "algorithm_version", "calculation_status", "chart_fingerprint", "time_correction", "temporal_context", "life_palace", "body_palace", "bureau", "palaces", "unsupported_fields", "warnings", "source_provenance", "confidence", "prediction_validity", "canonical_hash"],
+  "required": ["schema_version", "method_id", "algorithm_version", "algorithm_profile", "calculation_status", "chart_fingerprint", "time_correction", "temporal_context", "placement_lunar_date", "life_palace", "body_palace", "bureau", "palaces", "unsupported_fields", "warnings", "source_provenance", "confidence", "prediction_validity", "canonical_hash"],
   "properties": {
-    "schema_version": {"const": "ziwei-chart@0.1"},
-    "method_id": {"type": "string"},
-    "algorithm_version": {"type": "string"},
+    "schema_version": {"const": "ziwei-chart@1.0"},
+    "method_id": {"const": "ziwei-traditional-natal@1.0.0"},
+    "algorithm_version": {"type": "string", "minLength": 1},
+    "algorithm_profile": {"$ref": "#/$defs/algorithmProfile"},
     "calculation_status": {"enum": ["complete", "partial", "degraded", "refused"]},
     "chart_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "time_correction": {"type": "object"},
     "temporal_context": {"type": "object"},
-    "life_palace": {"type": ["integer", "null"]},
-    "body_palace": {"type": ["integer", "null"]},
-    "bureau": {"type": ["object", "null"]},
-    "palaces": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"type": "object", "required": ["palace_index", "palace_name", "primary_stars", "supporting_stars", "malefic_stars", "transformations", "brightness_state", "field_status"]}},
+    "placement_lunar_date": {"$ref": "#/$defs/lunarDate"},
+    "life_palace": {"type": ["integer", "null"], "minimum": 0, "maximum": 11},
+    "body_palace": {"type": ["integer", "null"], "minimum": 0, "maximum": 11},
+    "bureau": {"oneOf": [{"$ref": "#/$defs/bureau"}, {"type": "null"}]},
+    "palaces": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"$ref": "#/$defs/palace"}},
     "unsupported_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "warnings": {"type": "array", "items": {"type": "string"}},
-    "source_provenance": {"type": "array", "items": {"type": "object", "required": ["source_id", "role"]}},
+    "source_provenance": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/chartSource"}},
     "confidence": {"enum": ["high", "medium", "low"]},
     "prediction_validity": {"const": "not_evaluated"},
     "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"calculation_status": {"const": "complete"}}},
+      "then": {
+        "properties": {
+          "life_palace": {"type": "integer"},
+          "body_palace": {"type": "integer"},
+          "bureau": {"$ref": "#/$defs/bureau"},
+          "unsupported_fields": {"maxItems": 0},
+          "palaces": {"items": {"allOf": [{"$ref": "#/$defs/palace"}, {"properties": {"field_status": {"const": "supported"}}}]}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"calculation_status": {"const": "degraded"}}},
+      "then": {"properties": {"unsupported_fields": {"minItems": 1}}}
+    }
+  ],
+  "$defs": {
+    "sourceIds": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "star": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["star_id", "star_name", "category", "field_status", "source_provenance"],
+      "properties": {
+        "star_id": {"type": "string", "minLength": 1},
+        "star_name": {"type": "string", "minLength": 1},
+        "category": {"enum": ["primary", "supporting", "malefic"]},
+        "field_status": {"enum": ["supported", "unsupported", "research_required"]},
+        "source_provenance": {"$ref": "#/$defs/sourceIds"}
+      }
+    },
+    "transformation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transformation", "star_id", "field_status", "source_provenance"],
+      "properties": {
+        "transformation": {"enum": ["lu", "quan", "ke", "ji"]},
+        "star_id": {"type": "string", "minLength": 1},
+        "field_status": {"enum": ["supported", "unsupported", "research_required"]},
+        "source_provenance": {"$ref": "#/$defs/sourceIds"}
+      }
+    },
+    "brightness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["star_id", "state", "source_value", "field_status", "source_provenance"],
+      "properties": {
+        "star_id": {"type": "string", "minLength": 1},
+        "state": {"enum": ["temple", "prosperous", "beneficial", "neutral", "fallen", "unsupported"]},
+        "source_value": {"type": "string", "minLength": 1},
+        "field_status": {"enum": ["supported", "unsupported", "research_required"]},
+        "source_provenance": {"$ref": "#/$defs/sourceIds"}
+      }
+    },
+    "palace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["palace_index", "palace_name", "heavenly_stem", "earthly_branch", "is_body_palace", "primary_stars", "supporting_stars", "malefic_stars", "transformations", "brightness_state", "field_status"],
+      "properties": {
+        "palace_index": {"type": "integer", "minimum": 0, "maximum": 11},
+        "palace_name": {"type": "string", "minLength": 1},
+        "heavenly_stem": {"type": ["string", "null"]},
+        "earthly_branch": {"enum": ["寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥", "子", "丑"]},
+        "is_body_palace": {"type": ["boolean", "null"]},
+        "primary_stars": {"type": "array", "items": {"$ref": "#/$defs/star"}},
+        "supporting_stars": {"type": "array", "items": {"$ref": "#/$defs/star"}},
+        "malefic_stars": {"type": "array", "items": {"$ref": "#/$defs/star"}},
+        "transformations": {"type": "array", "items": {"$ref": "#/$defs/transformation"}},
+        "brightness_state": {"type": "array", "items": {"$ref": "#/$defs/brightness"}},
+        "field_status": {"enum": ["supported", "unsupported", "research_required"]}
+      }
+    },
+    "bureau": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["element", "number", "label", "life_palace_stem", "life_palace_branch", "field_status", "source_provenance"],
+      "properties": {
+        "element": {"enum": ["水", "木", "金", "土", "火"]},
+        "number": {"enum": [2, 3, 4, 5, 6]},
+        "label": {"enum": ["水二局", "木三局", "金四局", "土五局", "火六局"]},
+        "life_palace_stem": {"enum": ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]},
+        "life_palace_branch": {"enum": ["寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥", "子", "丑"]},
+        "field_status": {"const": "supported"},
+        "source_provenance": {"$ref": "#/$defs/sourceIds"}
+      }
+    },
+    "lunarDate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["year", "month", "day", "leap_month", "year_stem", "year_branch"],
+      "properties": {
+        "year": {"type": "integer", "minimum": 1900, "maximum": 2100},
+        "month": {"type": "integer", "minimum": 1, "maximum": 12},
+        "day": {"type": "integer", "minimum": 1, "maximum": 30},
+        "leap_month": {"type": "boolean"},
+        "year_stem": {"enum": ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]},
+        "year_branch": {"enum": ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]}
+      }
+    },
+    "algorithmProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "calendar_basis", "year_boundary", "leap_month_policy", "late_zi_policy", "palace_ring", "transformation_profile", "brightness_profile"],
+      "properties": {
+        "profile_id": {"const": "ziwei-traditional-natal@1.0.0"},
+        "calendar_basis": {"const": "canonical_lunar_after_time_correction"},
+        "year_boundary": {"const": "lunar_new_year"},
+        "leap_month_policy": {"const": "same_numeric_month"},
+        "late_zi_policy": {"const": "input_selected"},
+        "palace_ring": {"const": "yin_clockwise"},
+        "transformation_profile": {"const": "ziwei-doushu-quanshu"},
+        "brightness_profile": {"type": "string", "minLength": 1}
+      }
+    },
+    "chartSource": {
+      "type": "object",
+      "required": ["source_id", "role"],
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1},
+        "license": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

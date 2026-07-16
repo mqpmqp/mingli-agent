@@ -177,7 +177,7 @@ def test_known_time_builds_complete_versioned_chart_with_exact_jiazi_fixture() -
         "taiyang": "申",
         "wuqu": "未",
         "tiantong": "午",
-        "lianzhen": "辰",
+        "lianzhen": "卯",
         "tianfu": "巳",
         "taiyin": "午",
         "tanlang": "未",
@@ -198,7 +198,7 @@ def test_known_time_builds_complete_versioned_chart_with_exact_jiazi_fixture() -
         for item in palace["transformations"]
     }
     assert transformations == {
-        "lu": ("lianzhen", "辰"),
+        "lu": ("lianzhen", "卯"),
         "quan": ("pojun", "卯"),
         "ke": ("wuqu", "未"),
         "ji": ("taiyang", "申"),
@@ -235,4 +235,3 @@ def test_fixed_engine_benchmark_covers_all_five_bureaus() -> None:
     assert report["failed_cases"] == 0
     assert set(report["covered_bureaus"]) == {"水二局", "木三局", "金四局", "土五局", "火六局"}
     assert report["prediction_validity"] == "not_evaluated"
-

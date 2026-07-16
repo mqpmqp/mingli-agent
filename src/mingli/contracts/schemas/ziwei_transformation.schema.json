@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mingli.local/schemas/ziwei_transformation.schema.json",
   "type": "object",
+  "additionalProperties": false,
   "required": ["transformation", "star_id", "field_status", "source_provenance"],
   "properties": {
     "transformation": {"enum": ["lu", "quan", "ke", "ji"]},
-    "star_id": {"type": ["string", "null"]},
+    "star_id": {"type": "string", "minLength": 1},
     "field_status": {"enum": ["supported", "unsupported", "research_required"]},
-    "source_provenance": {"type": "array", "items": {"type": "string"}}
-  },
-  "additionalProperties": false
+    "source_provenance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+  }
 }
