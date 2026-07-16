@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from jsonschema import Draft202012Validator
 
@@ -289,3 +291,63 @@ def test_fixed_engine_benchmark_covers_all_five_bureaus() -> None:
     assert report["failed_cases"] == 0
     assert set(report["covered_bureaus"]) == {"水二局", "木三局", "金四局", "土五局", "火六局"}
     assert report["prediction_validity"] == "not_evaluated"
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (
+            {
+                "schema_version": "ziwei-engine-benchmarks@1.0",
+                "algorithm_version": "ziwei-traditional-natal@1.0.0",
+                "source_provenance": ["test:reviewed-source"],
+                "cases": [],
+            },
+            "at least one case",
+        ),
+        (
+            {
+                "schema_version": "ziwei-engine-benchmarks@1.0",
+                "algorithm_version": "ziwei-traditional-natal@0.9.0",
+                "source_provenance": ["test:reviewed-source"],
+                "cases": [
+                    {
+                        "case_id": "stale-algorithm",
+                        "input": lunar_birth(),
+                        "expected": {
+                            "life_palace_branch": "寅",
+                            "body_palace_branch": "寅",
+                            "bureau": "火六局",
+                            "ziwei_branch": "亥",
+                            "tianfu_branch": "巳",
+                        },
+                    }
+                ],
+            },
+            "algorithm_version",
+        ),
+        (
+            {
+                "schema_version": "ziwei-engine-benchmarks@1.0",
+                "algorithm_version": "ziwei-traditional-natal@1.0.0",
+                "source_provenance": ["test:reviewed-source"],
+                "cases": [
+                    {
+                        "case_id": "empty-expectation",
+                        "input": lunar_birth(),
+                        "expected": {},
+                    }
+                ],
+            },
+            "expected fields",
+        ),
+    ],
+)
+def test_engine_benchmark_rejects_inputs_that_could_false_pass(
+    tmp_path, payload: dict[str, object], message: str
+) -> None:
+    path = tmp_path / "benchmark.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        run_ziwei_engine_benchmarks(path)
