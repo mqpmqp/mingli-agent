@@ -25,6 +25,7 @@ COMMERCIAL_RELEASE_HOLD = "ACTIVE"
 STORAGE_BOUNDARY = "controlled_off_git"
 
 _PERSON_CASE_ID = re.compile(r"^person:[0-9a-f]{64}$")
+_CASE_ID = re.compile(r"^case:[0-9a-f]{64}$")
 _SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 _SUPPORTED_CHART_PREFIXES = (
     "synthetic-chart-snapshot@2.",
@@ -53,6 +54,85 @@ _COMPARISON_STATUS = {
     "miss": "contradicted",
     "unverifiable": "insufficient_evidence",
 }
+_PREDICTION_FIELDS = frozenset(
+    {
+        "prediction_id",
+        "person_case_id",
+        "scenario_id",
+        "engine_version",
+        "source_commit_sha",
+        "rule_set_version",
+        "knowledge_manifest_sha",
+        "input_manifest_sha",
+        "generated_at",
+        "prediction_content",
+        "structured_claims",
+        "confidence",
+        "blocked_fields",
+        "reality_evidence_visibility",
+        "prediction_validity",
+    }
+)
+_PREDICTION_CLAIM_FIELDS = frozenset(
+    {
+        "claim_id",
+        "scope",
+        "domain",
+        "time_window",
+        "claim_type",
+        "predicted_direction",
+        "predicted_event_or_state",
+        "confidence",
+        "specificity_level",
+        "exclusion_conditions",
+        "rule_ids",
+    }
+)
+_REALITY_EVIDENCE_FIELDS = frozenset(
+    {
+        "evidence_id",
+        "person_case_id",
+        "scenario_id",
+        "claim_id",
+        "scope",
+        "event_window",
+        "observed_at",
+        "collected_at",
+        "source_provenance",
+        "evidence_quality",
+        "direction",
+        "verified",
+        "synthetic",
+    }
+)
+_PARTITION_MANIFEST_FIELDS = frozenset(
+    {
+        "record_type",
+        "schema_version",
+        "cutoff_at",
+        "assignment_basis",
+        "ingestion_order_used",
+        "deduplication_keys",
+        "base_train_case_ids",
+        "base_test_case_ids",
+        "train_case_ids",
+        "test_case_ids",
+        "forced_test_case_ids",
+        "withdrawn_case_refs",
+        "synthetic_case_ids",
+        "accuracy_eligible_case_ids",
+        "case_dependency_hashes",
+        "withdrawal_dependency_hashes",
+        "dependency_hashes",
+        "corpus_hash",
+        "leakage_detected",
+        "leakage_prevention",
+        "product_claim_eligible",
+        "commercial_release_hold",
+        "prediction_validity",
+        "canonical_hash",
+    }
+)
 
 
 class RealCaseLearningV2Error(ValueError):
@@ -146,6 +226,115 @@ def _snapshot(record_type: str, body: Mapping[str, object]) -> dict[str, object]
     return _seal({"record_type": record_type, **body})
 
 
+def _string_list(value: object) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _bounded_confidence(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and 0 <= value <= 1
+    )
+
+
+def _validate_prediction_contract(payload: Mapping[str, object]) -> None:
+    if set(payload) != _PREDICTION_FIELDS:
+        raise RealCaseLearningV2Error(
+            "PREDICTION_CONTRACT_CLOSED",
+            "prediction fields must exactly match the closed V2 prediction contract",
+        )
+    claims = payload.get("structured_claims")
+    if not isinstance(claims, list) or not claims:
+        raise RealCaseLearningV2Error(
+            "PREDICTION_CONTRACT_CLOSED",
+            "structured_claims must be a non-empty list",
+        )
+    string_fields = (
+        "prediction_id",
+        "person_case_id",
+        "scenario_id",
+        "engine_version",
+        "source_commit_sha",
+        "rule_set_version",
+        "knowledge_manifest_sha",
+        "input_manifest_sha",
+        "generated_at",
+        "prediction_content",
+    )
+    if any(not isinstance(payload.get(field), str) or not payload.get(field) for field in string_fields):
+        raise RealCaseLearningV2Error(
+            "PREDICTION_CONTRACT_CLOSED",
+            "prediction scalar fields must be non-empty strings",
+        )
+    if (
+        not _bounded_confidence(payload.get("confidence"))
+        or not _string_list(payload.get("blocked_fields"))
+    ):
+        raise RealCaseLearningV2Error(
+            "PREDICTION_CONTRACT_CLOSED",
+            "prediction confidence or blocked fields are invalid",
+        )
+    for claim in claims:
+        if not isinstance(claim, Mapping) or set(claim) != _PREDICTION_CLAIM_FIELDS:
+            raise RealCaseLearningV2Error(
+                "PREDICTION_CONTRACT_CLOSED",
+                "claim fields must exactly match the closed V2 prediction claim contract",
+            )
+        claim_strings = (
+            "claim_id",
+            "scope",
+            "domain",
+            "time_window",
+            "claim_type",
+            "predicted_direction",
+            "predicted_event_or_state",
+            "specificity_level",
+        )
+        if (
+            any(not isinstance(claim.get(field), str) or not claim.get(field) for field in claim_strings)
+            or claim.get("predicted_direction") not in {"support", "contradict"}
+            or not _bounded_confidence(claim.get("confidence"))
+            or not _string_list(claim.get("exclusion_conditions"))
+            or not _string_list(claim.get("rule_ids"))
+        ):
+            raise RealCaseLearningV2Error(
+                "PREDICTION_CONTRACT_CLOSED",
+                "prediction claim scalar and list fields must satisfy the closed V2 contract",
+            )
+
+
+def _validate_reality_evidence_contract(payload: Mapping[str, object]) -> None:
+    if set(payload) != _REALITY_EVIDENCE_FIELDS:
+        raise RealCaseLearningV2Error(
+            "REALITY_EVIDENCE_CONTRACT_CLOSED",
+            "Reality Evidence fields must exactly match the closed V2 evidence contract",
+        )
+    string_fields = (
+        "evidence_id",
+        "person_case_id",
+        "scenario_id",
+        "claim_id",
+        "scope",
+        "event_window",
+        "observed_at",
+        "collected_at",
+        "source_provenance",
+        "evidence_quality",
+        "direction",
+    )
+    if (
+        any(not isinstance(payload.get(field), str) or not payload.get(field) for field in string_fields)
+        or payload.get("direction") not in {"support", "contradict"}
+        or not isinstance(payload.get("verified"), bool)
+        or not isinstance(payload.get("synthetic"), bool)
+    ):
+        raise RealCaseLearningV2Error(
+            "REALITY_EVIDENCE_CONTRACT_CLOSED",
+            "Reality Evidence boundary fields must be scalar and type-safe",
+        )
+
+
 def _claim(snapshot: Mapping[str, object], claim_id: str, scope: str) -> dict[str, object]:
     claims = snapshot.get("structured_claims")
     if not isinstance(claims, Sequence) or isinstance(claims, (str, bytes)):
@@ -221,6 +410,7 @@ def build_learning_case(
             "person_case_id must be an irreversible HMAC-SHA256 pseudonym",
         )
     prediction_payload = _mapping(prediction, code="PREDICTION_REJECTED", field="prediction")
+    _validate_prediction_contract(prediction_payload)
     scenario_id = str(prediction_payload.get("scenario_id", ""))
     scenarios = validated_intake.get("scenarios")
     registered_scenarios = {
@@ -424,6 +614,7 @@ def _freeze_case_evidence(
     tuple[datetime, datetime],
 ]:
     payload = _mapping(evidence, code="REALITY_EVIDENCE_REJECTED", field="evidence")
+    _validate_reality_evidence_contract(payload)
     _require_clean(payload)
     if payload.get("person_case_id") != case.get("person_case_id") or payload.get("scenario_id") != case.get(
         "scenario_id"
@@ -662,7 +853,7 @@ def adjudicate_outcome(
         != "RealCaseLearningV2PartitionManifest"
         or partition_manifest.get("schema_version") != PARTITION_SCHEMA_VERSION
         or partition_manifest.get("leakage_detected") is not False
-        or not verify_learning_record(partition_manifest)
+        or not verify_temporal_partition_manifest(partition_manifest)
     ):
         raise RealCaseLearningV2Error(
             "PARTITION_MANIFEST_INVALID",
@@ -784,16 +975,139 @@ def _verified_for_partition(case: Mapping[str, object]) -> dict[str, object]:
     return payload
 
 
+def _partition_corpus_hash(
+    *,
+    case_dependency_hashes: Mapping[str, object],
+    withdrawn_case_refs: Sequence[object],
+    withdrawal_dependency_hashes: Sequence[object],
+) -> str:
+    return digest(
+        {
+            "case_dependency_hashes": dict(case_dependency_hashes),
+            "withdrawn_case_refs": sorted(str(item) for item in withdrawn_case_refs),
+            "withdrawal_dependency_hashes": sorted(
+                str(item) for item in withdrawal_dependency_hashes
+            ),
+        }
+    )
+
+
+def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
+    try:
+        if (
+            set(manifest) != _PARTITION_MANIFEST_FIELDS
+            or manifest.get("record_type") != "RealCaseLearningV2PartitionManifest"
+            or manifest.get("schema_version") != PARTITION_SCHEMA_VERSION
+            or manifest.get("assignment_basis") != "event_and_observation_time"
+            or manifest.get("ingestion_order_used") is not False
+            or manifest.get("leakage_detected") is not False
+            or manifest.get("leakage_prevention")
+            != "duplicate_components_use_test_partition"
+            or not verify_learning_record(manifest)
+        ):
+            return False
+        list_fields = (
+            "base_train_case_ids",
+            "base_test_case_ids",
+            "train_case_ids",
+            "test_case_ids",
+            "forced_test_case_ids",
+            "withdrawn_case_refs",
+            "synthetic_case_ids",
+            "accuracy_eligible_case_ids",
+            "withdrawal_dependency_hashes",
+            "dependency_hashes",
+        )
+        if any(not _string_list(manifest.get(field)) for field in list_fields):
+            return False
+        if any(
+            cast(list[str], manifest[field])
+            != sorted(set(cast(list[str], manifest[field])))
+            for field in list_fields
+        ):
+            return False
+        if manifest.get("deduplication_keys") != [
+            "person_case_id",
+            "prediction_id",
+            "event_window",
+            "derived_fingerprint",
+            "near_duplicate_fingerprint",
+        ]:
+            return False
+        _parse_time(
+            manifest.get("cutoff_at"),
+            code="TEMPORAL_BOUNDARY_MISSING",
+            field="cutoff_at",
+        )
+        base_train = set(cast(list[str], manifest["base_train_case_ids"]))
+        base_test = set(cast(list[str], manifest["base_test_case_ids"]))
+        train = set(cast(list[str], manifest["train_case_ids"]))
+        test = set(cast(list[str], manifest["test_case_ids"]))
+        forced = set(cast(list[str], manifest["forced_test_case_ids"]))
+        synthetic = set(cast(list[str], manifest["synthetic_case_ids"]))
+        case_dependencies = manifest.get("case_dependency_hashes")
+        if not isinstance(case_dependencies, Mapping):
+            return False
+        dependency_cases = set(str(key) for key in case_dependencies)
+        if (
+            any(_CASE_ID.fullmatch(case_id) is None for case_id in dependency_cases)
+            or any(
+                not isinstance(value, str) or _SHA256.fullmatch(value) is None
+                for value in case_dependencies.values()
+            )
+            or base_train & base_test
+            or train & test
+            or base_train | base_test != dependency_cases
+            or train | test != dependency_cases
+            or not forced <= base_train
+            or train != base_train - forced
+            or test != base_test | forced
+            or not synthetic <= dependency_cases
+            or cast(list[object], manifest["accuracy_eligible_case_ids"])
+            or any(
+                _SHA256.fullmatch(value) is None
+                for value in cast(list[str], manifest["withdrawn_case_refs"])
+            )
+            or len(cast(list[str], manifest["withdrawn_case_refs"]))
+            != len(cast(list[str], manifest["withdrawal_dependency_hashes"]))
+        ):
+            return False
+        withdrawal_dependencies = cast(
+            list[str], manifest["withdrawal_dependency_hashes"]
+        )
+        dependency_hashes = cast(list[str], manifest["dependency_hashes"])
+        expected_dependencies = sorted(
+            set(str(value) for value in case_dependencies.values())
+            | set(withdrawal_dependencies)
+        )
+        if (
+            any(_SHA256.fullmatch(value) is None for value in withdrawal_dependencies)
+            or dependency_hashes != expected_dependencies
+            or manifest.get("corpus_hash")
+            != _partition_corpus_hash(
+                case_dependency_hashes=case_dependencies,
+                withdrawn_case_refs=cast(list[object], manifest["withdrawn_case_refs"]),
+                withdrawal_dependency_hashes=withdrawal_dependencies,
+            )
+        ):
+            return False
+        return True
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def build_temporal_partitions(
     cases: Sequence[Mapping[str, object]], *, cutoff_at: str
 ) -> dict[str, object]:
     cutoff = _parse_time(cutoff_at, code="TEMPORAL_BOUNDARY_MISSING", field="cutoff_at")
     active: list[dict[str, object]] = []
     withdrawn_refs: list[str] = []
+    withdrawal_dependency_hashes: list[str] = []
     for case in cases:
         payload = _verified_for_partition(case)
         if payload.get("record_type") == "RealCaseLearningV2Withdrawal":
             withdrawn_refs.append(str(payload["case_ref_hash"]))
+            withdrawal_dependency_hashes.append(str(payload["canonical_hash"]))
             continue
         if payload.get("record_type") != "RealCaseLearningV2Case":
             raise RealCaseLearningV2Error("UNSUPPORTED_CASE_SCHEMA", "partition input is not a V2 case")
@@ -871,6 +1185,15 @@ def build_temporal_partitions(
     train_ids = sorted(item for item, partition in assignment.items() if partition == "train")
     test_ids = sorted(item for item, partition in assignment.items() if partition == "test")
     synthetic_ids = sorted(str(item["case_id"]) for item in active if item.get("synthetic") is True)
+    base_train_ids = sorted(item for item, partition in base.items() if partition == "train")
+    base_test_ids = sorted(item for item, partition in base.items() if partition == "test")
+    case_dependency_hashes = {
+        str(item["case_id"]): str(item["canonical_hash"])
+        for item in sorted(active, key=lambda value: str(value["case_id"]))
+    }
+    dependency_hashes = sorted(
+        set(case_dependency_hashes.values()) | set(withdrawal_dependency_hashes)
+    )
     body = {
         "record_type": "RealCaseLearningV2PartitionManifest",
         "schema_version": PARTITION_SCHEMA_VERSION,
@@ -884,12 +1207,22 @@ def build_temporal_partitions(
             "derived_fingerprint",
             "near_duplicate_fingerprint",
         ],
+        "base_train_case_ids": base_train_ids,
+        "base_test_case_ids": base_test_ids,
         "train_case_ids": train_ids,
         "test_case_ids": test_ids,
         "forced_test_case_ids": sorted(forced_test),
         "withdrawn_case_refs": sorted(withdrawn_refs),
         "synthetic_case_ids": synthetic_ids,
         "accuracy_eligible_case_ids": [],
+        "case_dependency_hashes": case_dependency_hashes,
+        "withdrawal_dependency_hashes": sorted(withdrawal_dependency_hashes),
+        "dependency_hashes": dependency_hashes,
+        "corpus_hash": _partition_corpus_hash(
+            case_dependency_hashes=case_dependency_hashes,
+            withdrawn_case_refs=withdrawn_refs,
+            withdrawal_dependency_hashes=withdrawal_dependency_hashes,
+        ),
         "leakage_detected": False,
         "leakage_prevention": "duplicate_components_use_test_partition",
         "product_claim_eligible": False,
@@ -1009,6 +1342,7 @@ __all__ = [
     "build_learning_case",
     "build_operator_review_queue",
     "build_temporal_partitions",
+    "verify_temporal_partition_manifest",
     "record_future_outcome",
     "record_prior_event_validation",
     "summarize_learning_cases",

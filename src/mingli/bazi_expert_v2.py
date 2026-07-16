@@ -1473,6 +1473,10 @@ def orchestrate_bazi_expert_v2(
         "confidence_reason_codes": list(confidence_reasons),
         "warnings": list(warnings),
         "unsupported": list(unsupported),
+        "schema_version": BAZI_EXPERT_V2_SCHEMA_VERSION,
+        "method_id": BAZI_EXPERT_V2_METHOD_ID,
+        "calculation_version": BAZI_EXPERT_V2_CALCULATION_VERSION,
+        "prediction_validity": "not_evaluated",
         "release_hold": "ACTIVE",
         "accuracy_claim_allowed": False,
     }

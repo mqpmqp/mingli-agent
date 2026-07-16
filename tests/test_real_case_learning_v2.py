@@ -763,6 +763,19 @@ def test_prediction_snapshot_contract_rejects_unknown_future_reality_fields(
         _build_case_with_prediction(prediction)
 
 
+def test_prediction_snapshot_schema_is_closed_to_unknown_metadata() -> None:
+    case = learning_case()
+    case["prediction_snapshot"]["future_reality_metadata"] = {
+        "outcome": "hidden-after-freeze"
+    }
+    errors = list(
+        Draft202012Validator(
+            get_schema("real_case_learning_v2_case.schema.json")
+        ).iter_errors(case)
+    )
+    assert any(error.validator == "additionalProperties" for error in errors)
+
+
 @pytest.mark.parametrize(
     "updates",
     [
@@ -843,10 +856,10 @@ def test_partition_manifest_records_reproducible_base_and_forced_assignments() -
         raw_identifier="synthetic-base-early",
         scenario_id="career:synthetic:base-early",
         prediction_id="prediction:synthetic:base-early",
-        generated_at="2024-01-01T00:00:00Z",
-        frozen_at="2024-01-01T00:01:00Z",
-        observed_at="2024-12-31T00:00:00Z",
-        collected_at="2024-12-31T00:01:00Z",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T23:59:59Z",
+        collected_at="2025-12-31T23:59:59Z",
         near_duplicate_fingerprint=duplicate,
     )
     late = observed_case(
