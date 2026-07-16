@@ -277,3 +277,140 @@ def test_invalid_rule_model_and_unknown_source_are_rejected() -> None:
     rule["source_id"] = "source:missing"
     with pytest.raises(ZiweiRuleError, match="source"):
         load_ziwei_rule_content(payload={**payload, "rules": [rule]})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("content_version", "ziwei-traditional-rule-content@99"),
+        ("subject", "unknown"),
+        ("domain", "health"),
+        ("themes", []),
+        ("trigger", {"fact": "x", "operator": "unknown", "value": True}),
+        ("exclusions", []),
+        ("priority", True),
+        ("confidence", "certain"),
+        ("evidence_level", "verified_prediction"),
+        ("lifecycle", "verified"),
+        ("conflict_policy", "first_wins"),
+        ("output_constraints", ["no_absolute_claims"]),
+        ("direction", "neutral"),
+    ],
+)
+def test_rule_model_rejects_invalid_enums_and_boundaries(field: str, value: object) -> None:
+    rule = deepcopy(load_ziwei_rule_content()[0])
+    rule[field] = value
+    with pytest.raises(ZiweiRuleError):
+        validate_rule_card(rule)
+
+
+def test_rule_model_rejects_subject_field_inconsistency_and_unexpected_fields() -> None:
+    base = deepcopy(load_ziwei_rule_content()[0])
+    invalid_cards = []
+    primary_with_transformation = deepcopy(base)
+    primary_with_transformation["transformation"] = "lu"
+    invalid_cards.append(primary_with_transformation)
+    transformation_with_star = deepcopy(base)
+    transformation_with_star.update(subject="transformation", transformation="lu")
+    invalid_cards.append(transformation_with_star)
+    brightness_without_state = deepcopy(base)
+    brightness_without_state.update(
+        subject="brightness", star=None, palace=None, state=None
+    )
+    invalid_cards.append(brightness_without_state)
+    combination_with_star = deepcopy(base)
+    combination_with_star.update(subject="combination", palace=None)
+    invalid_cards.append(combination_with_star)
+    unexpected = deepcopy(base)
+    unexpected["placeholder"] = True
+    invalid_cards.append(unexpected)
+
+    for card in invalid_cards:
+        with pytest.raises(ZiweiRuleError):
+            validate_rule_card(card)
+
+
+def test_loader_rejects_invalid_payload_shapes_and_duplicate_ids(tmp_path) -> None:
+    payload = load_ziwei_rule_payload()
+    first = deepcopy(payload["rules"][0])
+    invalid_payloads = [
+        {**payload, "schema_version": "unknown"},
+        {**payload, "content_version": "unknown"},
+        {**payload, "sources": []},
+        {**payload, "sources": ["not-an-object"]},
+        {**payload, "sources": [{"source_id": ""}]},
+        {**payload, "sources": [payload["sources"][0], payload["sources"][0]]},
+        {**payload, "rules": []},
+        {**payload, "rules": ["not-an-object"]},
+        {**payload, "rules": [first, first]},
+    ]
+    for document in invalid_payloads:
+        with pytest.raises(ZiweiRuleError):
+            load_ziwei_rule_content(payload=document)
+
+    path = tmp_path / "rules.json"
+    path.write_text("{}", encoding="utf-8")
+    with pytest.raises(ZiweiRuleError, match="path or payload"):
+        load_ziwei_rule_content(path, payload=payload)
+
+
+def test_condition_groups_and_negative_operators_are_executable() -> None:
+    card = deepcopy(load_ziwei_rule_content()[0])
+    card["rule_id"] = "ziwei:v1:test:condition-tree"
+    card["trigger"] = {
+        "any": [
+            {"fact": "signal", "operator": "equals", "value": "secondary"},
+            {
+                "all": [
+                    {"fact": "signal", "operator": "equals", "value": "primary"},
+                    {"fact": "flags", "operator": "not_contains", "value": "blocked"},
+                ]
+            },
+        ]
+    }
+    facts = {
+        "algorithm_version": "ziwei-traditional-natal@1.0.0",
+        "calculation_status": "complete",
+        "unsupported_fields": [],
+        "signal": "primary",
+        "flags": [],
+    }
+    assert evaluate_ziwei_rules(facts, [card])[0].rule_id == card["rule_id"]
+    assert evaluate_ziwei_rules({**facts, "flags": ["blocked"]}, [card]) == ()
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda value: value.update(palaces="invalid"),
+        lambda value: value.update(palaces=[]),
+        lambda value: value["palaces"].__setitem__(0, "invalid"),
+        lambda value: value["palaces"][0].update(palace_name="未知宫"),
+        lambda value: value["palaces"][0].update(primary_stars=[{"star_id": "unknown"}]),
+        lambda value: value["palaces"][0].update(transformations=["invalid"]),
+        lambda value: value["palaces"][0].update(
+            transformations=[{"star_id": "ziwei", "transformation": "unknown"}]
+        ),
+        lambda value: value["palaces"][0].update(brightness_state=["invalid"]),
+        lambda value: value["palaces"][0].update(
+            brightness_state=[{"star_id": "ziwei", "state": "unknown"}]
+        ),
+    ],
+)
+def test_chart_fact_extraction_rejects_malformed_nested_contracts(mutator) -> None:
+    chart = complete_chart()
+    mutator(chart)
+    with pytest.raises(ZiweiRuleError):
+        extract_ziwei_rule_facts(chart)
+
+
+def test_runtime_rejects_protected_fact_override() -> None:
+    with pytest.raises(ValueError, match="cannot be overridden"):
+        run_ziwei_runtime(
+            complete_chart(),
+            facts={"algorithm_version": "wrong"},
+            rules=load_ziwei_rule_content(),
+            reality={},
+            reality_evidence=[],
+            start_year=2028,
+        )
