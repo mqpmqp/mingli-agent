@@ -129,6 +129,15 @@ def test_chart_fact_extraction_and_rules_are_behaviorally_evaluable() -> None:
     assert {item.subject for item in matches}.issuperset(
         {"primary_star_palace", "transformation", "brightness"}
     )
+    effective = [
+        item for item in matches if item.resolution != "suppressed_by_higher_priority"
+    ]
+    assert len(
+        [item for item in effective if item.subject == "primary_star_palace"]
+    ) == 14
+    assert {item.subject for item in effective}.issuperset(
+        {"primary_star_palace", "transformation", "brightness"}
+    )
 
     without_ziwei = dict(facts)
     without_ziwei["star_palace_pairs"] = [
@@ -192,6 +201,24 @@ def test_unsupported_and_algorithm_mismatch_fail_closed() -> None:
     chart["algorithm_version"] = "ziwei-traditional-natal@99"
     with pytest.raises(ZiweiRuleError, match="algorithm"):
         evaluate_ziwei_chart_rules(chart)
+
+
+def test_chart_fact_extraction_rejects_unplaced_modifier_stars() -> None:
+    chart = complete_chart()
+    transformation_palace = next(
+        palace for palace in chart["palaces"] if palace["transformations"]
+    )
+    transformation_palace["transformations"][0]["star_id"] = "not_a_star"
+    with pytest.raises(ZiweiRuleError):
+        extract_ziwei_rule_facts(chart)
+
+    chart = complete_chart()
+    brightness_palace = next(
+        palace for palace in chart["palaces"] if palace["brightness_state"]
+    )
+    brightness_palace["brightness_state"][0]["star_id"] = "not_a_star"
+    with pytest.raises(ZiweiRuleError):
+        extract_ziwei_rule_facts(chart)
 
 
 def test_coverage_is_computed_from_real_records_and_behavior_not_hardcoded() -> None:
@@ -412,6 +439,9 @@ def test_condition_groups_and_negative_operators_are_executable() -> None:
         lambda value: value["palaces"][0].update(palace_name="未知宫"),
         lambda value: value["palaces"][1].update(
             palace_name=value["palaces"][0]["palace_name"]
+        ),
+        lambda value: value["palaces"][1].update(
+            palace_index=value["palaces"][0]["palace_index"]
         ),
         lambda value: value["palaces"][0].update(primary_stars=[{"star_id": "unknown"}]),
         lambda value: value["palaces"][0].update(transformations=["invalid"]),
