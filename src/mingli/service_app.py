@@ -5,10 +5,12 @@ import json
 import logging
 import os
 import re
+from time import perf_counter
 from typing import Literal
 from uuid import uuid4
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from starlette.applications import Starlette
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -27,6 +29,7 @@ from .service import (
 MAX_REQUEST_BYTES = 1_000_000
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 _LOGGER = logging.getLogger("mingli.service")
+_BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 
 MCP_NAME = "MingLi Agent Runtime"
 MCP_INSTRUCTIONS = (
@@ -66,6 +69,22 @@ def _annotations(title: str) -> ToolAnnotations:
         idempotentHint=True,
         openWorldHint=False,
     )
+
+
+def _csv_setting(name: str) -> list[str]:
+    return [
+        item
+        for value in os.environ.get(name, "").split(",")
+        if (item := value.strip())
+    ]
+
+
+def _runtime_host() -> str:
+    return os.environ.get("MINGLI_HOST", "127.0.0.1")
+
+
+def _runtime_port() -> int:
+    return int(os.environ.get("PORT", os.environ.get("MINGLI_PORT", "8000")))
 
 
 def analyze_mingli(
@@ -183,17 +202,20 @@ class RequestPolicyMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         request_id = _request_id(request)
+        started = perf_counter()
         content_length = request.headers.get("content-length")
         if content_length is not None:
             try:
                 too_large = int(content_length) > MAX_REQUEST_BYTES
             except ValueError:
-                return _apply_response_headers(
+                response = _apply_response_headers(
                     _error_response("invalid_content_length", "Invalid Content-Length", 400),
                     request_id,
                 )
+                self._log_response(request, response, request_id, started)
+                return response
             if too_large:
-                return _apply_response_headers(
+                response = _apply_response_headers(
                     _error_response(
                         "request_too_large",
                         f"Request body exceeds {MAX_REQUEST_BYTES} bytes",
@@ -201,8 +223,65 @@ class RequestPolicyMiddleware(BaseHTTPMiddleware):
                     ),
                     request_id,
                 )
-        response = await call_next(request)
-        return _apply_response_headers(response, request_id)
+                self._log_response(request, response, request_id, started)
+                return response
+        if request.method in _BODY_METHODS and not await self._buffer_body(request):
+            response = _apply_response_headers(
+                _error_response(
+                    "request_too_large",
+                    f"Request body exceeds {MAX_REQUEST_BYTES} bytes",
+                    413,
+                ),
+                request_id,
+            )
+            self._log_response(request, response, request_id, started)
+            return response
+        try:
+            response = await call_next(request)
+        except Exception:
+            _LOGGER.exception(
+                "request_failed",
+                extra={
+                    "request_id": request_id,
+                    "http_method": request.method,
+                    "http_path": request.url.path,
+                    "duration_ms": round((perf_counter() - started) * 1000, 3),
+                },
+            )
+            raise
+        response = _apply_response_headers(response, request_id)
+        self._log_response(request, response, request_id, started)
+        return response
+
+    @staticmethod
+    async def _buffer_body(request: Request) -> bool:
+        chunks: list[bytes] = []
+        size = 0
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > MAX_REQUEST_BYTES:
+                return False
+            chunks.append(chunk)
+        setattr(request, "_body", b"".join(chunks))
+        return True
+
+    @staticmethod
+    def _log_response(
+        request: Request,
+        response: Response,
+        request_id: str,
+        started: float,
+    ) -> None:
+        _LOGGER.info(
+            "request_complete",
+            extra={
+                "request_id": request_id,
+                "http_method": request.method,
+                "http_path": request.url.path,
+                "http_status": response.status_code,
+                "duration_ms": round((perf_counter() - started) * 1000, 3),
+            },
+        )
 
 
 async def _json_object(request: Request) -> dict[str, object]:
@@ -266,13 +345,41 @@ async def ziwei_coverage_http(request: Request) -> JSONResponse:
     return JSONResponse(get_ziwei_coverage())
 
 
-def create_mcp() -> FastMCP:
+def create_mcp(
+    *,
+    host: str | None = None,
+    port: int | None = None,
+    allowed_hosts: list[str] | None = None,
+    allowed_origins: list[str] | None = None,
+) -> FastMCP:
+    resolved_host = host or _runtime_host()
+    resolved_port = port if port is not None else _runtime_port()
+    resolved_allowed_hosts = (
+        _csv_setting("MINGLI_ALLOWED_HOSTS")
+        if allowed_hosts is None
+        else allowed_hosts
+    )
+    resolved_allowed_origins = (
+        _csv_setting("MINGLI_ALLOWED_ORIGINS")
+        if allowed_origins is None
+        else allowed_origins
+    )
+    transport_security = None
+    if resolved_allowed_hosts:
+        transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=resolved_allowed_hosts,
+            allowed_origins=resolved_allowed_origins,
+        )
     server = FastMCP(
         MCP_NAME,
         instructions=MCP_INSTRUCTIONS,
+        host=resolved_host,
+        port=resolved_port,
         json_response=True,
         stateless_http=True,
         streamable_http_path="/mcp",
+        transport_security=transport_security,
     )
     server.tool(
         name="analyze_mingli",
@@ -333,8 +440,8 @@ app = create_app(mcp)
 def main() -> None:
     import uvicorn
 
-    host = os.environ.get("MINGLI_HOST", "127.0.0.1")
-    port = int(os.environ.get("PORT", os.environ.get("MINGLI_PORT", "8000")))
+    host = _runtime_host()
+    port = _runtime_port()
     uvicorn.run(
         "mingli.service_app:app",
         host=host,
