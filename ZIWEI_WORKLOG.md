@@ -1,18 +1,30 @@
 # Ziwei Capability Closure Worklog
 
+## 2026-07-16 — PR B：Traditional Rule Content v1
+
+- 基线：从 PR A `82bca159` 创建 stacked 分支，不等待 PR A 合并。
+- TDD：RED `8ff4dd7` 固化 168 实际规则、求值、防伪、Runtime/CLI/打包合同；GREEN `940a4f9` 实现；`cc9ec9f` 加固错误路径和 coverage。
+- 内容：184 条 draft 规则，包括 168 条主星×宫位、4 条四化、7 条状态和 5 条同宫组合；来源只登记传统书籍并作原创短句转述。
+- 覆盖：168 records / 168 behaviorally evaluated / 0 duplicate pairs；状态 `REVIEW_REQUIRED`，不硬编码 168/168。
+- 边界：未修改 PR A 排盘算法；三方四正、对宫、完整辅煞组合、格局、流限、真实准确率和商业发布未实现。
+- Hold：Traditional Engine、Rule Content、Real Benchmark、Commercial Release 均保持 ACTIVE。
+- 独立审查：发现跨 subject priority 导致 Runtime evidence 丢失、畸形完整盘可注入修饰事实、非主星规则 mutation 不关闭 coverage；RED `d538241` / `6e7c13e`，GREEN `8691d7c` 已闭环。
+- 终审加固：发现同 state 不同星冲突键、嵌套非 supported 状态、过宽 trigger 与缺失 exclusions 四类剩余 false pass；RED `fc8036c` / `156bfa7`，GREEN `840872d` 已闭环。
+- 测试闭环：`cab5d73` 将五类嵌套记录的 unsupported/research_required 10 个组合全部纳入回归。
+
 ## 2026-07-16 — PR A 本地独立审查与 Merge Gate
 
 - 审查：逐项核对 engine、Schema、Runtime、CLI、固定盘、来源和 Hold 文档；确认核心排盘范围与已声明 profile 一致。
 - 修复：发现自定义 benchmark 可由空案例、过期算法版本或空期望产生 false pass；新增 RED commit `7437c06`，并以 GREEN commit `079c084` 实施 fail-closed 校验。
 - 验证：紫微聚焦 44 passed，覆盖率 84.19%；Ruff/Pyright/compileall 通过；fast 215 passed/1 skipped，benchmark 38 passed，real_case 58 passed；wheel/sdist 与 wheel 内五局 benchmark/Schema 冒烟通过。
-- 状态：本地 Merge Gate PASS；分支未推送、未创建 PR，Traditional Engine Hold 继续 ACTIVE；Rule Content、Real Benchmark、Commercial Release 继续 ACTIVE。
+- 状态：该检查点本地 Merge Gate PASS；随后已发布 Draft PR #28 且三项 CI 通过，PR A 仍未合并；Traditional Engine、Rule Content、Real Benchmark、Commercial Release Hold 继续 ACTIVE。
 - 下一步：获得明确外部写操作授权后推送分支，创建 Draft PR 并等待远端独立审查/CI；不得在合并前解除 Hold。
 
 ## 2026-07-16 — PR A：Deterministic Ziwei Engine v1
 
 - 来源：古籍全文入口、公开公式转写和 MIT `iztro@f3dc6c5` 三层核验；没有调用外部排盘 API。
 - 实现：命身宫、五行局、十四主星、十四辅煞、四化、基础亮度、严格 Schema、CLI 和五局固定盘。
-- 状态：已知时辰 `complete`，未知时辰继续 `degraded`；规则覆盖仍为 0/168。
+- 状态：已知时辰 `complete`，未知时辰继续 `degraded`；该 PR A 阶段规则覆盖为 0/168。
 - Hold：Traditional Engine 等待 Draft PR 独立审查与合并；Rule Content、Real Benchmark、Commercial Release 继续 ACTIVE。
 
 ## 2026-07-16 — Phase 0–1：基线与差距审查
