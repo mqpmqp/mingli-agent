@@ -6,7 +6,7 @@ from typing import Mapping
 from .phase19 import solar_to_lunar
 
 ZIWEI_ENGINE_VERSION = "ziwei-traditional-natal@1.0.0"
-CLASSICAL_SOURCE_ID = "classical:ziwei-placement"
+CLASSICAL_SOURCE_ID = "classical:ziwei-doushu-quanji-placement"
 CROSS_CHECK_SOURCE_ID = "oss:iztro@f3dc6c5"
 FULL_CROSS_CHECK_SOURCE_ID = "oss:iztro@f3dc6c547420b063109251d7c7132fa3cb41e06e"
 
@@ -132,7 +132,7 @@ ALGORITHM_PROFILE = {
     "leap_month_policy": "same_numeric_month",
     "late_zi_policy": "input_selected",
     "palace_ring": "yin_clockwise",
-    "transformation_profile": "ziwei-doushu-quanshu",
+    "transformation_profile": "ziwei-doushu-quanji",
     "brightness_profile": FULL_CROSS_CHECK_SOURCE_ID,
 }
 

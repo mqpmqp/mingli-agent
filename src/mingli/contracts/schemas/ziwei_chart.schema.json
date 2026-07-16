@@ -135,7 +135,7 @@
         "leap_month_policy": {"const": "same_numeric_month"},
         "late_zi_policy": {"const": "input_selected"},
         "palace_ring": {"const": "yin_clockwise"},
-        "transformation_profile": {"const": "ziwei-doushu-quanshu"},
+        "transformation_profile": {"const": "ziwei-doushu-quanji"},
         "brightness_profile": {"type": "string", "minLength": 1}
       }
     },

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, time, timedelta, timezone
 import re
-from typing import Mapping
+from typing import Mapping, NoReturn
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .bazi import BRANCHES, STEMS, equation_of_time_minutes, lunar_to_solar
@@ -29,7 +29,7 @@ class ZiweiContractError(ValueError):
     pass
 
 
-def _fail(message: str) -> None:
+def _fail(message: str) -> NoReturn:
     raise ZiweiContractError(message)
 
 
@@ -328,7 +328,10 @@ def build_ziwei_chart(raw: Mapping[str, object], *, algorithm_version: str = ZIW
             {"source_id": "mingli:bazi:calendar-conversion", "role": "calendar_normalization"},
             {"source_id": "mingli:bazi:noaa-eot", "role": "equation_of_time"},
             {"source_id": "mingli:phase19:solar-lunar", "role": "canonical_lunar_identity"},
-            {"source_id": "classical:ziwei-placement", "role": "traditional_formula_profile"},
+            {
+                "source_id": "classical:ziwei-doushu-quanji-placement",
+                "role": "traditional_formula_profile",
+            },
             {
                 "source_id": "public:zhwiki:ziwei-calculation@2026-07-16",
                 "role": "reviewable_formula_transcription",

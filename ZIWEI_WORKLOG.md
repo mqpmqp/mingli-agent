@@ -1,5 +1,12 @@
 # Ziwei Capability Closure Worklog
 
+## 2026-07-16 — PR A：Deterministic Ziwei Engine v1
+
+- 来源：古籍全文入口、公开公式转写和 MIT `iztro@f3dc6c5` 三层核验；没有调用外部排盘 API。
+- 实现：命身宫、五行局、十四主星、十四辅煞、四化、基础亮度、严格 Schema、CLI 和五局固定盘。
+- 状态：已知时辰 `complete`，未知时辰继续 `degraded`；规则覆盖仍为 0/168。
+- Hold：Traditional Engine 等待 Draft PR 独立审查与合并；Rule Content、Real Benchmark、Commercial Release 继续 ACTIVE。
+
 ## 2026-07-16 — Phase 0–1：基线与差距审查
 
 - 完成事项：创建本地分支；读取仓库指令、技术栈、CI、Schema/Runtime/Renderer/benchmark；确认仓库无紫微实现与测试；合规观察外部公开输入流程；建立审计、能力矩阵、测试缺口矩阵与实施计划。

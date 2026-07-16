@@ -2,7 +2,7 @@
   "schema_version": "ziwei-engine-benchmarks@1.0",
   "algorithm_version": "ziwei-traditional-natal@1.0.0",
   "source_provenance": [
-    "classical:ziwei-placement",
+    "classical:ziwei-doushu-quanji-placement",
     "public:zhwiki:ziwei-calculation@2026-07-16",
     "oss:iztro@f3dc6c547420b063109251d7c7132fa3cb41e06e"
   ],

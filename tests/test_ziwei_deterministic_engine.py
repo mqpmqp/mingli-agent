@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from mingli.contracts import get_schema
@@ -147,7 +148,10 @@ def test_known_time_builds_complete_versioned_chart_with_exact_jiazi_fixture() -
         "life_palace_stem": "丙",
         "life_palace_branch": "寅",
         "field_status": "supported",
-        "source_provenance": ["classical:ziwei-placement", "oss:iztro@f3dc6c5"],
+        "source_provenance": [
+            "classical:ziwei-doushu-quanji-placement",
+            "oss:iztro@f3dc6c5",
+        ],
     }
     assert chart["placement_lunar_date"] == {
         "year": 1984,
@@ -205,6 +209,43 @@ def test_known_time_builds_complete_versioned_chart_with_exact_jiazi_fixture() -
     }
     assert chart["algorithm_profile"]["leap_month_policy"] == "same_numeric_month"
     assert chart["algorithm_profile"]["year_boundary"] == "lunar_new_year"
+    assert chart["algorithm_profile"]["transformation_profile"] == "ziwei-doushu-quanji"
+
+
+def test_table_driven_properties_stay_in_domain_for_all_supported_inputs() -> None:
+    labels: set[str] = set()
+    for year_stem in "甲乙丙丁戊己庚辛壬癸":
+        for life_index in range(12):
+            bureau = calculate_bureau(year_stem, life_index)
+            assert bureau["number"] in {2, 3, 4, 5, 6}
+            assert bureau["life_palace_branch"] == PALACE_BRANCHES[life_index]
+            labels.add(str(bureau["label"]))
+        for year_branch in "子丑寅卯辰巳午未申酉戌亥":
+            for lunar_month in range(1, 13):
+                for shichen_index in range(12):
+                    stars = place_auxiliary_stars(
+                        year_stem, year_branch, lunar_month, shichen_index
+                    )
+                    assert set(stars) == set(AUXILIARY_STAR_IDS)
+                    assert set(stars.values()).issubset(PALACE_BRANCHES)
+    assert labels == {"水二局", "木三局", "金四局", "土五局", "火六局"}
+
+
+@pytest.mark.parametrize(
+    ("call", "message"),
+    [
+        (lambda: calculate_life_body_palaces(0, 0), "lunar_month"),
+        (lambda: calculate_life_body_palaces(1, 12), "shichen_index"),
+        (lambda: calculate_bureau("?", 0), "heavenly stem"),
+        (lambda: place_primary_stars(0, 2), "lunar_day"),
+        (lambda: place_primary_stars(1, 1), "bureau_number"),
+        (lambda: place_auxiliary_stars("甲", "?", 1, 0), "earthly branch"),
+        (lambda: four_transformations("?"), "heavenly stem"),
+    ],
+)
+def test_pure_engine_rejects_out_of_domain_inputs(call, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        call()
 
 
 def test_complete_chart_and_nested_objects_validate_against_schemas() -> None:

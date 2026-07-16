@@ -1,5 +1,7 @@
 # Ziwei Capability Closure Report
 
+> 历史基线：本报告记录 PR #27 合并时的 P0 状态。PR A 当前引擎状态与证据见 `ZIWEI_DETERMINISTIC_ENGINE_V1_REPORT.md`；以下历史结论不作为当前分支能力清单。
+
 日期：2026-07-16
 
 实现基线：`532f8ea4570db6ddb126ad39e07b8d7e0a8446d9`
