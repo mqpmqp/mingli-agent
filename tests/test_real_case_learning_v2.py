@@ -914,7 +914,6 @@ def test_v2_case_rejects_legacy_frozen_prediction_with_unknown_metadata() -> Non
             ),
         )
 
-
 def test_v2_case_rejects_legacy_frozen_evidence_with_nested_contradiction() -> None:
     case = observed_case(
         raw_identifier="synthetic-forged-evidence",
@@ -1186,100 +1185,3 @@ def test_v2_case_rejects_hash_valid_prior_observation_before_window() -> None:
                 direction="support",
             ),
         )
-
-
-def test_evidence_observation_cannot_follow_its_frozen_event_window() -> None:
-    case = learning_case()
-    with pytest.raises(RealCaseLearningV2Error, match="PRIOR_EVENT_AFTER_WINDOW"):
-        record_prior_event_validation(
-            case,
-            evidence_record(
-                case,
-                evidence_id="prior:after-window",
-                observed_at="2025-02-01T00:00:00Z",
-                collected_at="2025-02-01T00:00:00Z",
-                direction="support",
-                claim_id="claim:career:prior:001",
-                scope="career:prior:2025-01",
-                event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
-            ),
-        )
-
-    with pytest.raises(RealCaseLearningV2Error, match="FUTURE_OUTCOME_AFTER_WINDOW"):
-        record_future_outcome(
-            case,
-            evidence_record(
-                case,
-                evidence_id="outcome:after-window",
-                observed_at="2026-01-01T00:00:00Z",
-                collected_at="2026-01-02T00:00:00Z",
-                direction="support",
-            ),
-        )
-
-
-@pytest.mark.parametrize("relation", ["prior", "future"])
-def test_v2_case_rejects_hash_valid_observation_after_window(
-    relation: str,
-) -> None:
-    if relation == "prior":
-        case = learning_case()
-        case = record_prior_event_validation(
-            case,
-            evidence_record(
-                case,
-                evidence_id="prior:injected-after-window",
-                observed_at="2025-01-15T00:00:00Z",
-                collected_at="2025-01-15T00:00:00Z",
-                direction="support",
-                claim_id="claim:career:prior:001",
-                scope="career:prior:2025-01",
-                event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
-            ),
-        )
-        entry = case["prior_event_validations"][0]
-        observed_at = "2025-02-01T00:00:00Z"
-    else:
-        case = observed_case(
-            raw_identifier="synthetic-injected-after-window",
-            scenario_id="career:synthetic:injected-after-window",
-            prediction_id="prediction:synthetic:injected-after-window",
-            generated_at="2025-02-01T00:00:00Z",
-            frozen_at="2025-02-01T00:01:00Z",
-            observed_at="2025-12-31T00:00:00Z",
-            collected_at="2026-01-02T00:00:00Z",
-        )
-        entry = case["future_outcomes"][0]
-        observed_at = "2026-01-01T00:00:00Z"
-
-    original_entry_hash = entry["canonical_hash"]
-    evidence = deepcopy(entry["evidence_snapshot"])
-    for field in ("freeze_status", "canonical_hash"):
-        evidence.pop(field)
-    evidence["observed_at"] = observed_at
-    evidence["collected_at"] = observed_at
-    entry["observed_at"] = observed_at
-    entry["collected_at"] = observed_at
-    entry["evidence_snapshot"] = freeze_reality_evidence(evidence)
-    _reseal(entry)
-    case["dependency_hashes"] = sorted(
-        entry["canonical_hash"] if value == original_entry_hash else value
-        for value in case["dependency_hashes"]
-    )
-    _reseal(case)
-    assert verify_learning_record(case)
-
-    with pytest.raises(RealCaseLearningV2Error, match="CASE_EVIDENCE_CONTRACT_INVALID"):
-        if relation == "prior":
-            record_future_outcome(
-                case,
-                evidence_record(
-                    case,
-                    evidence_id="outcome:after-injected-prior-window",
-                    observed_at="2025-12-31T00:00:00Z",
-                    collected_at="2026-01-02T00:00:00Z",
-                    direction="support",
-                ),
-            )
-        else:
-            build_temporal_partitions([case], cutoff_at="2026-01-01T00:00:00Z")

@@ -72,3 +72,10 @@ The fix deliberately leaves the frozen legacy prediction/evidence freezers uncha
 - Ruff, compileall, diff check, and frozen-contract verifier: PASS.
 
 New guarantees: year/month overlays require an explicit decade parent and month overlays require an explicit year parent; prior observation cannot precede its frozen window; injected V2 predictions preserve `not_evaluated` and invisible-reality boundaries; verified frozen evidence direction equals the recorded Reality hard-override direction.
+
+## Observation-time semantic correction
+
+- Rejected RED checkpoint: `30b0c2f` proposed treating `observed_at` as the event occurrence instant and therefore rejecting observations after `event_window.end`.
+- Full regression disproved that interpretation: the established temporal-partition contract intentionally permits an outcome to be observed or collected after its event window, then uses event end, observation time, and collection availability together to assign train/test.
+- Correct invariant: the frozen `event_window` bounds the claimed event period; `observed_at` is when the outcome becomes observable. It must not precede the window start, but it may follow the window end. `collected_at` must not precede observation.
+- Correction evidence: the four V2 focused suites returned to `75 passed`; the invalid upper-bound tests and uncommitted implementation were removed without rewriting history.
