@@ -35,7 +35,7 @@ def chart() -> dict[str, object]:
 
 def rule(**overrides: object) -> dict[str, object]:
     value: dict[str, object] = {
-        "rule_id": "ziwei:test:1",
+        "rule_id": "ziwei:v1:test:one",
         "content_version": ZIWEI_RULE_CONTENT_VERSION,
         "subject": "primary_star_palace",
         "star": "ziwei",
@@ -67,7 +67,7 @@ def rule(**overrides: object) -> dict[str, object]:
 
 
 def test_rule_contract_requires_provenance_and_rejects_strong_low_confidence_language() -> None:
-    assert validate_rule_card(rule())["rule_id"] == "ziwei:test:1"
+    assert validate_rule_card(rule())["rule_id"] == "ziwei:v1:test:one"
     with pytest.raises(ZiweiRuleError, match="source_id"):
         validate_rule_card(rule(source_id=""))
     with pytest.raises(ZiweiRuleError, match="absolute"):
@@ -75,8 +75,8 @@ def test_rule_contract_requires_provenance_and_rejects_strong_low_confidence_lan
 
 
 def test_rule_required_facts_exclusions_priority_and_conflicts_are_stable() -> None:
-    low = rule(rule_id="low", priority=10)
-    high = rule(rule_id="high", priority=90)
+    low = rule(rule_id="ziwei:v1:test:low", priority=10)
+    high = rule(rule_id="ziwei:v1:test:high", priority=90)
     facts = {
         "algorithm_version": "ziwei-traditional-natal@1.0.0",
         "calculation_status": "complete",
@@ -88,13 +88,20 @@ def test_rule_required_facts_exclusions_priority_and_conflicts_are_stable() -> N
     ) == ()
     matches = evaluate_ziwei_rules({**facts, "verified_signal": True}, [low, high])
     assert [(item.rule_id, item.resolution) for item in matches] == [
-        ("high", "matched"),
-        ("low", "suppressed_by_higher_priority"),
+        ("ziwei:v1:test:high", "matched"),
+        ("ziwei:v1:test:low", "suppressed_by_higher_priority"),
     ]
 
     conflict = evaluate_ziwei_rules(
         {**facts, "verified_signal": True},
-        [high, rule(rule_id="opposite", priority=90, direction="contradict")],
+        [
+            high,
+            rule(
+                rule_id="ziwei:v1:test:opposite",
+                priority=90,
+                direction="contradict",
+            ),
+        ],
     )
     assert all(item.resolution == "unresolved_conflict" for item in conflict[:2])
 
@@ -106,7 +113,7 @@ def test_rule_coverage_is_honest_instead_of_filling_unverified_content() -> None
     assert coverage["star_palace_total"] == 168
     assert coverage["star_palace_implemented"] == 0
     assert coverage["release_gate"] == "NO-GO"
-    assert set(coverage["primary_stars"].values()) == {"research_required"}
+    assert set(coverage["primary_stars"].values()) == {"incomplete"}
 
 
 def test_runtime_preserves_reality_hard_override_and_yuan_contract() -> None:
@@ -118,7 +125,7 @@ def test_runtime_preserves_reality_hard_override_and_yuan_contract() -> None:
         reality_evidence=[
             {
                 "evidence_id": "reality:career",
-                "claim_id": "ziwei:test:1",
+                "claim_id": "ziwei:v1:test:one",
                 "scope": "career",
                 "source_type": "reality",
                 "source_id": "user-confirmed",

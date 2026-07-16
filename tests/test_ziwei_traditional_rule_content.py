@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import runpy
+from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -80,6 +82,12 @@ def test_packaged_rule_payload_has_real_versioned_source_backed_content() -> Non
         validate_rule_card(rule)
 
 
+def test_tracked_rule_resource_matches_deterministic_generator() -> None:
+    script = Path(__file__).parents[1] / "scripts" / "build_ziwei_traditional_rules.py"
+    generated = runpy.run_path(str(script))["build_payload"]()
+    assert generated == load_ziwei_rule_payload()
+
+
 def test_primary_star_palace_matrix_is_complete_unique_and_not_name_only_templates() -> None:
     rules = [
         rule
@@ -150,16 +158,26 @@ def test_exclusions_priority_conflict_and_combination_rules_are_executable() -> 
     assert evaluate_ziwei_rules({**facts, "calculation_status": "degraded"}, [combo]) == ()
 
     high = deepcopy(combo)
-    high.update(rule_id="high", domain="career", priority=90, direction="support")
+    high.update(
+        rule_id="ziwei:v1:test:high",
+        domain="career",
+        priority=90,
+        direction="support",
+    )
     low = deepcopy(combo)
-    low.update(rule_id="low", domain="career", priority=10, direction="contradict")
+    low.update(
+        rule_id="ziwei:v1:test:low",
+        domain="career",
+        priority=10,
+        direction="contradict",
+    )
     ranked = evaluate_ziwei_rules(facts, [low, high])
     assert [(item.rule_id, item.resolution) for item in ranked] == [
-        ("high", "matched"),
-        ("low", "suppressed_by_higher_priority"),
+        ("ziwei:v1:test:high", "matched"),
+        ("ziwei:v1:test:low", "suppressed_by_higher_priority"),
     ]
     peer = deepcopy(high)
-    peer.update(rule_id="peer", direction="contradict")
+    peer.update(rule_id="ziwei:v1:test:peer", direction="contradict")
     conflict = evaluate_ziwei_rules(facts, [high, peer])
     assert {item.resolution for item in conflict} == {"unresolved_conflict"}
 
@@ -202,7 +220,7 @@ def test_coverage_is_computed_from_real_records_and_behavior_not_hardcoded() -> 
 
     duplicate_rules = deepcopy(rules)
     duplicate = deepcopy(target)
-    duplicate["rule_id"] = "ziwei:duplicate:pair"
+    duplicate["rule_id"] = "ziwei:v1:duplicate:pair"
     duplicate_rules.append(duplicate)
     duplicated = build_rule_coverage(duplicate_rules)
     assert duplicated["duplicate_pairs"] == 1
@@ -222,7 +240,7 @@ def test_reality_evidence_still_hard_overrides_effective_packaged_rule() -> None
         chart,
         facts={},
         rules=rules,
-        reality={"verified_constraint": True},
+        reality={"job_requirements_met": False},
         reality_evidence=[
             {
                 "evidence_id": "reality:career:override",

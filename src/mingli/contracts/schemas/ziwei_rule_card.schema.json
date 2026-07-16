@@ -2,24 +2,119 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mingli.local/schemas/ziwei_rule_card.schema.json",
   "type": "object",
-  "required": ["rule_id", "domain", "trigger", "required_facts", "exclusions", "priority", "confidence", "deterministic_or_inferential", "traditional_claim", "plain_language", "evidence_refs", "source_level", "lifecycle", "conflict_policy", "output_constraints"],
+  "additionalProperties": false,
+  "required": [
+    "rule_id",
+    "content_version",
+    "subject",
+    "star",
+    "palace",
+    "transformation",
+    "state",
+    "domain",
+    "themes",
+    "trigger",
+    "exclusions",
+    "priority",
+    "confidence",
+    "evidence_level",
+    "source_id",
+    "plain_language",
+    "lifecycle",
+    "compatibility",
+    "conflict_policy",
+    "output_constraints",
+    "direction"
+  ],
   "properties": {
-    "rule_id": {"type": "string", "minLength": 1},
-    "domain": {"type": "string", "minLength": 1},
-    "trigger": {"type": "object", "required": ["fact", "equals"]},
-    "required_facts": {"type": "array", "items": {"type": "string"}},
-    "exclusions": {"type": "array", "items": {"type": "object"}},
+    "rule_id": {"type": "string", "pattern": "^ziwei:v1:[a-z0-9:_-]+$"},
+    "content_version": {"const": "ziwei-traditional-rule-content@1.0.0"},
+    "subject": {"enum": ["primary_star_palace", "transformation", "brightness", "combination"]},
+    "star": {
+      "oneOf": [
+        {"enum": ["ziwei", "tianji", "taiyang", "wuqu", "tiantong", "lianzhen", "tianfu", "taiyin", "tanlang", "jumen", "tianxiang", "tianliang", "qisha", "pojun"]},
+        {"type": "null"}
+      ]
+    },
+    "palace": {
+      "oneOf": [
+        {"enum": ["命宫", "兄弟宫", "夫妻宫", "子女宫", "财帛宫", "疾厄宫", "迁移宫", "交友宫", "官禄宫", "田宅宫", "福德宫", "父母宫"]},
+        {"type": "null"}
+      ]
+    },
+    "transformation": {"type": ["string", "null"], "enum": ["lu", "quan", "ke", "ji", null]},
+    "state": {"type": ["string", "null"], "enum": ["temple", "prosperous", "beneficial", "neutral", "weak", "unfavorable", "fallen", null]},
+    "domain": {"enum": ["career", "wealth", "relationship"]},
+    "themes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["career", "wealth", "relationship", "study"]}
+    },
+    "trigger": {"$ref": "#/$defs/condition"},
+    "exclusions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/condition"}
+    },
     "priority": {"type": "integer", "minimum": 0, "maximum": 100},
     "confidence": {"enum": ["low", "medium", "high"]},
-    "deterministic_or_inferential": {"enum": ["deterministic", "inferential"]},
-    "traditional_claim": {"type": "string"},
-    "plain_language": {"type": "string"},
-    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-    "source_level": {"enum": ["reviewed_repository_source", "research_required"]},
-    "lifecycle": {"enum": ["draft", "active", "deprecated"]},
+    "evidence_level": {"enum": ["traditional_paraphrase", "cross_checked_traditional"]},
+    "source_id": {"type": "string", "minLength": 1},
+    "plain_language": {"type": "string", "minLength": 18, "maxLength": 120},
+    "lifecycle": {"enum": ["draft", "reviewed", "deprecated"]},
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chart_algorithm", "rule_content"],
+      "properties": {
+        "chart_algorithm": {"const": "ziwei-traditional-natal@1.0.0"},
+        "rule_content": {"const": "ziwei-traditional-rule-content@1.0.0"}
+      }
+    },
     "conflict_policy": {"const": "higher_priority_then_unresolved"},
-    "output_constraints": {"type": "array", "items": {"type": "string"}},
+    "output_constraints": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {"enum": ["no_absolute_claims", "reality_override", "no_medical_claims", "no_investment_instructions"]},
+      "allOf": [
+        {"contains": {"const": "no_absolute_claims"}},
+        {"contains": {"const": "reality_override"}}
+      ]
+    },
     "direction": {"enum": ["support", "contradict"]}
   },
-  "additionalProperties": true
+  "$defs": {
+    "condition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fact", "operator", "value"],
+          "properties": {
+            "fact": {"type": "string", "minLength": 1},
+            "operator": {"enum": ["equals", "not_equals", "contains", "not_contains"]},
+            "value": {}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["all"],
+          "properties": {
+            "all": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/condition"}}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["any"],
+          "properties": {
+            "any": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/condition"}}
+          }
+        }
+      ]
+    }
+  }
 }

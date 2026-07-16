@@ -1,0 +1,508 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+CONTENT_VERSION = "ziwei-traditional-rule-content@1.0.0"
+CHART_ALGORITHM = "ziwei-traditional-natal@1.0.0"
+SOURCE_ID = "classical:ziwei-doushu-quanji-star-palace"
+
+STARS = (
+    ("ziwei", "紫微"),
+    ("tianji", "天机"),
+    ("taiyang", "太阳"),
+    ("wuqu", "武曲"),
+    ("tiantong", "天同"),
+    ("lianzhen", "廉贞"),
+    ("tianfu", "天府"),
+    ("taiyin", "太阴"),
+    ("tanlang", "贪狼"),
+    ("jumen", "巨门"),
+    ("tianxiang", "天相"),
+    ("tianliang", "天梁"),
+    ("qisha", "七杀"),
+    ("pojun", "破军"),
+)
+PALACES = (
+    ("life", "命宫"),
+    ("siblings", "兄弟宫"),
+    ("spouse", "夫妻宫"),
+    ("children", "子女宫"),
+    ("wealth", "财帛宫"),
+    ("health", "疾厄宫"),
+    ("travel", "迁移宫"),
+    ("friends", "交友宫"),
+    ("career", "官禄宫"),
+    ("property", "田宅宫"),
+    ("wellbeing", "福德宫"),
+    ("parents", "父母宫"),
+)
+PALACE_THEMES = {
+    "life": ("career", "study"),
+    "siblings": ("career", "wealth"),
+    "spouse": ("relationship",),
+    "children": ("relationship", "study"),
+    "wealth": ("wealth", "career"),
+    "health": ("career", "study"),
+    "travel": ("career", "study"),
+    "friends": ("career", "relationship"),
+    "career": ("career", "study"),
+    "property": ("wealth", "relationship"),
+    "wellbeing": ("relationship", "study"),
+    "parents": ("career", "study"),
+}
+PALACE_DOMAIN = {
+    palace_id: themes[0] if themes[0] != "study" else "career"
+    for palace_id, themes in PALACE_THEMES.items()
+}
+CHALLENGING = {
+    "ziwei": {"siblings", "spouse", "children"},
+    "tianji": {"spouse", "wealth", "health", "property"},
+    "taiyang": {"spouse", "wealth", "wellbeing"},
+    "wuqu": {"siblings", "spouse", "children", "wellbeing"},
+    "tiantong": {"wealth", "career", "property"},
+    "lianzhen": {"spouse", "health", "friends", "property"},
+    "tianfu": {"friends"},
+    "taiyin": {"travel", "career"},
+    "tanlang": {"spouse", "wealth", "health", "friends"},
+    "jumen": {"siblings", "spouse", "children", "friends"},
+    "tianxiang": {"children"},
+    "tianliang": {"spouse", "wealth"},
+    "qisha": {"siblings", "spouse", "children", "health", "friends", "property"},
+    "pojun": {"siblings", "spouse", "wealth", "property", "parents"},
+}
+
+# Each cell is an original, short paraphrase of the declared traditional profile.
+# The matrix is explicit so content review can assess every star-palace pair directly.
+READINGS = {
+    "ziwei": (
+        "重视统筹、责任与体面，适合先明确权责，再用现实反馈校正主导方式。",
+        "手足协作容易出现主导权议题，宜把资源、决定与责任边界提前说清。",
+        "亲密关系中容易承担安排角色，需为对方保留选择空间并避免单向决策。",
+        "对晚辈或作品期望较高，宜把培养目标拆成可讨论且可调整的步骤。",
+        "资源管理偏向集中规划，适合建立预算权限与审计习惯，不据此推断收益。",
+        "面对压力时倾向维持控制感，宜安排休息并把现实健康问题交给专业意见。",
+        "离开熟悉环境后组织能力较易被看见，仍需先确认权限、团队与落地条件。",
+        "社交圈常围绕责任与影响力形成，合作前应检查角色是否对等及承诺是否可行。",
+        "事业主题偏向统筹与承担，适合制度清晰的管理任务，也要接受绩效检验。",
+        "家庭与资产议题重视稳定和秩序，重大配置宜由共同目标与现金流约束决定。",
+        "内在满足感常来自完成责任与获得认可，需区分真实需要和形象压力。",
+        "与长辈或导师互动重礼序，既可承接经验，也应保留独立判断和现实核验。",
+    ),
+    "tianji": (
+        "思考快速且善于调整方案，优势在规划迭代，风险是反复比较后难以落地。",
+        "手足合作适合信息互补和灵活分工，变动较多时要留下书面约定与退出条件。",
+        "关系中容易不断分析彼此反应，宜用直接沟通替代猜测并稳定共同节奏。",
+        "教育晚辈或推进作品时点子丰富，适合分阶段试验，避免频繁换方向造成负担。",
+        "财务决策容易受新信息牵动，宜采用规则化预算并限制未经验证的频繁调整。",
+        "压力可能表现为思绪停不下来，宜记录变量、缩小问题并寻求专业健康支持。",
+        "异地和变化环境有利于发挥应变与学习能力，但行动前仍要核对信息有效期。",
+        "朋友圈偏向知识与消息交换，合作价值取决于信息质量而非单纯联络广度。",
+        "工作适合策划、研究和流程优化，需用完成标准约束持续改方案的倾向。",
+        "居住与资产安排容易因需求变化而调整，宜预留弹性同时控制迁移成本。",
+        "休息时仍习惯推演选项，建立固定停机仪式有助于把灵活性转成稳定能力。",
+        "长辈关系常伴随观点交流或变化安排，宜确认事实后再协调不同建议。",
+    ),
+    "taiyang": (
+        "表达直接并重视公开贡献，适合以透明目标服务群体，也需照顾自身能量边界。",
+        "手足互动容易由主动者承担较多事务，分工时应让付出与决定权保持相称。",
+        "关系中重坦率和共同愿景，若长期只顾外部责任，亲密沟通可能被压缩。",
+        "面对晚辈或创作愿意鼓励展示，宜同时培养持续练习和接受反馈的能力。",
+        "资源使用偏向扩展影响与支持他人，预算应先保留必要储备再讨论外部投入。",
+        "高投入状态容易忽略疲劳信号，宜用现实作息与专业检查替代意志硬撑。",
+        "外出场景有利于建立能见度和公共连接，成果仍取决于当地规则与协作质量。",
+        "社交中容易成为联络或支持中心，应辨别互惠关系并避免长期单向消耗。",
+        "事业倾向公开负责、服务或传播，适合可见成果，但需建立授权和复盘机制。",
+        "家庭空间重视明朗与共享，涉及资产时应平衡公共理想和成员实际承受力。",
+        "满足感来自被需要和产生影响，独处恢复与拒绝不合理请求同样重要。",
+        "与父母师长的关系重榜样和责任，可学习其担当，也要区分期待与个人路径。",
+    ),
+    "wuqu": (
+        "做事务实、重效率和结果，适合量化目标，但评价自己时不宜只看产出。",
+        "手足之间容易围绕资源和执行方式较真，合作前需明确账目、期限和责任。",
+        "关系表达偏行动而非言辞，宜补充情绪沟通，避免把亲密议题处理成任务清单。",
+        "对子女或项目强调纪律与完成度，适合训练执行，也要允许试错和兴趣探索。",
+        "财务主题重视积累与可控性，适合制度化管理，但任何投资仍需独立风险评估。",
+        "面对不适常倾向继续执行，宜设定休息阈值并及时采用专业医疗判断。",
+        "异地工作可发挥独立执行和资源整合，签约前应核查成本、权限与回报条件。",
+        "朋友合作看重可靠和兑现，关系维护需兼顾情感交流而非只以成果衡量。",
+        "事业适合运营、财务、工程或结果导向岗位，需防止过度刚硬压缩团队反馈。",
+        "房产与家庭资源偏向实用配置，重大决定应经过现金流、用途和共同意愿审查。",
+        "休息时也容易计算得失，培养无绩效目标的活动有助于恢复弹性。",
+        "对父母师长常以实际承担表达关心，沟通时也应询问需求而非直接代为决定。",
+    ),
+    "tiantong": (
+        "重和气、体验与可持续节奏，适合营造合作感，也需训练在压力下作出选择。",
+        "手足关系偏向包容和照顾，遇到资源分配时仍要明确底线以免积累不满。",
+        "亲密关系重陪伴和舒适感，长期稳定还需要共同面对责任与分歧。",
+        "对子女或创作较有耐心与想象力，适合鼓励兴趣，同时建立温和的一致规则。",
+        "财务上容易为舒适或人情增加支出，宜先设储备线并记录长期成本。",
+        "身心状态受生活节奏影响较明显，规律作息可作辅助，健康问题仍需专业处理。",
+        "外出时适应力来自友善和融入环境，重要机会仍应核实职责与发展路径。",
+        "朋友关系重轻松与互助，需辨别回避冲突是否正在掩盖不对等。",
+        "工作适合服务、协调或体验型任务，若缺少期限约束，进度可能被舒适感拖慢。",
+        "家庭环境追求安稳和便利，资产安排不宜只看当下舒适而忽略维护责任。",
+        "内在较能感受日常小确幸，若把放松变成逃避，仍需回到具体问题。",
+        "与长辈互动容易保持温和，面对不同期待时宜清楚表达可承担的范围。",
+    ),
+    "lianzhen": (
+        "重边界、评价与吸引力，适合处理复杂人际规则，也需避免把输赢当成自我价值。",
+        "手足互动可能夹杂比较和立场意识，透明规则比试探更能维持长期合作。",
+        "亲密关系中吸引与戒备可能并存，宜明确承诺、隐私和冲突处理方式。",
+        "对子女或作品投入标准感和表现意识，需防止要求过密而削弱自主性。",
+        "资源议题容易结合目标、欲望与形象，预算应把必要、成长和展示支出分开。",
+        "压力大时可能长期绷紧边界，宜及时求助专业意见而非用控制感替代处理。",
+        "外出环境能放大竞争与谈判能力，合作前应确认规则、利益关系和声誉风险。",
+        "朋友圈容易出现吸引、竞争与站队，重要合作需经过利益冲突检查。",
+        "事业适合制度、谈判、审查或复杂协调，需以合规边界约束竞争手段。",
+        "家庭与资产容易牵动控制和分配议题，书面共识可减少反复试探。",
+        "内在常对评价与欲望保持警觉，稳定感来自承认需要并建立可执行边界。",
+        "与父母师长互动重规范和认可，宜区分合理传承与过度迎合。",
+    ),
+    "tianfu": (
+        "重稳定、包容与资源保全，适合做长期配置，也要避免因求稳而推迟必要变化。",
+        "手足合作偏向照顾整体和保留余地，资源托管仍需清楚账目与授权。",
+        "亲密关系重可靠和生活基础，情感交流不宜被物质安排或照顾角色完全替代。",
+        "对子女或作品倾向提供资源与保护，培养独立承担可避免形成过度依赖。",
+        "财务观偏稳健与储备，适合长期规划，但不据此替代具体资产风险分析。",
+        "压力应对倾向维持日常秩序，若现实症状持续，应及时采用专业医疗渠道。",
+        "外出发展适合依托组织和资源平台，需确认平台支持是否真实且持续。",
+        "社交中容易成为资源协调者，应设置互惠门槛，避免长期承接他人责任。",
+        "事业适合行政、运营、保全与长期管理，需用阶段目标防止稳定变成停滞。",
+        "家庭与不动产议题重安全和积累，配置前应核对流动性与成员共同需求。",
+        "内在满足来自安定和可掌控的生活，适度变化可检验稳定是否具有韧性。",
+        "与父母师长关系重照顾和承接，宜在尊重传统时保留自身资源边界。",
+    ),
+    "taiyin": (
+        "观察细腻、重安全与内在节奏，适合深度准备，也需防止担忧长期停留在心中。",
+        "手足互动较重情绪感受和私下支持，涉及资源时仍应直接说明期待。",
+        "亲密关系需要安全感与细致回应，沉默推测不如讨论具体需要和界限。",
+        "对子女或创作擅长耐心培育和想象，宜设置公开反馈点避免过度保护。",
+        "财务主题偏储备、评估与长期安排，决策仍应采用可核验数据而非感觉。",
+        "情绪和作息可能相互影响，记录现实变化可辅助沟通，诊疗应交由专业人员。",
+        "异地场景容易先观察再投入，预留适应期有益，但不可无限延后关键行动。",
+        "社交偏向少量可信关系，合作时需把默契转成明确职责和交付标准。",
+        "工作适合研究、规划、照护或精细管理，需提高成果可见度并按期交付。",
+        "家庭与资产安排重私密、安全和长期储备，重大决定宜充分讨论情绪与财务成本。",
+        "内在世界丰富且需要独处恢复，若反复担忧，应把问题拆成可验证假设。",
+        "与母系或照护者经验联系较深，吸收其细致时也要辨认继承来的焦虑。",
+    ),
+    "tanlang": (
+        "好奇、多才且重体验，适合拓展连接与兴趣，需用优先级控制分散和过度投入。",
+        "手足互动社交性强且资源机会多，合作时要区分人情往来和正式承诺。",
+        "亲密关系重吸引、新鲜感与互动，稳定需要透明边界和持续兑现。",
+        "对子女或创作善于激发兴趣与表现，宜限制项目数量并完成收尾。",
+        "财务机会意识较强，也容易受欲望和社交影响，任何投入都需独立风险门槛。",
+        "高刺激生活可能挤压恢复时间，宜观察现实负荷并寻求专业健康建议。",
+        "外出有利于接触多元资源和人群，机会筛选应看长期价值与合规条件。",
+        "朋友圈广且活动多，需辨别关系质量、利益冲突和时间成本。",
+        "事业适合市场、创意、谈判与跨界资源整合，需建立聚焦指标和完成纪律。",
+        "家庭空间重体验和变化，资产安排应避免因一时偏好忽略长期维护。",
+        "满足感来自探索和连接，定期收束选择能减少刺激过量后的空耗。",
+        "与父母师长互动可能兼具欣赏与自主需求，宜讨论价值差异而非只求认同。",
+    ),
+    "jumen": (
+        "善于质疑、表达和辨析，适合研究复杂问题，也需防止长期停留在争辩模式。",
+        "手足沟通容易因措辞和立场产生摩擦，核对事实与复述共识可减少误解。",
+        "亲密关系中重解释和确认，若把讨论变成审问，安全感可能下降。",
+        "对子女或作品擅长提问和纠错，宜同时给出肯定与可操作建议。",
+        "财务议题适合合同审查与信息核验，传闻和口头承诺不宜作为决策依据。",
+        "压力可能通过反复思考或言语冲突显现，持续不适应采用专业支持。",
+        "外出环境有利于咨询、传播与问题解决，公开表达前需核查证据和法律边界。",
+        "社交圈容易出现消息争议或立场分化，重要关系应避免未经核实的转述。",
+        "事业适合研究、法律、咨询、教育或传播，成果质量取决于证据与表达纪律。",
+        "家庭事务可能因意见和文件细节反复，书面记录与中立协调较有帮助。",
+        "内在常通过追问寻找安全感，允许暂时未知并设置验证期限可减少消耗。",
+        "与父母师长关系重观点交流，尊重经验不等于放弃事实核验和独立判断。",
+    ),
+    "tianxiang": (
+        "重公平、程序与形象，适合协调多方需求，也需避免把认可置于真实立场之前。",
+        "手足互动倾向维护平衡，分配资源时应把隐性付出纳入规则。",
+        "亲密关系重礼貌、互助和角色匹配，分歧仍需直接处理而非只维持表面和谐。",
+        "对子女或作品强调规范与呈现，宜保留探索空间并区分过程和结果评价。",
+        "财务安排偏向稳妥与合规，适合多方核验，但不宜因顾全关系接受不清条件。",
+        "面对压力可能先维持体面，身体或情绪信号持续时应寻求专业判断。",
+        "外出场景利于发挥协调、服务和制度理解，需确认实际权限而非只承担责任。",
+        "朋友关系重互惠与可信形象，长期合作应核查行动是否符合口头承诺。",
+        "事业适合协调、行政、审查或客户支持，需培养在规则冲突时作出清楚取舍。",
+        "家庭与资产议题注重公平分配，提前定义评估口径可减少情感账。",
+        "内在满足来自关系和秩序协调，也需给个人偏好留下不被评判的空间。",
+        "与父母师长互动重尊重和照应，遇到不合理期待时可用规则化方式协商。",
+    ),
+    "tianliang": (
+        "重原则、保护与经验判断，适合承担守门责任，也需避免过早代替他人做决定。",
+        "手足关系常带照顾或劝导色彩，帮助前应确认对方需求和自身能力。",
+        "亲密关系中容易扮演保护或评判角色，平等交流比单向指导更利于稳定。",
+        "对子女或作品重长期价值和纠偏，宜用解释与示范替代持续说教。",
+        "财务态度偏谨慎和道义考量，具体配置仍要看合同、风险与现实现金流。",
+        "面对健康压力重视预防与经验，但持续症状不能只靠传统理解处理。",
+        "外出时容易因专业、资历或助人能力获信任，责任范围需事先确认。",
+        "社交中常成为咨询或调停者，应避免把所有人的问题都变成自身义务。",
+        "事业适合教育、审查、顾问、公共服务或风险治理，需接受证据和绩效约束。",
+        "家庭事务重传承与保护，资产安排应兼顾代际公平和使用效率。",
+        "内在重意义与原则，若长期批评环境，宜寻找可执行的改善切口。",
+        "与父母师长缘分常围绕经验传承，吸收原则时也需更新不合时宜的部分。",
+    ),
+    "qisha": (
+        "决断快、抗压且愿意处理难题，适合明确战场，也需设置风险阈值和复盘机制。",
+        "手足互动容易直接竞争或各自独立，合作必须明确指挥权与退出规则。",
+        "亲密关系中节奏强、边界硬，稳定需要降低命令感并练习共同决策。",
+        "对子女或项目要求突破和效率，宜区分挑战训练与不必要压力。",
+        "财务行动偏果断，任何高波动选择都应先设损失上限并取得独立专业意见。",
+        "高压状态下容易忽略恢复和警讯，现实健康问题应及时交由专业人员。",
+        "外出或变局中较能发挥决断和执行，承担任务前需确认资源与安全边界。",
+        "朋友合作重能力和行动，若只认强弱，可能忽略信任与长期互惠。",
+        "事业适合攻坚、危机处理和高责任岗位，制度监督可防止判断过度集中。",
+        "家庭与资产安排可能出现快速重组需求，重大动作宜经过法律和财务核验。",
+        "内在习惯靠挑战感维持动力，建立非危机状态下的稳定节奏同样重要。",
+        "与父母师长互动可能强调独立和强度，宜辨别支持性训练与过度压力。",
+    ),
+    "pojun": (
+        "倾向拆解旧结构并尝试重建，适合转型任务，也需评估破坏成本和替代方案。",
+        "手足关系可能经历分工重组或距离变化，合作前应保留清楚的资产与责任记录。",
+        "亲密关系对僵化模式耐受较低，改变前宜讨论修复路径而非突然切断。",
+        "对子女或创作鼓励突破旧框架，仍需提供稳定反馈和可承受的试错范围。",
+        "财务议题容易出现重配或高变动冲动，行动前应设置冷静期和风险上限。",
+        "生活剧烈变化可能增加身心负荷，持续异常应采用专业健康评估。",
+        "异地与新环境较能激发重启能力，落地前需核对基本资源和退出成本。",
+        "朋友圈可能因阶段变化而快速更替，重要合作应看持续兑现而非短期热度。",
+        "事业适合改革、重整、创业试验或淘汰旧流程，需用里程碑控制变革范围。",
+        "家庭和不动产可能面临更新、搬迁或重新配置，法律权属与现金流必须先核实。",
+        "内在需要变化感来确认成长，保留可持续习惯能避免不断从零开始。",
+        "与父母师长关系可能经历观念断裂和重建，沟通应区分必要更新与情绪反应。",
+    ),
+}
+
+COMMON_EXCLUSIONS = [
+    {"fact": "calculation_status", "operator": "not_equals", "value": "complete"},
+    {"fact": "unsupported_fields", "operator": "not_equals", "value": []},
+]
+COMPATIBILITY = {
+    "chart_algorithm": CHART_ALGORITHM,
+    "rule_content": CONTENT_VERSION,
+}
+OUTPUT_CONSTRAINTS = [
+    "no_absolute_claims",
+    "reality_override",
+    "no_medical_claims",
+    "no_investment_instructions",
+]
+
+
+def card(
+    *,
+    rule_id: str,
+    subject: str,
+    star: str | None,
+    palace: str | None,
+    transformation: str | None,
+    state: str | None,
+    domain: str,
+    themes: tuple[str, ...],
+    trigger: dict[str, object],
+    priority: int,
+    confidence: str,
+    plain_language: str,
+    direction: str,
+) -> dict[str, object]:
+    return {
+        "rule_id": rule_id,
+        "content_version": CONTENT_VERSION,
+        "subject": subject,
+        "star": star,
+        "palace": palace,
+        "transformation": transformation,
+        "state": state,
+        "domain": domain,
+        "themes": list(themes),
+        "trigger": trigger,
+        "exclusions": COMMON_EXCLUSIONS,
+        "priority": priority,
+        "confidence": confidence,
+        "evidence_level": "traditional_paraphrase",
+        "source_id": SOURCE_ID,
+        "plain_language": plain_language,
+        "lifecycle": "draft",
+        "compatibility": COMPATIBILITY,
+        "conflict_policy": "higher_priority_then_unresolved",
+        "output_constraints": OUTPUT_CONSTRAINTS,
+        "direction": direction,
+    }
+
+
+def build_payload() -> dict[str, object]:
+    rules: list[dict[str, object]] = []
+    for star_id, _star_name in STARS:
+        readings = READINGS[star_id]
+        if len(readings) != len(PALACES):
+            raise ValueError(f"{star_id} must define twelve palace readings")
+        for (palace_id, palace_name), reading in zip(PALACES, readings, strict=True):
+            rules.append(
+                card(
+                    rule_id=f"ziwei:v1:star-palace:{star_id}:{palace_id}",
+                    subject="primary_star_palace",
+                    star=star_id,
+                    palace=palace_name,
+                    transformation=None,
+                    state=None,
+                    domain=PALACE_DOMAIN[palace_id],
+                    themes=PALACE_THEMES[palace_id],
+                    trigger={
+                        "fact": "star_palace_pairs",
+                        "operator": "contains",
+                        "value": {"star": star_id, "palace": palace_name},
+                    },
+                    priority=40,
+                    confidence="low",
+                    plain_language=reading,
+                    direction=(
+                        "contradict"
+                        if palace_id in CHALLENGING[star_id]
+                        else "support"
+                    ),
+                )
+            )
+
+    transformations = {
+        "lu": (
+            "wealth",
+            ("wealth", "career"),
+            "化禄表示该星主题较易获得资源或参与机会，仍需用现实条件判断能否兑现。",
+            "support",
+        ),
+        "quan": (
+            "career",
+            ("career", "study"),
+            "化权强调推动、责任与控制议题，宜把权限范围和可检验目标同步明确。",
+            "support",
+        ),
+        "ke": (
+            "career",
+            ("study", "career"),
+            "化科偏向学习、名誉与表达可见度，成果仍需经过能力和实际评价验证。",
+            "support",
+        ),
+        "ji": (
+            "relationship",
+            ("relationship", "career"),
+            "化忌提示执着、阻滞或反复课题，适合降低结论强度并优先处理现实限制。",
+            "contradict",
+        ),
+    }
+    for transformation, (domain, themes, text, direction) in transformations.items():
+        rules.append(
+            card(
+                rule_id=f"ziwei:v1:transformation:{transformation}",
+                subject="transformation",
+                star=None,
+                palace=None,
+                transformation=transformation,
+                state=None,
+                domain=domain,
+                themes=themes,
+                trigger={
+                    "fact": "transformations",
+                    "operator": "contains",
+                    "value": {"transformation": transformation},
+                },
+                priority=70,
+                confidence="low",
+                plain_language=text,
+                direction=direction,
+            )
+        )
+
+    brightness = {
+        "temple": ("career", ("career", "study"), "庙位表示传统表中的发挥条件较完整，但不能替代对能力、资源和现实环境的核验。", "support"),
+        "prosperous": ("wealth", ("wealth", "career"), "旺位表示相关特质较易显现，使用时仍要检查是否过度放大同一行为模式。", "support"),
+        "beneficial": ("career", ("study", "career"), "得位表示该特质具备可用空间，实际成效取决于训练、角色和配套条件。", "support"),
+        "neutral": ("relationship", ("relationship", "study"), "利位表示条件具有辅助性而非决定性，宜结合宫位、四化和现实证据综合判断。", "support"),
+        "weak": ("career", ("career", "study"), "平位提示表现较依赖情境，不宜单凭星曜名称推高置信度或作强结论。", "contradict"),
+        "unfavorable": ("wealth", ("wealth", "career"), "不位提示传统条件支持有限，涉及资源决定时应提高现实审查和风险缓冲。", "contradict"),
+        "fallen": ("relationship", ("relationship", "career"), "陷位提示该特质可能以压力或失衡方式显现，应优先核对现实限制和可调整行为。", "contradict"),
+    }
+    for state, (domain, themes, text, direction) in brightness.items():
+        rules.append(
+            card(
+                rule_id=f"ziwei:v1:brightness:{state}",
+                subject="brightness",
+                star=None,
+                palace=None,
+                transformation=None,
+                state=state,
+                domain=domain,
+                themes=themes,
+                trigger={
+                    "fact": "brightness_states",
+                    "operator": "contains",
+                    "value": {"state": state},
+                },
+                priority=60,
+                confidence="low",
+                plain_language=text,
+                direction=direction,
+            )
+        )
+
+    combinations = {
+        "ziwei+tianfu": ("career", ("career", "wealth"), "紫微与天府同宫时，统筹和资源保全倾向并存，适合长期管理但仍需防止决策过度集中。", "support"),
+        "ziwei+qisha": ("career", ("career", "study"), "紫微与七杀同宫时，主导和攻坚动力同时增强，行动前宜设置授权、风险阈值与复盘。", "support"),
+        "wuqu+tanlang": ("wealth", ("wealth", "career"), "武曲与贪狼同宫时，执行、资源欲望和社交机会交织，财务选择需额外审查冲动与利益冲突。", "contradict"),
+        "taiyang+taiyin": ("relationship", ("relationship", "career"), "太阳与太阴同宫时，外部表达和内在安全需求并存，沟通应同时照顾公开目标与私人感受。", "support"),
+        "lianzhen+qisha": ("career", ("career", "relationship"), "廉贞与七杀同宫时，竞争、边界和决断压力叠加，宜以合规程序限制强硬手段。", "contradict"),
+    }
+    for combo_id, (domain, themes, text, direction) in combinations.items():
+        rules.append(
+            card(
+                rule_id=f"ziwei:v1:combination:{combo_id.replace('+', '-')}",
+                subject="combination",
+                star=None,
+                palace=None,
+                transformation=None,
+                state=None,
+                domain=domain,
+                themes=themes,
+                trigger={
+                    "fact": "co_locations",
+                    "operator": "contains",
+                    "value": combo_id,
+                },
+                priority=80,
+                confidence="medium",
+                plain_language=text,
+                direction=direction,
+            )
+        )
+
+    return {
+        "schema_version": "ziwei-traditional-rules@1.0",
+        "content_version": CONTENT_VERSION,
+        "chart_algorithm": CHART_ALGORITHM,
+        "sources": [
+            {
+                "source_id": SOURCE_ID,
+                "title": "《紫微斗数全书》星曜与十二宫传统义理索引",
+                "source_type": "traditional_book",
+                "usage": "仅登记传统义理来源并作原创短句结构化转述，不复制长段原文",
+                "quotation_policy": "no_verbatim_passages",
+                "evidence_level": "traditional_paraphrase",
+            }
+        ],
+        "rules": rules,
+        "prediction_validity": "not_evaluated",
+        "rule_content_hold": "ACTIVE",
+    }
+
+
+def main() -> None:
+    root = Path(__file__).resolve().parents[1]
+    target = root / "src" / "mingli" / "derived" / "data" / "ziwei_traditional_rules_v1.json"
+    target.write_text(
+        json.dumps(build_payload(), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(target.relative_to(root))
+
+
+if __name__ == "__main__":
+    main()

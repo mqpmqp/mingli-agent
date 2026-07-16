@@ -35,7 +35,12 @@ from .validation_cli import main as validation_main
 from .training_cli import main as training_main
 from .ziwei import build_ziwei_chart
 from .ziwei_benchmark import run_ziwei_engine_benchmarks
-from .ziwei_rules import build_rule_coverage
+from .ziwei_rules import (
+    ZIWEI_RULE_CONTENT_VERSION,
+    build_rule_coverage,
+    evaluate_ziwei_chart_rules,
+    load_ziwei_rule_content,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -115,6 +120,11 @@ def _parser() -> argparse.ArgumentParser:
     ziwei_benchmark = ziwei_subcommands.add_parser("benchmark", help="运行紫微确定性固定盘基准")
     ziwei_benchmark.add_argument("--path", type=Path)
     ziwei_subcommands.add_parser("coverage", help="输出紫微规则覆盖与发布门禁")
+    ziwei_subcommands.add_parser("rules-validate", help="校验打包的紫微传统规则内容")
+    ziwei_rules_evaluate = ziwei_subcommands.add_parser(
+        "rules-evaluate", help="对完整紫微命盘运行打包规则"
+    )
+    ziwei_rules_evaluate.add_argument("--input", default="-", help="命盘 JSON 路径；默认 stdin")
     return parser
 
 
@@ -141,7 +151,57 @@ def main(argv: Sequence[str] | None = None) -> int:
                 report = run_ziwei_engine_benchmarks(args.path)
                 print(json.dumps(report, ensure_ascii=False, sort_keys=True))
                 return 0 if report["failed_cases"] == 0 else 1
-            print(json.dumps(build_rule_coverage([]), ensure_ascii=False, sort_keys=True))
+            if args.ziwei_command == "coverage":
+                print(json.dumps(build_rule_coverage(), ensure_ascii=False, sort_keys=True))
+                return 0
+            rules = load_ziwei_rule_content()
+            if args.ziwei_command == "rules-validate":
+                coverage = build_rule_coverage(rules)
+                print(
+                    json.dumps(
+                        {
+                            "content_version": ZIWEI_RULE_CONTENT_VERSION,
+                            "rule_count": len(rules),
+                            "primary_star_palace_rules": coverage["star_palace_records"],
+                            "behaviorally_evaluated": coverage[
+                                "star_palace_behaviorally_evaluated"
+                            ],
+                            "release_gate": coverage["release_gate"],
+                            "rule_content_hold": coverage["rule_content_hold"],
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                )
+                return 0
+            value = _read_json_argument(args.input)
+            if not isinstance(value, dict):
+                raise ValueError("Ziwei rule evaluation input must be a chart object")
+            matches = evaluate_ziwei_chart_rules(value, rules)
+            effective = [
+                item.to_dict()
+                for item in matches
+                if item.resolution != "suppressed_by_higher_priority"
+            ]
+            print(
+                json.dumps(
+                    {
+                        "schema_version": "ziwei-rule-evaluation@1.0",
+                        "algorithm_version": value.get("algorithm_version"),
+                        "content_version": ZIWEI_RULE_CONTENT_VERSION,
+                        "evaluated_rules": len(rules),
+                        "matched_rules": len(matches),
+                        "effective_matches": effective,
+                        "suppressed_matches": sum(
+                            item.resolution == "suppressed_by_higher_priority"
+                            for item in matches
+                        ),
+                        "prediction_validity": "not_evaluated",
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
             return 0
         if args.command == "validate-spec":
             issues = validate_spec(args.path)
