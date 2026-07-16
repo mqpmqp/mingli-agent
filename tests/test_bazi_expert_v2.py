@@ -332,4 +332,3 @@ def test_fail_closed_for_unknown_versions_tampering_and_private_fields(
     fact_graph["canonical_hash"] = "sha256:" + "0" * 64
     with pytest.raises(BaziExpertV2InputError, match="fact graph|canonical_hash"):
         orchestrate_bazi_expert_v2(tampered)
-
