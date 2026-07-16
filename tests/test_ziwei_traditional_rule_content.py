@@ -276,12 +276,22 @@ def test_chart_fact_extraction_rejects_unplaced_modifier_stars() -> None:
 
 
 @pytest.mark.parametrize(
-    "field", ["primary_stars", "supporting_stars", "transformations", "brightness_state"]
+    "field",
+    [
+        "primary_stars",
+        "supporting_stars",
+        "malefic_stars",
+        "transformations",
+        "brightness_state",
+    ],
 )
-def test_complete_chart_rejects_nested_non_supported_facts(field: str) -> None:
+@pytest.mark.parametrize("status", ["unsupported", "research_required"])
+def test_complete_chart_rejects_nested_non_supported_facts(
+    field: str, status: str
+) -> None:
     chart = complete_chart()
     palace = next(item for item in chart["palaces"] if item[field])
-    palace[field][0]["field_status"] = "research_required"
+    palace[field][0]["field_status"] = status
     with pytest.raises(ZiweiRuleError, match="supported"):
         extract_ziwei_rule_facts(chart)
 
