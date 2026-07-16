@@ -390,6 +390,8 @@ def _validate_v2_prediction_snapshot(snapshot: Mapping[str, object]) -> None:
     if (
         snapshot.get("freeze_status") != "frozen"
         or not isinstance(snapshot.get("freeze_timestamp"), str)
+        or snapshot.get("reality_evidence_visibility") is not False
+        or snapshot.get("prediction_validity") != PREDICTION_VALIDITY
         or not verify_prediction_snapshot(snapshot)
     ):
         raise RealCaseLearningV2Error(
@@ -529,7 +531,10 @@ def _validate_v2_case_semantics(case: Mapping[str, object]) -> None:
                     f"{relation} evidence collection precedes observation",
                 )
             if relation == "prior" and (
-                observed > generated or collected > generated or window_end > generated
+                observed < window_start
+                or observed > generated
+                or collected > generated
+                or window_end > generated
             ):
                 raise RealCaseLearningV2Error(
                     "CASE_EVIDENCE_CONTRACT_INVALID",
@@ -549,6 +554,10 @@ def _validate_v2_case_semantics(case: Mapping[str, object]) -> None:
                 if not isinstance(resolution, Mapping) or any(
                     resolution.get(key) != entry.get(key)
                     for key in ("claim_id", "scope")
+                ) or (
+                    snapshot.get("verified") is True
+                    and resolution.get("hard_override_direction")
+                    != snapshot.get("direction")
                 ):
                     raise RealCaseLearningV2Error(
                         "CASE_EVIDENCE_CONTRACT_INVALID",
@@ -911,11 +920,16 @@ def record_prior_event_validation(
         )
     if collected < observed:
         raise RealCaseLearningV2Error("PRIOR_EVENT_TIME_INVALID", "collected_at cannot precede observed_at")
-    _window_start, window_end = event_window
+    window_start, window_end = event_window
     if window_end > generated:
         raise RealCaseLearningV2Error(
             "PRIOR_EVENT_WINDOW_NOT_PRIOR",
             "prior-event window must end before prediction generation",
+        )
+    if observed < window_start:
+        raise RealCaseLearningV2Error(
+            "PRIOR_EVENT_BEFORE_WINDOW",
+            "prior-event observation cannot precede its frozen event window",
         )
     sealed_entry = _seal(entry)
     validations = cast(list[object], result["prior_event_validations"])

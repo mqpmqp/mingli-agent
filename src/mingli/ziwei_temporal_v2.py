@@ -693,6 +693,14 @@ def _validate_overlay_containment(overlays: Sequence[Mapping[str, object]]) -> N
                 raise ZiweiTemporalV2Error("normalized month overlay year is invalid")
             months.append(year)
 
+    if (years or months) and not decades:
+        raise ZiweiTemporalV2Error(
+            "year and month overlays require a supplied decade overlay"
+        )
+    if months and not years:
+        raise ZiweiTemporalV2Error(
+            "month overlays require a supplied year overlay"
+        )
     if decades:
         for child_year in sorted(years | set(months)):
             if not any(start <= child_year <= end for start, end in decades):
