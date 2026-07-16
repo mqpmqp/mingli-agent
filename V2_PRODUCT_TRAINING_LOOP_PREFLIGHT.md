@@ -1,7 +1,7 @@
 # MingLi Agent V2.0 产品闭环与训练循环 Preflight
 
-日期：2026-07-15  
-分支：`codex/v2-product-training-loop`  
+日期：2026-07-15
+分支：`codex/v2-product-training-loop`
 基线提交：`e99aa2a5d04c4cdbac6e027e2f95bffdbbcb454b`
 
 ## 1. 本轮范围与不可越界事项

@@ -1,7 +1,7 @@
 # MingLi V2.0 产品闭环与 Training Loop 实现报告
 
-日期：2026-07-15  
-分支：`codex/v2-product-training-loop`  
+日期：2026-07-15
+分支：`codex/v2-product-training-loop`
 起始提交：`e99aa2a5d04c4cdbac6e027e2f95bffdbbcb454b`
 
 ## 1. 实现结论
