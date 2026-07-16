@@ -5,7 +5,7 @@ from collections.abc import Iterator
 import pytest
 from starlette.testclient import TestClient
 
-from mingli.service_app import MAX_REQUEST_BYTES, app
+from mingli.service_app import MAX_REQUEST_BYTES, create_app
 
 MCP_HEADERS = {
     "accept": "application/json, text/event-stream",
@@ -46,7 +46,7 @@ def mingli_payload() -> dict[str, object]:
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(app) as value:
+    with TestClient(create_app(), base_url="http://127.0.0.1:8000") as value:
         yield value
 
 
