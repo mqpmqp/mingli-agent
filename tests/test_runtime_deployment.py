@@ -44,3 +44,12 @@ def test_deployment_runbook_covers_runtime_and_chatgpt_connection() -> None:
         "PRODUCT_RELEASE_HOLD",
     ):
         assert required in runbook
+
+
+def test_ci_installs_api_extra_for_runtime_transport_tests() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "test.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert workflow.count('python -m pip install -e ".[dev,api]"') == 3
+    assert 'python -m pip install -e ".[dev]"' not in workflow
