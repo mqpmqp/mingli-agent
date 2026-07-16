@@ -70,6 +70,12 @@ def default_manifest_path() -> Path:
     return Path(__file__).with_name("frozen") / MANIFEST_NAME
 
 
+def _canonical_contract_bytes(path: Path) -> bytes:
+    """Return repository text bytes with platform line endings normalized."""
+
+    return path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
 def _validate_entry(group: str, value: object) -> dict[str, str]:
     if not isinstance(value, Mapping):
         raise ContractFreezeManifestError(f"{group} entry must be an object")
@@ -165,7 +171,7 @@ def verify_frozen_contracts(
                     ContractViolation(group, relative.as_posix(), "missing", expected)
                 )
                 continue
-            actual = sha256(target.read_bytes()).hexdigest()
+            actual = sha256(_canonical_contract_bytes(target)).hexdigest()
             if actual != expected:
                 violations.append(
                     ContractViolation(

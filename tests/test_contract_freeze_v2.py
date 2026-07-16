@@ -82,6 +82,24 @@ def test_contract_freeze_allows_additive_versioned_files(tmp_path: Path) -> None
     assert verify_frozen_contracts(tmp_path, MANIFEST_PATH).ok
 
 
+def test_contract_freeze_is_cross_platform_line_ending_stable(
+    tmp_path: Path,
+) -> None:
+    from mingli.contracts.freeze import verify_frozen_contracts
+
+    manifest = _copy_frozen_tree(tmp_path)
+    index = 0
+    for entries in manifest["groups"].values():
+        for entry in entries:
+            target = tmp_path.joinpath(*PurePosixPath(entry["path"]).parts)
+            canonical = target.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+            platform_bytes = canonical if index % 2 else canonical.replace(b"\n", b"\r\n")
+            target.write_bytes(platform_bytes)
+            index += 1
+
+    assert verify_frozen_contracts(tmp_path, MANIFEST_PATH).ok
+
+
 def test_contract_freeze_rejects_path_traversal(tmp_path: Path) -> None:
     from mingli.contracts.freeze import ContractFreezeManifestError, load_contract_manifest
 
