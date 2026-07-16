@@ -18,7 +18,7 @@ MINGLI_CORE_CAPABILITY_SURGE_V2 extends the deterministic MingLi core through ad
 
 ## Frozen contract groups
 
-The machine-readable source of truth is `src/mingli/contracts/frozen/mingli_core_capability_surge_v2.json`. The verifier checks raw-byte SHA-256 digests. Additional versioned files are allowed; changing, deleting, or path-replacing a frozen file fails closed.
+The machine-readable source of truth is `src/mingli/contracts/frozen/mingli_core_capability_surge_v2.json`. The verifier checks SHA-256 digests over canonical-LF text bytes, so Windows and Linux checkouts agree without ignoring content changes. Additional versioned files are allowed; changing, deleting, or path-replacing a frozen file fails closed.
 
 | Group | Public responsibility | Required invariant |
 | --- | --- | --- |
@@ -94,7 +94,7 @@ Train/test assignment is based on event and observation time, not ingestion orde
 
 ### D1 — Hash-freeze the merged baseline
 
-Decision: freeze named public files by repository-relative path and raw-byte SHA-256.
+Decision: freeze named public files by repository-relative path and canonical-LF SHA-256.
 
 Rationale: the three workstreams can evolve independently while any accidental contract drift is detected before integration.
 
@@ -176,4 +176,3 @@ This architecture cannot clear any existing hold. Until authorized real cases pa
 PRODUCT_RELEASE_HOLD_REMAINS
 prediction_validity=not_evaluated
 ```
-
