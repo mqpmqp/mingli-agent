@@ -25,6 +25,8 @@ from mingli.real_case_learning_v2 import (
     withdraw_case,
 )
 from mingli.test_gates import classify_test
+from mingli.validation_freeze import freeze_prediction, verify_prediction_snapshot
+from mingli.validation_reality import freeze_reality_evidence, verify_reality_evidence
 
 
 SYNTHETIC_SALT = "synthetic-contract-fixture-salt-v2"
@@ -252,7 +254,9 @@ def benchmark_comparison(
 def test_v2_schemas_are_packaged_and_real_case_gate_classifies_test() -> None:
     for name in (
         "real_case_learning_v2_case.schema.json",
+        "real_case_learning_v2_evidence.schema.json",
         "real_case_learning_v2_partition.schema.json",
+        "real_case_learning_v2_prediction.schema.json",
         "real_case_learning_v2_withdrawal.schema.json",
     ):
         Draft202012Validator.check_schema(get_schema(name))
@@ -878,3 +882,181 @@ def test_partition_manifest_records_reproducible_base_and_forced_assignments() -
     assert manifest["base_test_case_ids"] == [late["case_id"]]
     assert manifest["forced_test_case_ids"] == [early["case_id"]]
     assert verify_temporal_partition_manifest(manifest)
+
+
+def test_v2_case_rejects_legacy_frozen_prediction_with_unknown_metadata() -> None:
+    case = learning_case()
+    prediction = deepcopy(case["prediction_snapshot"])
+    for field in ("freeze_status", "freeze_timestamp", "canonical_hash"):
+        prediction.pop(field)
+    prediction["future_reality_metadata"] = {"outcome": "hidden-after-freeze"}
+    prediction["structured_claims"][0]["metadata"] = {
+        "scope": "career:other",
+        "predicted_direction": "contradict",
+    }
+    forged = freeze_prediction(
+        prediction, frozen_at=str(case["prediction_snapshot"]["freeze_timestamp"])
+    )
+    assert verify_prediction_snapshot(forged)
+    case["prediction_snapshot"] = forged
+    _reseal(case)
+    assert verify_learning_record(case)
+
+    with pytest.raises(RealCaseLearningV2Error, match="CASE_PREDICTION_CONTRACT_INVALID"):
+        record_future_outcome(
+            case,
+            evidence_record(
+                case,
+                evidence_id="outcome:forged-prediction",
+                observed_at="2025-12-31T00:00:00Z",
+                collected_at="2026-01-02T00:00:00Z",
+                direction="support",
+            ),
+        )
+
+
+def test_v2_case_rejects_legacy_frozen_evidence_with_nested_contradiction() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-forged-evidence",
+        scenario_id="career:synthetic:forged-evidence",
+        prediction_id="prediction:synthetic:forged-evidence",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    entry = case["future_outcomes"][0]
+    evidence = deepcopy(entry["evidence_snapshot"])
+    for field in ("freeze_status", "canonical_hash"):
+        evidence.pop(field)
+    evidence["direction"] = {
+        "value": "contradict",
+        "claim_id": "claim:other",
+        "scope": "career:other",
+    }
+    forged = freeze_reality_evidence(evidence)
+    assert verify_reality_evidence(forged)
+    entry["evidence_snapshot"] = forged
+    _reseal(entry)
+    _reseal(case)
+    assert verify_learning_record(case)
+
+    with pytest.raises(RealCaseLearningV2Error, match="CASE_EVIDENCE_CONTRACT_INVALID"):
+        build_temporal_partitions([case], cutoff_at="2026-01-01T00:00:00Z")
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "snapshot_key"),
+    [
+        ("real_case_learning_v2_prediction.schema.json", "prediction_snapshot"),
+        ("real_case_learning_v2_evidence.schema.json", "evidence_snapshot"),
+    ],
+)
+def test_additive_v2_snapshot_schemas_are_closed(
+    schema_name: str, snapshot_key: str
+) -> None:
+    case = observed_case(
+        raw_identifier=f"synthetic-schema-{snapshot_key}",
+        scenario_id=f"career:synthetic:schema-{snapshot_key}",
+        prediction_id=f"prediction:synthetic:schema-{snapshot_key}",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    snapshot = (
+        deepcopy(case["prediction_snapshot"])
+        if snapshot_key == "prediction_snapshot"
+        else deepcopy(case["future_outcomes"][0]["evidence_snapshot"])
+    )
+    validator = Draft202012Validator(get_schema(schema_name))
+    assert not list(validator.iter_errors(snapshot))
+    snapshot["metadata"] = {"claim_id": "claim:other", "scope": "career:other"}
+    assert any(
+        error.validator == "additionalProperties"
+        for error in validator.iter_errors(snapshot)
+    )
+
+
+def test_hash_valid_semantically_false_partition_assignment_is_rejected() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-semantic-partition",
+        scenario_id="career:synthetic:semantic-partition",
+        prediction_id="prediction:synthetic:semantic-partition",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    manifest = build_temporal_partitions([case], cutoff_at="2026-01-01T00:00:00Z")
+    assert manifest["case_partition_inputs"][case["case_id"]]["base_assignment"] == "test"
+
+    tampered = deepcopy(manifest)
+    tampered["base_train_case_ids"] = [case["case_id"]]
+    tampered["base_test_case_ids"] = []
+    tampered["train_case_ids"] = [case["case_id"]]
+    tampered["test_case_ids"] = []
+    _reseal(tampered)
+    assert verify_learning_record(tampered)
+    assert not verify_temporal_partition_manifest(tampered)
+
+
+def test_rule_recommendation_rejects_stale_partition_case_hash() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-stale-partition",
+        scenario_id="career:synthetic:stale-partition",
+        prediction_id="prediction:synthetic:stale-partition",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    stale_manifest = build_temporal_partitions(
+        [case], cutoff_at="2026-01-01T00:00:00Z"
+    )
+    current = record_prior_event_validation(
+        case,
+        evidence_record(
+            case,
+            evidence_id="prior:stale-partition",
+            observed_at="2025-01-31T00:00:00Z",
+            collected_at="2025-01-31T00:00:00Z",
+            direction="support",
+            claim_id="claim:career:prior:001",
+            scope="career:prior:2025-01",
+            event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+        ),
+    )
+    comparison = {
+        "baseline_version": "synthetic-rules@2.0.0",
+        "candidate_version": "synthetic-rules@2.0.1-draft",
+        "baseline_status": "miss",
+        "candidate_status": "hit",
+        "partition": "test",
+        "leakage_clean": True,
+        "partition_manifest": stale_manifest,
+    }
+
+    with pytest.raises(RealCaseLearningV2Error, match="PARTITION_CASE_STALE"):
+        adjudicate_outcome(
+            current,
+            adjudication_id="adjudication:synthetic:stale-partition",
+            claim_id="claim:career:001",
+            scope="career:2025-h2",
+            outcome_evidence_ids=["outcome:prediction:synthetic:stale-partition"],
+            status="miss",
+            error_taxonomy=["wrong_direction"],
+            rule_attributions=[
+                {
+                    "rule_id": "rule:synthetic:career:001",
+                    "attribution": "candidate_contributor",
+                }
+            ],
+            revision={
+                "revision_id": "revision:stale-partition",
+                "proposal": "Synthetic contract revision.",
+            },
+            benchmark_comparison=comparison,
+            recommendation="demote",
+            adjudicated_at="2026-01-03T00:00:00Z",
+        )
