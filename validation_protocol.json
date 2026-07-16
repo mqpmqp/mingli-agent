@@ -1,0 +1,14 @@
+{
+  "protocol_version": "real-case-validation-protocol@1.0.0",
+  "source_commit_sha": "393c9ff791d0091176ea8dcba5f50b8ddde6fbd9",
+  "frozen_timestamp": "2026-07-15T00:00:00+08:00",
+  "primary_metric": "gold_person_weighted_strict_score",
+  "secondary_metrics": ["claim_weighted_strict_score", "person_weighted_lenient_score", "claim_weighted_lenient_score", "brier_score", "ece"],
+  "inclusion_criteria": ["authorized_real_person", "consent_granted", "deidentified", "prediction_frozen_before_reality", "human_review_complete"],
+  "exclusion_criteria": ["synthetic", "bronze", "withdrawn", "post_hoc_prediction", "pii_present"],
+  "scenario_definitions": ["career_exam", "relationship_reconciliation", "wealth_work_change", "family_migration_pressure", "historical_timeline"],
+  "gold_silver_rules": "phase22-r2-unchanged",
+  "reviewer_process": "blind-human-review-with-independent-adjudication",
+  "release_thresholds": {"unique_persons": 30, "gold_persons": 10, "max_silver_persons": 20, "comparable_claims": 100, "scenario_coverage": 3},
+  "canonical_hash": "sha256:1859fdc5ab61b0f6acc8bdee08c997b8eb7caaf8756327fc774b61d544d71d38"
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/claim_comparison.schema.json",
+  "title": "Comparable Claim",
+  "type": "object",
+  "required": ["claim_id", "prediction_id", "person_case_id", "scenario_id", "domain", "time_window", "claim_type", "predicted_direction", "predicted_event_or_state", "confidence", "specificity_level", "exclusion_conditions", "reality_evidence_ids", "comparison_status", "reviewer_scores", "final_adjudication"],
+  "properties": {
+    "claim_id": {"type": "string"},
+    "prediction_id": {"type": "string"},
+    "person_case_id": {"type": "string", "pattern": "^person:"},
+    "scenario_id": {"type": "string"},
+    "domain": {"type": "string"},
+    "time_window": {"type": "string"},
+    "claim_type": {"type": "string"},
+    "predicted_direction": {"type": "string"},
+    "predicted_event_or_state": {"type": "string"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "specificity_level": {"type": "string"},
+    "exclusion_conditions": {"type": "array"},
+    "reality_evidence_ids": {"type": "array"},
+    "comparison_status": {"enum": ["supported", "partially_supported", "contradicted", "not_comparable", "insufficient_evidence", "excluded_by_contract"]},
+    "reviewer_scores": {"type": "array"},
+    "final_adjudication": {"type": ["object", "null"]}
+  },
+  "additionalProperties": false
+}

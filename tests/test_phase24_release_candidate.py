@@ -35,6 +35,10 @@ class Phase24Tests(unittest.TestCase):
         cls.result = assess_release_candidate()
     def test_local_rc_and_product_hold(self):
         self.assertTrue(self.result.local_technical_rc_ready); self.assertFalse(self.result.product_release_ready); self.assertEqual("technical_rc_only_product_hold", self.result.release_decision); self.assertEqual("PRODUCT_RELEASE_HOLD", self.result.product_release_status)
+        self.assertEqual("PRODUCT_CAPABILITY_READY", self.result.product_capability_status)
+        self.assertEqual("COMMERCIAL_VALIDATION_PENDING", self.result.commercial_validation_status)
+        self.assertTrue(self.result.development_runtime_allowed)
+        self.assertFalse(self.result.production_commercial_allowed)
     def test_all_phase_gates_pass(self):
         self.assertEqual(list(range(16, 24)), [gate.phase for gate in self.result.phase_gates]); self.assertTrue(all(gate.status == "passed" for gate in self.result.phase_gates))
     def test_handoff_is_explicit(self):

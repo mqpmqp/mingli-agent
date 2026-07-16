@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_transformation.schema.json",
+  "type": "object",
+  "required": ["transformation", "star_id", "field_status", "source_provenance"],
+  "properties": {
+    "transformation": {"enum": ["lu", "quan", "ke", "ji"]},
+    "star_id": {"type": ["string", "null"]},
+    "field_status": {"enum": ["supported", "unsupported", "research_required"]},
+    "source_provenance": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

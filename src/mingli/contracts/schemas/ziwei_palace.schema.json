@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_palace.schema.json",
+  "type": "object",
+  "required": ["palace_index", "palace_name", "heavenly_stem", "earthly_branch", "primary_stars", "supporting_stars", "malefic_stars", "transformations", "brightness_state", "field_status"],
+  "properties": {
+    "palace_index": {"type": "integer", "minimum": 0, "maximum": 11},
+    "palace_name": {"type": "string"},
+    "heavenly_stem": {"type": ["string", "null"]},
+    "earthly_branch": {"type": ["string", "null"]},
+    "primary_stars": {"type": "array"},
+    "supporting_stars": {"type": "array"},
+    "malefic_stars": {"type": "array"},
+    "transformations": {"type": "array"},
+    "brightness_state": {"type": "array"},
+    "field_status": {"enum": ["supported", "unsupported", "research_required"]}
+  },
+  "additionalProperties": false
+}

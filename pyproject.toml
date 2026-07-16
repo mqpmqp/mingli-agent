@@ -37,6 +37,10 @@ mingli-phase21 = "mingli.phase21_cli:main"
 mingli-phase22 = "mingli.phase22_cli:main"
 mingli-phase23 = "mingli.phase23_cli:main"
 mingli-phase24 = "mingli.phase24_cli:main"
+mingli-validation = "mingli.validation_cli:main"
+test-fast = "mingli.test_gates:fast_main"
+test-benchmark = "mingli.test_gates:benchmark_main"
+test-real-case = "mingli.test_gates:real_case_main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -50,3 +54,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "fast: ordinary unit and integration tests expected to finish quickly",
+  "benchmark: deterministic or packaging benchmarks with a longer timeout",
+  "real_case: real-case validation contracts and synthetic dry-run coverage",
+]

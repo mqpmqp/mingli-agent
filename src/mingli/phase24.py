@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 import json
+from datetime import datetime
 from typing import Callable, Literal, Mapping
 
 from .contracts.serialization import canonical_json, digest
@@ -13,11 +14,12 @@ from .phase20 import DISCLAIMER, SECTION_TITLES, render_yuan_eight_sections
 from .phase21 import Phase21InputError, generate_five_year_outlook
 from .phase22 import CaseBenchmarkReport, run_case_benchmark
 from .phase23 import RUNTIME_STAGES, run_mingli_agent
+from .validation_authorization import evaluate_product_release
 
-PHASE24_SCHEMA_VERSION = "release-candidate-assessment@0.4"
-PHASE24_METHOD_ID = "independent-local-rc-product-gate@0.4.0"
-PHASE24_CALCULATION_VERSION = "0.4.0"
-PHASE24_DECISION_ID = "PHASE_24_RELEASE_CANDIDATE_PRODUCT_VALIDATION_R3_HOLD"
+PHASE24_SCHEMA_VERSION = "release-candidate-assessment@0.6"
+PHASE24_METHOD_ID = "dual-product-commercial-release-gate@0.6.0"
+PHASE24_CALCULATION_VERSION = "0.6.0"
+PHASE24_DECISION_ID = "PHASE_24_PRODUCT_CAPABILITY_COMMERCIAL_VALIDATION_R5"
 
 
 @dataclass(frozen=True)
@@ -34,7 +36,11 @@ class ReleaseCandidateAssessment:
     release_decision: str
     local_technical_rc_ready: bool
     product_release_ready: bool
-    product_release_status: Literal["PRODUCT_RELEASE_HOLD"]
+    product_release_status: Literal["PRODUCT_RELEASE_HOLD", "PRODUCT_RELEASE_ALLOWED"]
+    product_capability_status: Literal["PRODUCT_CAPABILITY_READY", "PRODUCT_CAPABILITY_BLOCKED"]
+    commercial_validation_status: Literal["COMMERCIAL_VALIDATION_PENDING", "COMMERCIAL_VALIDATION_READY"]
+    development_runtime_allowed: bool
+    production_commercial_allowed: bool
     validation_closure_passed: bool
     product_accuracy_claim_allowed: bool
     phase_gates: tuple[PhaseGate, ...]
@@ -46,7 +52,7 @@ class ReleaseCandidateAssessment:
     schema_version: str = field(default=PHASE24_SCHEMA_VERSION, init=False)
     method_id: str = field(default=PHASE24_METHOD_ID, init=False)
     calculation_version: str = field(default=PHASE24_CALCULATION_VERSION, init=False)
-    prediction_validity: Literal["not_evaluated"] = field(default="not_evaluated", init=False)
+    prediction_validity: Literal["not_evaluated", "evaluated"] = "not_evaluated"
 
     def to_dict(self) -> dict[str, object]:
         return json.loads(canonical_json(asdict(self)))
@@ -209,7 +215,14 @@ def run_independent_release_checks() -> tuple[PhaseGate, ...]:
     return tuple(check() for _, check in INDEPENDENT_CHECKS)
 
 
-def assess_release_candidate(case_report: CaseBenchmarkReport | None = None) -> ReleaseCandidateAssessment:
+def assess_release_candidate(
+    case_report: CaseBenchmarkReport | None = None,
+    *,
+    frozen_dataset_manifest: Mapping[str, object] | None = None,
+    product_release_authorization: Mapping[str, object] | None = None,
+    external_gates: Mapping[str, object] | None = None,
+    now: datetime | None = None,
+) -> ReleaseCandidateAssessment:
     gates = run_independent_release_checks()
     technical_ready = all(gate.status == "passed" for gate in gates)
     resolved_case_report = case_report or run_case_benchmark()
@@ -219,9 +232,49 @@ def assess_release_candidate(case_report: CaseBenchmarkReport | None = None) -> 
     if not resolved_case_report.validation_closure_passed:
         blockers.append({"blocker_id":"P22_VALIDATION_CLOSURE","owner":"authorized-data-process","status":"open","detail":f"当前合格唯一人员 {resolved_case_report.qualified_unique_person_cases}；validation closure failures: {','.join(resolved_case_report.validation_closure_failures)}"})
         handoff.append({"task_id":"DATA_01","action":"collect_tiered_validation_cases","command":"由授权数据流程导入去标识 Gold/Silver 私有案例","acceptance":"validation closure 达到 30 个唯一合格案例，其中 Gold 不少于 10；准确率声明另需 30 个唯一 Gold 人员"})
-    blockers.append({"blocker_id":"PRODUCT_RELEASE_AUTHORIZATION","owner":"product-review","status":"open","detail":"Validation closure 与 product accuracy claim 均不构成产品发布授权；当前仍为 PRODUCT_RELEASE_HOLD。"})
-    handoff.append({"task_id":"RELEASE_01","action":"independent_product_release_review","command":"由产品负责人独立审查发布条件","acceptance":"另行明确授权产品发布；不得由 validation closure 自动推导"})
-    product_ready = technical_ready and not blockers
+    formal_release_requested = any(
+        value is not None
+        for value in (frozen_dataset_manifest, product_release_authorization, external_gates)
+    )
+    if formal_release_requested:
+        release_gate = evaluate_product_release(
+            frozen_dataset_manifest,
+            product_release_authorization,
+            external_gates,
+            now=now,
+        )
+        formal_blockers = set(release_gate["blockers"])
+        if not frozen_dataset_manifest or frozen_dataset_manifest.get("phase22_assessment_hash") != resolved_case_report.canonical_hash:
+            formal_blockers.add("P22_FROZEN_ASSESSMENT_MISMATCH")
+        if frozen_dataset_manifest and frozen_dataset_manifest.get("product_accuracy_claim_allowed") is not resolved_case_report.product_accuracy_claim_allowed:
+            formal_blockers.add("P22_ACCURACY_ASSESSMENT_MISMATCH")
+        if resolved_case_report.validation_closure_passed:
+            formal_blockers.discard("P22_VALIDATION_CLOSURE")
+        elif "P22_VALIDATION_CLOSURE" not in formal_blockers:
+            formal_blockers.add("P22_VALIDATION_CLOSURE")
+        blockers = [item for item in blockers if item["blocker_id"] != "P22_VALIDATION_CLOSURE"]
+        blockers.extend(
+            {
+                "blocker_id": blocker_id,
+                "owner": "independent-release-gate",
+                "status": "open",
+                "detail": "Formal frozen-dataset authorization gate is not satisfied.",
+            }
+            for blocker_id in sorted(formal_blockers)
+        )
+        if formal_blockers:
+            handoff.append({"task_id":"RELEASE_01","action":"close_formal_release_gates","command":"由独立产品审查者关闭冻结数据集授权和外部门禁","acceptance":"授权引用当前冻结 dataset，未过期且 P1/P2、privacy、package、main CI 全部通过"})
+        product_status = str(release_gate["status"])
+    else:
+        blockers.append({"blocker_id":"PRODUCT_RELEASE_AUTHORIZATION","owner":"product-review","status":"open","detail":"Validation closure 与 product accuracy claim 均不构成产品发布授权；当前仍为 PRODUCT_RELEASE_HOLD。"})
+        handoff.append({"task_id":"RELEASE_01","action":"independent_product_release_review","command":"由产品负责人独立审查发布条件","acceptance":"另行明确授权产品发布；不得由 validation closure 自动推导"})
+        product_status = "PRODUCT_RELEASE_HOLD"
+    if not technical_ready and product_status == "PRODUCT_RELEASE_ALLOWED":
+        product_status = "PRODUCT_RELEASE_HOLD"
+        blockers.append({"blocker_id":"TECHNICAL_RELEASE_GATE","owner":"engineering","status":"open","detail":"Independent Phase 16-23 checks are not all passing."})
+    product_ready = technical_ready and product_status == "PRODUCT_RELEASE_ALLOWED" and not blockers
+    capability_status = "PRODUCT_CAPABILITY_READY" if technical_ready else "PRODUCT_CAPABILITY_BLOCKED"
+    commercial_status = "COMMERCIAL_VALIDATION_READY" if product_ready else "COMMERCIAL_VALIDATION_PENDING"
     decision = "release" if product_ready else ("technical_rc_only_product_hold" if technical_ready else "technical_hold")
     provenance = {
         "phase_range":"16-24",
@@ -231,13 +284,25 @@ def assess_release_candidate(case_report: CaseBenchmarkReport | None = None) -> 
         "real_case_registry_hash":resolved_case_report.canonical_hash,
         "validation_closure_passed":resolved_case_report.validation_closure_passed,
         "product_accuracy_claim_allowed":resolved_case_report.product_accuracy_claim_allowed,
+        "formal_release_gate_evaluated":formal_release_requested,
+        "dataset_id":frozen_dataset_manifest.get("dataset_id") if frozen_dataset_manifest else None,
+        "authorization_status":product_release_authorization.get("authorization_status") if product_release_authorization else None,
     }
-    warnings = ("technical_rc_does_not_equal_product_validity","prediction_validity_not_evaluated","external_ci_must_remain_a_separate_merge_gate")
+    prediction_validity = "evaluated" if product_ready else "not_evaluated"
+    warnings = (
+        "technical_rc_does_not_equal_product_validity",
+        "external_ci_must_remain_a_separate_merge_gate",
+        *(("prediction_validity_not_evaluated",) if not product_ready else ()),
+    )
     body = {
         "release_decision":decision,
         "local_technical_rc_ready":technical_ready,
         "product_release_ready":product_ready,
-        "product_release_status":"PRODUCT_RELEASE_HOLD",
+        "product_release_status":product_status,
+        "product_capability_status":capability_status,
+        "commercial_validation_status":commercial_status,
+        "development_runtime_allowed":technical_ready,
+        "production_commercial_allowed":product_ready,
         "validation_closure_passed":resolved_case_report.validation_closure_passed,
         "product_accuracy_claim_allowed":resolved_case_report.product_accuracy_claim_allowed,
         "phase_gates":[asdict(gate) for gate in gates],
@@ -245,12 +310,17 @@ def assess_release_candidate(case_report: CaseBenchmarkReport | None = None) -> 
         "codex_handoff":handoff,
         "provenance":provenance,
         "warnings":list(warnings),
+        "prediction_validity":prediction_validity,
     }
     return ReleaseCandidateAssessment(
         release_decision=decision,
         local_technical_rc_ready=technical_ready,
         product_release_ready=product_ready,
-        product_release_status="PRODUCT_RELEASE_HOLD",
+        product_release_status=product_status,
+        product_capability_status=capability_status,
+        commercial_validation_status=commercial_status,
+        development_runtime_allowed=technical_ready,
+        production_commercial_allowed=product_ready,
         validation_closure_passed=resolved_case_report.validation_closure_passed,
         product_accuracy_claim_allowed=resolved_case_report.product_accuracy_claim_allowed,
         phase_gates=gates,
@@ -259,6 +329,7 @@ def assess_release_candidate(case_report: CaseBenchmarkReport | None = None) -> 
         provenance=provenance,
         warnings=warnings,
         canonical_hash=digest({"record_type":"ReleaseCandidateAssessment","payload":body}),
+        prediction_validity=prediction_validity,
     )
 
 
@@ -268,6 +339,10 @@ def benchmark_phase24(assessment: ReleaseCandidateAssessment | None = None) -> d
         result.local_technical_rc_ready,
         not result.product_release_ready,
         result.product_release_status == "PRODUCT_RELEASE_HOLD",
+        result.product_capability_status == "PRODUCT_CAPABILITY_READY",
+        result.commercial_validation_status == "COMMERCIAL_VALIDATION_PENDING",
+        result.development_runtime_allowed,
+        not result.production_commercial_allowed,
         not result.validation_closure_passed,
         not result.product_accuracy_claim_allowed,
         result.release_decision == "technical_rc_only_product_hold",

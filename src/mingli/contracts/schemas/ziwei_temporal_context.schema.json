@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_temporal_context.schema.json",
+  "oneOf": [
+    {"type": "object", "required": ["level"], "properties": {"level": {"const": "natal"}}, "additionalProperties": false},
+    {"type": "object", "required": ["level", "start_year", "end_year"], "properties": {"level": {"const": "decade"}, "start_year": {"type": "integer"}, "end_year": {"type": "integer"}}, "additionalProperties": false},
+    {"type": "object", "required": ["level", "year"], "properties": {"level": {"const": "annual"}, "year": {"type": "integer"}}, "additionalProperties": false},
+    {"type": "object", "required": ["level", "year", "month", "leap_month"], "properties": {"level": {"const": "monthly"}, "year": {"type": "integer"}, "month": {"type": "integer", "minimum": 1, "maximum": 12}, "leap_month": {"type": "boolean"}}, "additionalProperties": false},
+    {"type": "object", "required": ["level", "date"], "properties": {"level": {"const": "daily"}, "date": {"type": "string", "format": "date"}}, "additionalProperties": false},
+    {"type": "object", "required": ["level", "datetime", "timezone"], "properties": {"level": {"const": "hourly"}, "datetime": {"type": "string", "format": "date-time"}, "timezone": {"type": "string"}}, "additionalProperties": false}
+  ]
+}

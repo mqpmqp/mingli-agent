@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/training_case.schema.json",
+  "title": "TrainingCase",
+  "type": "object",
+  "required": ["case_id", "consent_scope", "consent_version", "intake_snapshot_ref", "chart_snapshot_ref", "runtime_output_ref", "analysis_version", "created_at", "topic", "confidence", "feedback_status", "outcome_status", "review_status", "provenance", "lifecycle"],
+  "properties": {
+    "case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+    "consent_scope": {"type": "array", "uniqueItems": true, "items": {"enum": ["analysis", "training", "follow_up"]}},
+    "consent_version": {"type": "string", "minLength": 1},
+    "intake_snapshot_ref": {"type": "string", "minLength": 1},
+    "chart_snapshot_ref": {"type": "string", "minLength": 1},
+    "runtime_output_ref": {"type": "string", "minLength": 1},
+    "analysis_version": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "topic": {"type": "string", "minLength": 1},
+    "confidence": {"enum": ["pending", "high", "medium", "low"]},
+    "feedback_status": {"enum": ["pending", "received", "withdrawn"]},
+    "outcome_status": {"enum": ["pending", "observed", "withdrawn"]},
+    "review_status": {"enum": ["pending", "in_review", "reviewed", "withdrawn"]},
+    "provenance": {"type": "object"},
+    "lifecycle": {"enum": ["active", "consent_withdrawn", "deleted"]}
+  },
+  "additionalProperties": false
+}

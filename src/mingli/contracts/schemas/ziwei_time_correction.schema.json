@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_time_correction.schema.json",
+  "type": "object",
+  "required": ["calendar_type", "solar_date", "birth_time_known", "timezone", "solar_time_mode", "late_zi_policy", "corrected_datetime", "longitude_correction_minutes", "equation_of_time_minutes", "equation_of_time_applied", "chart_date", "shichen_index"],
+  "properties": {
+    "calendar_type": {"enum": ["solar", "lunar"]},
+    "solar_date": {"type": "string", "format": "date"},
+    "birth_time_known": {"type": "boolean"},
+    "timezone": {"type": "string"},
+    "solar_time_mode": {"enum": ["civil", "local_mean", "apparent_solar"]},
+    "late_zi_policy": {"enum": ["midnight", "late_zi_next_day"]},
+    "corrected_datetime": {"type": ["string", "null"]},
+    "longitude_correction_minutes": {"type": "number"},
+    "equation_of_time_minutes": {"type": "number"},
+    "equation_of_time_applied": {"type": "boolean"},
+    "chart_date": {"type": "string", "format": "date"},
+    "shichen_index": {"type": ["integer", "null"], "minimum": 0, "maximum": 11}
+  },
+  "additionalProperties": true
+}

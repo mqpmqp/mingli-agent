@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/product_release_authorization.schema.json",
+  "title": "Independent Product Release Authorization",
+  "type": "object",
+  "required": ["authorization_id", "dataset_id", "dataset_manifest_sha", "validation_report_sha", "validation_closure_passed", "product_accuracy_claim_allowed", "known_limitations", "unresolved_conflicts", "approved_use_scope", "prohibited_claims", "authorization_status", "authorized_by_role", "authorized_at", "source_commit_sha"],
+  "properties": {
+    "authorization_id": {"type": "string"},
+    "dataset_id": {"type": ["string", "null"]},
+    "dataset_manifest_sha": {"type": ["string", "null"]},
+    "validation_report_sha": {"type": ["string", "null"]},
+    "validation_closure_passed": {"type": "boolean"},
+    "product_accuracy_claim_allowed": {"type": "boolean"},
+    "known_limitations": {"type": "array"},
+    "unresolved_conflicts": {"type": "array"},
+    "approved_use_scope": {"type": "array"},
+    "prohibited_claims": {"type": "array"},
+    "authorization_status": {"enum": ["pending", "approved", "rejected", "revoked", "expired"]},
+    "authorized_by_role": {"type": ["string", "null"]},
+    "authorized_at": {"type": ["string", "null"]},
+    "expires_at": {"type": ["string", "null"]},
+    "review_due_at": {"type": ["string", "null"]},
+    "source_commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+  },
+  "additionalProperties": false
+}

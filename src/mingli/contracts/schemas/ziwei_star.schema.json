@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_star.schema.json",
+  "type": "object",
+  "required": ["star_id", "star_name", "category", "field_status", "source_provenance"],
+  "properties": {
+    "star_id": {"type": "string", "minLength": 1},
+    "star_name": {"type": "string", "minLength": 1},
+    "category": {"enum": ["primary", "supporting", "malefic"]},
+    "field_status": {"enum": ["supported", "unsupported", "research_required"]},
+    "source_provenance": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

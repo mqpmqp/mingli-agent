@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/reviewer_assessment.schema.json",
+  "title": "Reviewer Assessment",
+  "type": "object",
+  "required": ["review_id", "claim_id", "reviewer_id", "reviewer_role", "blind_mode", "score", "reviewed_at", "provenance", "canonical_hash"],
+  "properties": {
+    "review_id": {"type": "string"},
+    "claim_id": {"type": "string"},
+    "reviewer_id": {"type": "string"},
+    "reviewer_role": {"enum": ["human", "adjudicator", "llm_assistant"]},
+    "blind_mode": {"enum": ["single_blind", "double_blind"]},
+    "score": {"enum": ["supported", "partially_supported", "contradicted", "not_comparable", "insufficient_evidence", "excluded_by_contract"]},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "provenance": {"type": "string"},
+    "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

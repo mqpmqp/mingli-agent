@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/product_runtime_input.schema.json",
+  "title": "MingLi Product Runtime Input",
+  "type": "object",
+  "required": ["case_id", "created_at", "consent", "chart_input", "anchor_year"],
+  "properties": {
+    "case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+    "run_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "consent": {
+      "type": "object",
+      "required": ["analysis_allowed", "training_use_allowed", "consent_version"],
+      "properties": {
+        "analysis_allowed": {"type": "boolean"},
+        "training_use_allowed": {"type": "boolean"},
+        "consent_version": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "topic": {"type": "string"},
+    "chart_input": {"type": "object"},
+    "anchor_year": {"type": "integer"},
+    "reality": {"type": "object"},
+    "fusion_evidence": {"type": "array", "items": {"type": "object"}},
+    "annual_evidence": {"type": "array", "items": {"type": "object"}},
+    "advice_codes": {"type": "array", "items": {"type": "string"}},
+    "scenario": {"enum": ["career_exam", "relationship_reunion", null]}
+  },
+  "additionalProperties": false
+}

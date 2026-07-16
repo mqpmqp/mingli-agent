@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_chart.schema.json",
+  "type": "object",
+  "required": ["schema_version", "method_id", "algorithm_version", "calculation_status", "chart_fingerprint", "time_correction", "temporal_context", "life_palace", "body_palace", "bureau", "palaces", "unsupported_fields", "warnings", "source_provenance", "confidence", "prediction_validity", "canonical_hash"],
+  "properties": {
+    "schema_version": {"const": "ziwei-chart@0.1"},
+    "method_id": {"type": "string"},
+    "algorithm_version": {"type": "string"},
+    "calculation_status": {"enum": ["complete", "partial", "degraded", "refused"]},
+    "chart_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "time_correction": {"type": "object"},
+    "temporal_context": {"type": "object"},
+    "life_palace": {"type": ["integer", "null"]},
+    "body_palace": {"type": ["integer", "null"]},
+    "bureau": {"type": ["object", "null"]},
+    "palaces": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"type": "object", "required": ["palace_index", "palace_name", "primary_stars", "supporting_stars", "malefic_stars", "transformations", "brightness_state", "field_status"]}},
+    "unsupported_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "source_provenance": {"type": "array", "items": {"type": "object", "required": ["source_id", "role"]}},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "prediction_validity": {"const": "not_evaluated"},
+    "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

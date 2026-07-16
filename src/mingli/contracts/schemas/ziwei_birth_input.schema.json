@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_birth_input.schema.json",
+  "title": "Ziwei birth input",
+  "type": "object",
+  "required": ["calendar_type", "birth_date", "timezone", "solar_time_mode", "late_zi_policy", "gender"],
+  "properties": {
+    "calendar_type": {"enum": ["solar", "lunar"]},
+    "birth_date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "birth_time": {"type": ["string", "null"], "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$"},
+    "birth_time_known": {"type": "boolean"},
+    "timezone": {"type": "string", "minLength": 1},
+    "longitude": {"type": ["number", "null"], "minimum": -180, "maximum": 180},
+    "latitude": {"type": ["number", "null"], "minimum": -90, "maximum": 90},
+    "solar_time_mode": {"enum": ["civil", "local_mean", "apparent_solar"]},
+    "late_zi_policy": {"enum": ["midnight", "late_zi_next_day"]},
+    "leap_month": {"type": "boolean"},
+    "gender": {"enum": ["male", "female", "other", "unspecified"]}
+  },
+  "allOf": [
+    {"if": {"properties": {"calendar_type": {"const": "solar"}}}, "then": {"properties": {"leap_month": {"const": false}}}},
+    {"if": {"properties": {"solar_time_mode": {"enum": ["local_mean", "apparent_solar"]}}}, "then": {"required": ["longitude"]}}
+  ],
+  "additionalProperties": true
+}

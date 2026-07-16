@@ -227,8 +227,42 @@ class SourceAndPackagingTests(unittest.TestCase):
 
             with zipfile.ZipFile(wheel) as archive:
                 packaged = {name for name in archive.namelist() if "/schemas/" in name and name.endswith(".json")}
-            self.assertEqual(6, len(packaged))
+            self.assertEqual(33, len(packaged))
+            ziwei_schemas = {
+                f"ziwei_{name}.schema.json"
+                for name in (
+                    "analysis_result",
+                    "anonymous_case",
+                    "birth_input",
+                    "brightness",
+                    "chart",
+                    "fingerprint",
+                    "palace",
+                    "rule_card",
+                    "star",
+                    "temporal_context",
+                    "time_correction",
+                    "transformation",
+                )
+            }
+            self.assertEqual(
+                ziwei_schemas,
+                {Path(name).name for name in packaged if Path(name).name.startswith("ziwei_")},
+            )
+            packaged_names = {Path(name).name for name in packaged}
+            self.assertTrue({
+                "product_runtime_input.schema.json",
+                "product_runtime_envelope.schema.json",
+                "training_case.schema.json",
+                "analysis_run.schema.json",
+                "user_feedback.schema.json",
+                "outcome_observation.schema.json",
+                "rule_review_candidate.schema.json",
+                "training_iteration.schema.json",
+            }.issubset(packaged_names))
             self.assertIn("mingli/contracts/schemas/phase16_domain_contract_result.schema.json", packaged)
+            self.assertIn("mingli/contracts/schemas/real_case_intake.schema.json", packaged)
+            self.assertIn("mingli/contracts/schemas/product_release_authorization.schema.json", packaged)
             environment = temp_path / "installed"
             venv.EnvBuilder(with_pip=True).create(environment)
             python = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")

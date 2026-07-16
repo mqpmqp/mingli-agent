@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/product_runtime_envelope.schema.json",
+  "title": "MingLi Product Runtime Envelope",
+  "type": "object",
+  "required": ["run_id", "schema_version", "engine_version", "rule_manifest_hash", "renderer_version", "created_at", "status", "confidence", "confidence_reason", "limitations", "reality_evidence_used", "sections", "domain_results", "trace", "errors", "training_write", "prediction_validity"],
+  "properties": {
+    "run_id": {"type": "string"},
+    "schema_version": {"const": "mingli-product-runtime-envelope@1.0"},
+    "engine_version": {"type": "string"},
+    "rule_manifest_hash": {"type": ["string", "null"]},
+    "renderer_version": {"type": "string"},
+    "created_at": {"type": ["string", "null"]},
+    "status": {"enum": ["completed", "degraded", "blocked"]},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "confidence_reason": {"type": "string"},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "reality_evidence_used": {"type": "array", "items": {"type": "object"}},
+    "sections": {"type": "array", "items": {"type": "object"}},
+    "domain_results": {"type": "object"},
+    "trace": {"type": "object"},
+    "errors": {"type": "array", "items": {"type": "object"}},
+    "training_write": {"type": "object"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

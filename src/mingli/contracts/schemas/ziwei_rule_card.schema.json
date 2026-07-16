@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/ziwei_rule_card.schema.json",
+  "type": "object",
+  "required": ["rule_id", "domain", "trigger", "required_facts", "exclusions", "priority", "confidence", "deterministic_or_inferential", "traditional_claim", "plain_language", "evidence_refs", "source_level", "lifecycle", "conflict_policy", "output_constraints"],
+  "properties": {
+    "rule_id": {"type": "string", "minLength": 1},
+    "domain": {"type": "string", "minLength": 1},
+    "trigger": {"type": "object", "required": ["fact", "equals"]},
+    "required_facts": {"type": "array", "items": {"type": "string"}},
+    "exclusions": {"type": "array", "items": {"type": "object"}},
+    "priority": {"type": "integer", "minimum": 0, "maximum": 100},
+    "confidence": {"enum": ["low", "medium", "high"]},
+    "deterministic_or_inferential": {"enum": ["deterministic", "inferential"]},
+    "traditional_claim": {"type": "string"},
+    "plain_language": {"type": "string"},
+    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "source_level": {"enum": ["reviewed_repository_source", "research_required"]},
+    "lifecycle": {"enum": ["draft", "active", "deprecated"]},
+    "conflict_policy": {"const": "higher_priority_then_unresolved"},
+    "output_constraints": {"type": "array", "items": {"type": "string"}},
+    "direction": {"enum": ["support", "contradict"]}
+  },
+  "additionalProperties": true
+}
