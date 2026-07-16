@@ -557,11 +557,14 @@ def test_withdrawal_returns_only_tombstone_and_invalidates_all_dependencies() ->
         evidence_record(
             case,
             evidence_id="prior:synthetic:withdrawal",
-            observed_at="2025-01-15T00:00:00Z",
-            collected_at="2025-01-16T00:00:00Z",
-            direction="support",
-        ),
-    )
+                observed_at="2025-01-15T00:00:00Z",
+                collected_at="2025-01-16T00:00:00Z",
+                direction="support",
+                claim_id="claim:career:prior:001",
+                scope="career:prior:2025-01",
+                event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+            ),
+        )
     case = record_future_outcome(
         case,
         evidence_record(

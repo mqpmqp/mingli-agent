@@ -668,6 +668,45 @@ def _normalize_overlay(
     return normalized, tokens, window
 
 
+def _validate_overlay_containment(overlays: Sequence[Mapping[str, object]]) -> None:
+    decades: list[tuple[int, int]] = []
+    years: set[int] = set()
+    months: list[int] = []
+    for overlay in overlays:
+        level = overlay.get("level")
+        if level == "decade":
+            start = overlay.get("start_year")
+            end = overlay.get("end_year")
+            if not isinstance(start, int) or isinstance(start, bool):
+                raise ZiweiTemporalV2Error("normalized decade start_year is invalid")
+            if not isinstance(end, int) or isinstance(end, bool):
+                raise ZiweiTemporalV2Error("normalized decade end_year is invalid")
+            decades.append((start, end))
+        elif level == "year":
+            year = overlay.get("year")
+            if not isinstance(year, int) or isinstance(year, bool):
+                raise ZiweiTemporalV2Error("normalized year overlay is invalid")
+            years.add(year)
+        elif level == "month":
+            year = overlay.get("year")
+            if not isinstance(year, int) or isinstance(year, bool):
+                raise ZiweiTemporalV2Error("normalized month overlay year is invalid")
+            months.append(year)
+
+    if decades:
+        for child_year in sorted(years | set(months)):
+            if not any(start <= child_year <= end for start, end in decades):
+                raise ZiweiTemporalV2Error(
+                    "year and month overlays must be contained by a supplied decade overlay"
+                )
+    if years:
+        for month_year in months:
+            if month_year not in years:
+                raise ZiweiTemporalV2Error(
+                    "month overlays must be contained by a supplied year overlay"
+                )
+
+
 def _rule_matches(rule: Mapping[str, object], tokens: set[str]) -> bool:
     trigger = rule["trigger"]
     assert isinstance(trigger, Mapping)
@@ -858,6 +897,7 @@ def evaluate_ziwei_temporal_v2(
     overlay_ids = [str(item["overlay_id"]) for item in normalized_overlays]
     if len(overlay_ids) != len(set(overlay_ids)):
         raise ZiweiTemporalV2Error("overlay_id values must be unique")
+    _validate_overlay_containment(normalized_overlays)
 
     findings: list[dict[str, object]] = []
     for level, scope, tokens, window in contexts:

@@ -1020,6 +1020,10 @@ def orchestrate_bazi_expert_v2(
         ],
         target_id,
     )
+    if selected_trend.get("target_type") != "liunian":
+        raise BaziExpertV2InputError(
+            "target_id must identify a liunian period for annual_scope"
+        )
     scenario_exam_view, scenario_reunion_view = _scenario_views(exam, reunion)
 
     fusion_items: list[dict[str, object]] = []

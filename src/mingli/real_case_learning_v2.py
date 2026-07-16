@@ -84,6 +84,23 @@ def _parse_time(value: object, *, code: str, field: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _parse_event_window(
+    value: object, *, code: str
+) -> tuple[datetime, datetime]:
+    if not isinstance(value, str) or value.count("/") != 1:
+        raise RealCaseLearningV2Error(
+            code, "event_window must contain bounded ISO-8601 start/end instants"
+        )
+    start_value, end_value = value.split("/", 1)
+    start = _parse_time(start_value, code=code, field="event_window.start")
+    end = _parse_time(end_value, code=code, field="event_window.end")
+    if end < start:
+        raise RealCaseLearningV2Error(
+            code, "event_window end cannot precede its start"
+        )
+    return start, end
+
+
 def _seal(body: Mapping[str, object]) -> dict[str, object]:
     payload = {key: value for key, value in body.items() if key != "canonical_hash"}
     result = cast(dict[str, object], _plain(payload))
@@ -400,7 +417,12 @@ def _freeze_case_evidence(
     evidence: Mapping[str, object],
     *,
     relation: str,
-) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+) -> tuple[
+    dict[str, object],
+    dict[str, object],
+    dict[str, object],
+    tuple[datetime, datetime],
+]:
     payload = _mapping(evidence, code="REALITY_EVIDENCE_REJECTED", field="evidence")
     _require_clean(payload)
     if payload.get("person_case_id") != case.get("person_case_id") or payload.get("scenario_id") != case.get(
@@ -417,6 +439,15 @@ def _freeze_case_evidence(
     claim_id = str(payload.get("claim_id", ""))
     scope = str(payload.get("scope", ""))
     claim = _claim(cast(Mapping[str, object], case["prediction_snapshot"]), claim_id, scope)
+    event_window = payload.get("event_window")
+    if event_window != claim.get("time_window"):
+        raise RealCaseLearningV2Error(
+            "EVENT_WINDOW_MISMATCH",
+            "Reality Evidence event window must match the frozen claim window",
+        )
+    parsed_window = _parse_event_window(
+        event_window, code="EVENT_WINDOW_INVALID"
+    )
     try:
         frozen = freeze_reality_evidence(payload)
     except ValueError as exc:
@@ -428,24 +459,21 @@ def _freeze_case_evidence(
         "evidence_id": frozen["evidence_id"],
         "claim_id": claim_id,
         "scope": scope,
-        "event_window": str(payload.get("event_window") or claim.get("time_window") or ""),
+        "event_window": str(event_window),
         "observed_at": frozen["observed_at"],
         "collected_at": frozen["collected_at"],
         "evidence_snapshot": frozen,
     }
-    if relation == "future" and entry["event_window"] != claim.get("time_window"):
-        raise RealCaseLearningV2Error(
-            "EVENT_WINDOW_MISMATCH",
-            "future outcome event window must match the frozen claim window",
-        )
-    return payload, claim, entry
+    return payload, claim, entry, parsed_window
 
 
 def record_prior_event_validation(
     case: Mapping[str, object], evidence: Mapping[str, object]
 ) -> dict[str, object]:
     result = _case_copy(case)
-    payload, _claim_record, entry = _freeze_case_evidence(result, evidence, relation="prior")
+    payload, _claim_record, entry, event_window = _freeze_case_evidence(
+        result, evidence, relation="prior"
+    )
     generated = _parse_time(
         cast(Mapping[str, object], result["prediction_snapshot"]).get("generated_at"),
         code="PREDICTION_TIME_INVALID",
@@ -460,6 +488,12 @@ def record_prior_event_validation(
         )
     if collected < observed:
         raise RealCaseLearningV2Error("PRIOR_EVENT_TIME_INVALID", "collected_at cannot precede observed_at")
+    _window_start, window_end = event_window
+    if window_end > generated:
+        raise RealCaseLearningV2Error(
+            "PRIOR_EVENT_WINDOW_NOT_PRIOR",
+            "prior-event window must end before prediction generation",
+        )
     sealed_entry = _seal(entry)
     validations = cast(list[object], result["prior_event_validations"])
     if any(isinstance(item, Mapping) and item.get("evidence_id") == entry["evidence_id"] for item in validations):
@@ -474,7 +508,9 @@ def record_future_outcome(
     case: Mapping[str, object], evidence: Mapping[str, object]
 ) -> dict[str, object]:
     result = _case_copy(case)
-    payload, claim, entry = _freeze_case_evidence(result, evidence, relation="future")
+    payload, claim, entry, event_window = _freeze_case_evidence(
+        result, evidence, relation="future"
+    )
     frozen_at = _parse_time(
         cast(Mapping[str, object], result["prediction_snapshot"]).get("freeze_timestamp"),
         code="PREDICTION_TIME_INVALID",
@@ -489,6 +525,12 @@ def record_future_outcome(
         )
     if collected < observed:
         raise RealCaseLearningV2Error("FUTURE_OUTCOME_TIME_INVALID", "collected_at cannot precede observed_at")
+    window_start, _window_end = event_window
+    if window_start <= frozen_at:
+        raise RealCaseLearningV2Error(
+            "FUTURE_OUTCOME_WINDOW_NOT_FUTURE",
+            "future outcome window must start after the initial prediction is frozen",
+        )
     chart_evidence = {
         "evidence_id": f"prediction:{result['case_id']}:{claim['claim_id']}",
         "claim_id": claim["claim_id"],
