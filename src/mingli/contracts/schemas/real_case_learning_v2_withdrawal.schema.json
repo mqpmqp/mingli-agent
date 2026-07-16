@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/real_case_learning_v2_withdrawal.schema.json",
+  "title": "Real Case Learning OS V2 Withdrawal Tombstone",
+  "type": "object",
+  "required": [
+    "record_type",
+    "schema_version",
+    "case_ref_hash",
+    "person_ref_hash",
+    "lifecycle_status",
+    "withdrawn_at",
+    "dependencies_valid",
+    "dependent_records_retained",
+    "invalidated_dependency_hashes",
+    "synthetic",
+    "accuracy_eligible",
+    "product_claim_eligible",
+    "commercial_release_hold",
+    "prediction_validity",
+    "canonical_hash"
+  ],
+  "properties": {
+    "record_type": {"const": "RealCaseLearningV2Withdrawal"},
+    "schema_version": {"const": "real-case-learning-withdrawal@2.0"},
+    "case_ref_hash": {"$ref": "#/$defs/hash"},
+    "person_ref_hash": {"$ref": "#/$defs/hash"},
+    "lifecycle_status": {"const": "withdrawn"},
+    "withdrawn_at": {"type": "string", "format": "date-time"},
+    "dependencies_valid": {"const": false},
+    "dependent_records_retained": {"const": false},
+    "invalidated_dependency_hashes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/hash"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "synthetic": {"type": "boolean"},
+    "accuracy_eligible": {"const": false},
+    "product_claim_eligible": {"const": false},
+    "commercial_release_hold": {"const": "ACTIVE"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "canonical_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

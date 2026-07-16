@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/real_case_learning_v2_case.schema.json",
+  "title": "Real Case Learning OS V2 Case",
+  "type": "object",
+  "required": [
+    "record_type",
+    "schema_version",
+    "case_id",
+    "person_case_id",
+    "scenario_id",
+    "lifecycle_status",
+    "storage_boundary",
+    "training_boundary_version",
+    "consent",
+    "synthetic",
+    "accuracy_eligible",
+    "product_claim_eligible",
+    "commercial_release_hold",
+    "prediction_validity",
+    "intake_snapshot",
+    "chart_snapshot",
+    "original_question_snapshot",
+    "prediction_time_reality_snapshot",
+    "prediction_snapshot",
+    "prior_event_validations",
+    "future_outcomes",
+    "adjudications",
+    "error_taxonomy",
+    "rule_attributions",
+    "revisions",
+    "benchmark_comparisons",
+    "rule_recommendations",
+    "negative_case_archive",
+    "derived_fingerprint",
+    "near_duplicate_fingerprint",
+    "dependency_hashes",
+    "canonical_hash"
+  ],
+  "properties": {
+    "record_type": {"const": "RealCaseLearningV2Case"},
+    "schema_version": {"const": "real-case-learning-os@2.0"},
+    "case_id": {"type": "string", "pattern": "^case:[0-9a-f]{64}$"},
+    "person_case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "lifecycle_status": {
+      "enum": [
+        "prediction_frozen",
+        "prior_event_validated",
+        "future_outcome_observed",
+        "pending_operator_review"
+      ]
+    },
+    "storage_boundary": {"const": "controlled_off_git"},
+    "training_boundary_version": {"const": "mingli-training-loop@1.0"},
+    "consent": {
+      "type": "object",
+      "required": [
+        "status",
+        "research_use_allowed",
+        "benchmark_use_allowed",
+        "withdrawal_supported"
+      ],
+      "properties": {
+        "status": {"const": "granted"},
+        "research_use_allowed": {"const": true},
+        "benchmark_use_allowed": {"const": true},
+        "withdrawal_supported": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "synthetic": {"type": "boolean"},
+    "accuracy_eligible": {"const": false},
+    "product_claim_eligible": {"const": false},
+    "commercial_release_hold": {"const": "ACTIVE"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "intake_snapshot": {"type": "object"},
+    "chart_snapshot": {"$ref": "#/$defs/frozenSnapshot"},
+    "original_question_snapshot": {"$ref": "#/$defs/frozenSnapshot"},
+    "prediction_time_reality_snapshot": {"$ref": "#/$defs/frozenSnapshot"},
+    "prediction_snapshot": {
+      "type": "object",
+      "required": ["freeze_status", "canonical_hash", "reality_evidence_visibility"],
+      "properties": {
+        "freeze_status": {"const": "frozen"},
+        "canonical_hash": {"$ref": "#/$defs/hash"},
+        "reality_evidence_visibility": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "prior_event_validations": {"type": "array", "items": {"type": "object"}},
+    "future_outcomes": {"type": "array", "items": {"type": "object"}},
+    "adjudications": {"type": "array", "items": {"type": "object"}},
+    "error_taxonomy": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "rule_attributions": {"type": "array", "items": {"type": "object"}},
+    "revisions": {"type": "array", "items": {"type": "object"}},
+    "benchmark_comparisons": {"type": "array", "items": {"type": "object"}},
+    "rule_recommendations": {"type": "array", "items": {"type": "object"}},
+    "negative_case_archive": {"type": "array", "items": {"type": "object"}},
+    "derived_fingerprint": {"$ref": "#/$defs/hash"},
+    "near_duplicate_fingerprint": {"$ref": "#/$defs/hash"},
+    "dependency_hashes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/hash"},
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "canonical_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "frozenSnapshot": {
+      "type": "object",
+      "required": ["record_type", "freeze_status", "frozen_at", "canonical_hash"],
+      "properties": {
+        "record_type": {"type": "string", "minLength": 1},
+        "freeze_status": {"const": "frozen"},
+        "frozen_at": {"type": "string", "format": "date-time"},
+        "canonical_hash": {"$ref": "#/$defs/hash"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
