@@ -37,4 +37,4 @@
 
 目标模块覆盖率 `84.28%`，其中 `mingli.ziwei_engine` 为 `95%`，满足 80% 门禁。完整互斥门禁结果为：fast 206 passed/1 skipped，benchmark 35 passed，real_case 58 passed；无失败。规则内容、真实案例效果和商业发布不在 PR A 测试范围，分别由后续 PR B/PR C 和独立商业验收负责。
 
-完整门禁结果将在 Draft PR 前补充到实现报告和 PR body；未运行命令不会标成 PASS。
+wheel/sdist 构建、从 wheel zip 的 `python -I` 五局 benchmark 和 `pip-audit . --strict` 均已通过。精确命令与结果同步写入实现报告和 Draft PR body；未运行命令不会标成 PASS。
