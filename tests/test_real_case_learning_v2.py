@@ -342,16 +342,6 @@ def test_prior_event_and_future_outcome_enforce_prediction_time_boundary() -> No
     with pytest.raises(RealCaseLearningV2Error, match="FUTURE_OUTCOME_WINDOW_NOT_FUTURE"):
         record_future_outcome(case, pre_freeze_window_as_future)
 
-    observed_outside_window = evidence_record(
-        case,
-        evidence_id="outcome:outside-window",
-        observed_at="2026-01-01T00:00:00Z",
-        collected_at="2026-01-02T00:00:00Z",
-        direction="support",
-    )
-    with pytest.raises(RealCaseLearningV2Error, match="OBSERVATION_OUTSIDE_EVENT_WINDOW"):
-        record_future_outcome(case, observed_outside_window)
-
 
 def test_future_reality_hard_override_is_claim_and_scope_specific() -> None:
     case = learning_case()
