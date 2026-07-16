@@ -62,11 +62,11 @@ MCP：
 
 | Gate | Result |
 |---|---|
-| Focused coverage | 18 passed；88% |
-| Full pytest | 381 passed，1 skipped，31 subtests |
-| Fast | 285 passed，1 skipped，16 subtests |
-| Benchmark | 38 passed，15 subtests |
-| Real-case | 58 passed |
+| Focused coverage | 18 passed；88.12%；1:02 |
+| Full pytest | 381 passed，1 skipped，31 subtests；19:25 |
+| Fast | 285 passed，1 skipped，96 deselected，16 subtests；4:10 |
+| Benchmark | 38 passed，344 deselected，15 subtests；13:56 |
+| Real-case | 58 passed，324 deselected；1:12 |
 | Ruff / scoped Pyright | PASS / 0 errors |
 | compileall | PASS |
 | wheel + sdist + wheel smoke | PASS |
@@ -82,4 +82,4 @@ MCP：
 - 本机没有 Docker，因此未执行真实 image build；Dockerfile 合同与 wheel runtime 已验证。
 - 目前不需要 auth，因为工具匿名、只读、无存储。只要引入用户专属数据、持久化或写操作，就必须先实现 MCP OAuth 2.1。
 - `PRODUCT_RELEASE_HOLD` 保持 ACTIVE；规则与 Runtime 的工程验证不等于真实案例验证或预测准确率。
-- PR C 继续保持本地；PR A 合并后再把 PR B/PR C restack 到最新 `main`，重跑全门禁并创建 Draft PR。
+- PR A #28 已合并，PR B Draft #29 已发布且远端三项 CI 全绿。PR C 已 restack 到 PR B `9221d434af9f5b55030d9f11a8bc8786c694416b`；C-only stable patch-id 与 restack 前一致，本地全门禁复验通过后进入 Draft PR 审查。

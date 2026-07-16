@@ -14,10 +14,10 @@
 
 | Cycle | RED evidence | GREEN evidence | Guarantee |
 |---|---|---|---|
-| Service adapters | `0b40505`：`tests/test_runtime_service.py` 因服务模块缺失而 RED | `f675580`：7 个 adapter tests 通过 | 纯函数 adapter 保留 Runtime、紫微与 Hold 合同 |
-| HTTP/MCP | `277be55`：`mingli.service_app` 缺失，HTTP/MCP 合同 RED | `fd2ed71`：5 个 HTTP/MCP tests 通过；联合服务层 12 passed | HTTP 路由、MCP 初始化/list/call、schema 与注解可运行 |
-| Public hardening | `f85dafc`：3 个测试分别因缺少公开 Host 策略、chunked body 限制和 telemetry 而 RED | `2efd576`：8 个 HTTP/MCP tests 通过 | Host/Origin allowlist、1 MB body 上限和无请求体日志生效 |
-| Deployment artifacts | `42a5d11`：Dockerfile、`.dockerignore`、部署 runbook 缺失，3 tests RED | `5b26480`：11 个 deployment + HTTP/MCP tests 通过 | 非 root 镜像合同、最小 build context 与 ChatGPT runbook 完整 |
+| Service adapters | `30db920`：`tests/test_runtime_service.py` 因服务模块缺失而 RED | `5193c08`：7 个 adapter tests 通过 | 纯函数 adapter 保留 Runtime、紫微与 Hold 合同 |
+| HTTP/MCP | `a48f6cc`：`mingli.service_app` 缺失，HTTP/MCP 合同 RED | `7a6e1e3`：5 个 HTTP/MCP tests 通过；联合服务层 12 passed | HTTP 路由、MCP 初始化/list/call、schema 与注解可运行 |
+| Public hardening | `e976988`：3 个测试分别因缺少公开 Host 策略、chunked body 限制和 telemetry 而 RED | `5f6f61f`：8 个 HTTP/MCP tests 通过 | Host/Origin allowlist、1 MB body 上限和无请求体日志生效 |
+| Deployment artifacts | `02fc6f8`：Dockerfile、`.dockerignore`、部署 runbook 缺失，3 tests RED | `e9a666e`：11 个 deployment + HTTP/MCP tests 通过 | 非 root 镜像合同、最小 build context 与 ChatGPT runbook 完整 |
 
 ## Test specification
 
@@ -36,17 +36,17 @@
 
 ## Validation evidence
 
-- Focused coverage：18 passed；`mingli.service` + `mingli.service_app` 总覆盖率 88%，高于 80% 门槛。
-- Full pytest：381 passed，1 skipped，31 subtests passed；23m39s。
-- Fast gate：285 passed，1 skipped，96 deselected，16 subtests passed。
-- Benchmark gate：38 passed，344 deselected，15 subtests passed。
-- Real-case gate：58 passed，324 deselected。
+- Focused coverage：18 passed；`mingli.service` + `mingli.service_app` 总覆盖率 88.12%，高于 80% 门槛；1m02s。
+- Full pytest：381 passed，1 skipped，31 subtests passed；19m25s。
+- Fast gate：隔离复跑 285 passed，1 skipped，96 deselected，16 subtests passed；4m10s，满足 300 秒门限。首次与 focused/real-case 并发的编排实例在 300 秒处被终止但无测试失败，不计为隔离 gate 结果。
+- Benchmark gate：38 passed，344 deselected，15 subtests passed；13m56s。
+- Real-case gate：58 passed，324 deselected；1m12s。
 - Ruff：scoped Runtime、HTTP/MCP 与 deployment tests 全部通过。
 - Pyright：scoped Runtime、HTTP/MCP 与 deployment files 为 0 errors / 0 warnings。
 - `compileall src tests`：通过。
 - Wheel/sdist：`mingli_agent-2.0.0` 构建成功。
-- Isolated wheel smoke：`mingli-service = mingli.service_app:main` 存在，wheel 内 `/healthz` 返回 `ok`。
-- `pip-audit --local --skip-editable`：No known vulnerabilities found；editable 项目本身按工具语义跳过。
+- Isolated wheel smoke：wheel 内 `/healthz` 返回 `ok`；MCP initialize/list/call 返回 4 个工具与 `REVIEW_REQUIRED / 184 / not_evaluated`。
+- `pip-audit . --strict`：No known vulnerabilities found。
 - Local runtime smoke：`/healthz`、MCP `initialize`、`tools/list`、`get_ziwei_rule_coverage` 全部通过。
 - Public HTTPS smoke：临时 SSH tunnel 上重复执行相同 MCP 协议链，返回 4 个工具、`REVIEW_REQUIRED` 与 `not_evaluated`。
 - ChatGPT host loop：Developer Mode 应用连接成功；golden prompt 实际调用 coverage 工具并返回 `REVIEW_REQUIRED / 184 / not_evaluated`，同时明确不是预测准确率。
@@ -61,4 +61,4 @@
 
 ## Merge evidence
 
-PR C 当前仍为本地堆叠分支，基于 PR B commit `ad65f47`。PR A 合并前不 push、不创建 PR C；后续 restack 时将本报告中的 RED/GREEN 与验证结果复制到 Draft PR body。
+PR C 已 restack 到 PR B commit `9221d434af9f5b55030d9f11a8bc8786c694416b`。restack 前后 C-only stable patch-id 均为 `eeb760b0be079caaef55cbd3d7dd0160e72915cd`，证明 9 个 Runtime 提交的内容未改变；本地全门禁通过后推送并创建以 PR B 分支为 base 的 Draft PR。
