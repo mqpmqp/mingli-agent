@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.example/contracts/capability_surge_v2_result.schema.json",
+  "title": "MingLi Core Capability Surge V2 Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "method_id",
+    "components",
+    "component_hashes",
+    "renderer",
+    "capability_matrix",
+    "unsupported",
+    "warnings",
+    "canonical_hash",
+    "prediction_validity",
+    "release_hold",
+    "accuracy_claim_allowed"
+  ],
+  "properties": {
+    "schema_version": {"const": "mingli-core-capability-surge-result@2.0"},
+    "method_id": {"const": "mingli-core-capability-surge@2.0.0"},
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bazi", "ziwei", "real_case_learning"],
+      "properties": {
+        "bazi": {"type": "object"},
+        "ziwei": {"type": "object"},
+        "real_case_learning": {"type": "object"}
+      }
+    },
+    "component_hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bazi", "ziwei", "real_case_learning"],
+      "properties": {
+        "bazi": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "ziwei": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "real_case_learning": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "renderer": {
+      "type": "object",
+      "required": ["source", "rendered_text", "canonical_hash"],
+      "properties": {
+        "source": {"const": "bazi_expert_v2.phase20"},
+        "rendered_text": {"type": "string", "minLength": 1},
+        "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "capability_matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bazi", "ziwei", "real_case_learning"],
+      "properties": {
+        "bazi": {"type": "object"},
+        "ziwei": {"type": "object"},
+        "real_case_learning": {"type": "object"}
+      }
+    },
+    "unsupported": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability", "status", "reason", "behavior"],
+        "properties": {
+          "capability": {"type": "string", "minLength": 1},
+          "status": {"const": "unsupported"},
+          "reason": {"type": "string", "minLength": 1},
+          "behavior": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "release_hold": {"const": "ACTIVE"},
+    "accuracy_claim_allowed": {"const": false}
+  }
+}
+
