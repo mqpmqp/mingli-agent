@@ -111,6 +111,10 @@ FORBIDDEN_ABSOLUTES = (
     "必发财",
 )
 FORBIDDEN_PLATFORM_TEXT = ("metis",)
+REQUIRED_CHART_EXCLUSIONS = (
+    {"fact": "calculation_status", "operator": "not_equals", "value": "complete"},
+    {"fact": "unsupported_fields", "operator": "not_equals", "value": []},
+)
 _MISSING = object()
 
 
@@ -447,21 +451,13 @@ def _matches(condition: Mapping[str, object], facts: Mapping[str, object]) -> bo
 
 
 def _rule_conflict_key(card: Mapping[str, object]) -> tuple[str, str, str]:
-    subject = str(card["subject"])
-    if subject == "primary_star_palace":
-        target = f"{card['star']}:{card['palace']}"
-    elif subject == "transformation":
-        target = str(card["transformation"])
-    elif subject == "brightness":
-        target = str(card["state"])
-    else:
-        target = json.dumps(
-            card["trigger"],
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-    return str(card["domain"]), subject, target
+    target = json.dumps(
+        card["trigger"],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return str(card["domain"]), str(card["subject"]), target
 
 
 def evaluate_ziwei_rules(
@@ -585,7 +581,11 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
         primary = _require_sequence(palace.get("primary_stars"), "primary_stars")
         palace_star_ids: list[str] = []
         for star in primary:
-            if not isinstance(star, Mapping) or star.get("star_id") not in PRIMARY_STAR_IDS:
+            if (
+                not isinstance(star, Mapping)
+                or star.get("star_id") not in PRIMARY_STAR_IDS
+                or star.get("field_status") != "supported"
+            ):
                 raise ZiweiRuleError("Ziwei primary star is unsupported")
             star_id = str(star["star_id"])
             seen_stars.append(star_id)
@@ -597,7 +597,11 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
             ("malefic_stars", MALEFIC_STAR_NAMES),
         ):
             for star in _require_sequence(palace.get(field), field):
-                if not isinstance(star, Mapping) or star.get("star_id") not in supported_ids:
+                if (
+                    not isinstance(star, Mapping)
+                    or star.get("star_id") not in supported_ids
+                    or star.get("field_status") != "supported"
+                ):
                     raise ZiweiRuleError(f"Ziwei {field} contains an unsupported star")
                 star_id = str(star["star_id"])
                 seen_all_stars.append(star_id)
@@ -622,6 +626,7 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
                 or not isinstance(star_id, str)
                 or not star_id
                 or star_id not in palace_star_ids
+                or item.get("field_status") != "supported"
             ):
                 raise ZiweiRuleError("Ziwei transformation is unsupported")
             seen_transformations.append(str(transformation))
@@ -642,6 +647,7 @@ def extract_ziwei_rule_facts(chart: Mapping[str, object]) -> dict[str, object]:
                 or not isinstance(star_id, str)
                 or not star_id
                 or star_id not in palace_star_ids
+                or item.get("field_status") != "supported"
             ):
                 raise ZiweiRuleError("Ziwei brightness state is unsupported")
             seen_brightness_stars.append(star_id)
@@ -686,27 +692,54 @@ def evaluate_ziwei_chart_rules(
     return evaluate_ziwei_rules(extract_ziwei_rule_facts(chart), cards)
 
 
-def _synthetic_pair_facts(star: str, palace: str) -> dict[str, object]:
+def _empty_rule_facts() -> dict[str, object]:
     return {
         "algorithm_version": ZIWEI_CHART_ALGORITHM,
         "calculation_status": "complete",
         "unsupported_fields": [],
-        "star_palace_pairs": [{"star": star, "palace": palace}],
+        "star_palace_pairs": [],
         "transformations": [],
         "brightness_states": [],
         "co_locations": [],
     }
 
 
+def _synthetic_pair_facts(star: str, palace: str) -> dict[str, object]:
+    facts = _empty_rule_facts()
+    facts["star_palace_pairs"] = [{"star": star, "palace": palace}]
+    return facts
+
+
+def _canonical_rule_trigger(card: Mapping[str, object]) -> dict[str, object] | None:
+    subject = card["subject"]
+    if subject == "primary_star_palace":
+        value: object = {"star": str(card["star"]), "palace": str(card["palace"])}
+        fact = "star_palace_pairs"
+    elif subject == "transformation":
+        value = {"transformation": str(card["transformation"])}
+        fact = "transformations"
+    elif subject == "brightness":
+        value = {"state": str(card["state"])}
+        fact = "brightness_states"
+    else:
+        value = COMBINATION_FACTS.get(str(card["rule_id"]))
+        if value is None:
+            return None
+        fact = "co_locations"
+    return {"fact": fact, "operator": "contains", "value": value}
+
+
 def _synthetic_rule_facts(card: Mapping[str, object]) -> dict[str, object] | None:
-    facts = _synthetic_pair_facts("ziwei", "命宫")
+    canonical_trigger = _canonical_rule_trigger(card)
+    if canonical_trigger is None or card["trigger"] != canonical_trigger:
+        return None
+    facts = _empty_rule_facts()
     subject = card["subject"]
     if subject == "primary_star_palace":
         facts["star_palace_pairs"] = [
             {"star": str(card["star"]), "palace": str(card["palace"])}
         ]
     elif subject == "transformation":
-        facts["star_palace_pairs"] = []
         facts["transformations"] = [
             {
                 "star": "ziwei",
@@ -715,15 +748,12 @@ def _synthetic_rule_facts(card: Mapping[str, object]) -> dict[str, object] | Non
             }
         ]
     elif subject == "brightness":
-        facts["star_palace_pairs"] = []
         facts["brightness_states"] = [
             {"star": "ziwei", "state": str(card["state"]), "palace": "命宫"}
         ]
     else:
-        facts["star_palace_pairs"] = []
         combination = COMBINATION_FACTS.get(str(card["rule_id"]))
-        if combination is None:
-            return None
+        assert combination is not None
         facts["co_locations"] = [combination]
     return facts
 
@@ -746,11 +776,26 @@ def build_rule_coverage(
         facts = _synthetic_rule_facts(card)
         if facts is None:
             continue
+        if not all(
+            exclusion in card["exclusions"]
+            for exclusion in REQUIRED_CHART_EXCLUSIONS
+        ):
+            continue
         matches = evaluate_ziwei_rules(facts, [card])
+        negative_matches = evaluate_ziwei_rules(_empty_rule_facts(), [card])
+        degraded_matches = evaluate_ziwei_rules(
+            {**facts, "calculation_status": "degraded"}, [card]
+        )
+        unsupported_matches = evaluate_ziwei_rules(
+            {**facts, "unsupported_fields": ["rule_facts"]}, [card]
+        )
         if (
             len(matches) == 1
             and matches[0].rule_id == card["rule_id"]
             and matches[0].resolution == "matched"
+            and not negative_matches
+            and not degraded_matches
+            and not unsupported_matches
         ):
             behavior_rule_ids.add(str(card["rule_id"]))
     behavior_pairs: set[tuple[str, str]] = set()
