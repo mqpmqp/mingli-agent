@@ -44,3 +44,18 @@ All fixtures remain explicitly synthetic contract fixtures. They are not accurac
 - No real cases were accessed or created.
 - No release, tag, package upload, or Release Hold change occurred.
 - `prediction_validity=not_evaluated`, Release Hold `ACTIVE`, and accuracy/product claims remain disabled.
+
+## Theme 1 Santa convergence round 2
+
+- Dual-review result before the fix: FAIL / FAIL.
+- RED checkpoint: `a569bda`.
+- RED command: `$env:PYTHONPATH='src'; python -m pytest tests/test_real_case_learning_v2.py -q`.
+- RED result: `7 failed, 27 passed`; the failures reproduced hash-valid legacy-frozen snapshot injection, missing additive V2 schemas, semantic partition reassignment, and stale case/manifest acceptance.
+- GREEN checkpoint: `7487e86`.
+- Same Real Case target after the fix: `34 passed`.
+- Four V2 focused suites: `70 passed`.
+- Contract/packaging regression: `16 passed`.
+- Focused Real Case branch coverage: 80%.
+- Frozen-contract verifier: `ok=true`, `checked_count=78`, `violations=[]`.
+
+The fix deliberately leaves the frozen legacy prediction/evidence freezers unchanged. The additive V2 layer now rejects their open payloads when they enter a V2 case, supplies closed V2 prediction/evidence schemas, validates nested evidence entries and dependency binding, recomputes partition assignment from per-case temporal inputs, and binds recommendation eligibility to the current case hash and temporal input record.
