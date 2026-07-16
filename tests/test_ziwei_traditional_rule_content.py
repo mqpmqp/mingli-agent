@@ -201,6 +201,50 @@ def test_exclusions_priority_conflict_and_combination_rules_are_executable() -> 
     assert {item.resolution for item in conflict} == {"unresolved_conflict"}
 
 
+def test_priority_conflicts_are_scoped_to_normalized_trigger_target() -> None:
+    template = deepcopy(
+        next(
+            rule
+            for rule in load_ziwei_rule_content()
+            if rule["subject"] == "brightness" and rule["state"] == "temple"
+        )
+    )
+    high = deepcopy(template)
+    high.update(
+        rule_id="ziwei:v1:test:brightness:wuqu",
+        priority=90,
+        trigger={
+            "fact": "brightness_states",
+            "operator": "contains",
+            "value": {"star": "wuqu", "state": "temple"},
+        },
+    )
+    low = deepcopy(template)
+    low.update(
+        rule_id="ziwei:v1:test:brightness:huoxing",
+        priority=10,
+        trigger={
+            "fact": "brightness_states",
+            "operator": "contains",
+            "value": {"star": "huoxing", "state": "temple"},
+        },
+    )
+    facts = {
+        "algorithm_version": "ziwei-traditional-natal@1.0.0",
+        "calculation_status": "complete",
+        "unsupported_fields": [],
+        "brightness_states": [
+            {"star": "wuqu", "state": "temple", "palace": "命宫"},
+            {"star": "huoxing", "state": "temple", "palace": "官禄宫"},
+        ],
+    }
+    matches = evaluate_ziwei_rules(facts, [low, high])
+    assert [(item.rule_id, item.resolution) for item in matches] == [
+        ("ziwei:v1:test:brightness:wuqu", "matched"),
+        ("ziwei:v1:test:brightness:huoxing", "matched"),
+    ]
+
+
 def test_unsupported_and_algorithm_mismatch_fail_closed() -> None:
     with pytest.raises(ZiweiRuleError, match="complete"):
         extract_ziwei_rule_facts(degraded_chart())
@@ -228,6 +272,17 @@ def test_chart_fact_extraction_rejects_unplaced_modifier_stars() -> None:
     )
     brightness_palace["brightness_state"][0]["star_id"] = "not_a_star"
     with pytest.raises(ZiweiRuleError):
+        extract_ziwei_rule_facts(chart)
+
+
+@pytest.mark.parametrize(
+    "field", ["primary_stars", "supporting_stars", "transformations", "brightness_state"]
+)
+def test_complete_chart_rejects_nested_non_supported_facts(field: str) -> None:
+    chart = complete_chart()
+    palace = next(item for item in chart["palaces"] if item[field])
+    palace[field][0]["field_status"] = "research_required"
+    with pytest.raises(ZiweiRuleError, match="supported"):
         extract_ziwei_rule_facts(chart)
 
 
@@ -286,6 +341,15 @@ def test_coverage_rejects_false_passes_outside_primary_matrix() -> None:
         assert target["trigger"]["value"] != wrong_value
         target["trigger"]["value"] = wrong_value
         assert build_rule_coverage(mutated_rules)["release_gate"] == "NO-GO"
+
+        generic_rules = deepcopy(rules)
+        target = next(rule for rule in generic_rules if rule["subject"] == subject)
+        target["trigger"] = {
+            "fact": "calculation_status",
+            "operator": "equals",
+            "value": "complete",
+        }
+        assert build_rule_coverage(generic_rules)["release_gate"] == "NO-GO"
 
 
 def test_reality_evidence_still_hard_overrides_effective_packaged_rule() -> None:
