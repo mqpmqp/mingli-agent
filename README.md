@@ -1,5 +1,16 @@
 # MingLi Agent Core Runtime
 
+## HTTP/MCP 服务
+
+安装 API 依赖后，可将 Runtime 作为普通 JSON API 与 Streamable HTTP MCP 服务运行：
+
+```powershell
+python -m pip install -e ".[api,dev]"
+mingli-service
+```
+
+健康检查为 `GET /healthz`，MCP 入口为 `POST /mcp`；另提供 `/v1/capabilities`、`/v1/mingli/analyze`、`/v1/ziwei/chart`、`/v1/ziwei/rules/evaluate` 与 `/v1/ziwei/coverage`。服务为无 widget 的 `tool-only` ChatGPT 应用，不保存请求且不调用外部服务。容器、公网 Host 防护、隧道和 ChatGPT Developer Mode 步骤见 `docs/deployment/runtime-http-mcp.md`。
+
 ## 紫微确定性排盘与传统规则内容 v1
 
 `mingli ziwei chart` 已从空结构壳升级为版本化确定性排盘。已知出生时辰时，`ziwei-traditional-natal@1.0.0` 会输出命宫、身宫、十二宫干支、五行局、十四主星、十四辅煞、年干四化及版本化亮度状态；未知时辰仍返回 `degraded`，不会默认子时。公历/农历、闰月、IANA 时区、地方平太阳时、真太阳时和晚子时政策继续由既有输入归一化层处理。
