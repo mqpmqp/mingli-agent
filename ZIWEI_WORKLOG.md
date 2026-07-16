@@ -1,5 +1,13 @@
 # Ziwei Capability Closure Worklog
 
+## 2026-07-16 — PR A 本地独立审查与 Merge Gate
+
+- 审查：逐项核对 engine、Schema、Runtime、CLI、固定盘、来源和 Hold 文档；确认核心排盘范围与已声明 profile 一致。
+- 修复：发现自定义 benchmark 可由空案例、过期算法版本或空期望产生 false pass；新增 RED commit `7437c06`，并以 GREEN commit `079c084` 实施 fail-closed 校验。
+- 验证：紫微聚焦 44 passed，覆盖率 84.19%；Ruff/Pyright/compileall 通过；fast 215 passed/1 skipped，benchmark 38 passed，real_case 58 passed；wheel/sdist 与 wheel 内五局 benchmark/Schema 冒烟通过。
+- 状态：本地 Merge Gate PASS；分支未推送、未创建 PR，Traditional Engine Hold 继续 ACTIVE；Rule Content、Real Benchmark、Commercial Release 继续 ACTIVE。
+- 下一步：获得明确外部写操作授权后推送分支，创建 Draft PR 并等待远端独立审查/CI；不得在合并前解除 Hold。
+
 ## 2026-07-16 — PR A：Deterministic Ziwei Engine v1
 
 - 来源：古籍全文入口、公开公式转写和 MIT `iztro@f3dc6c5` 三层核验；没有调用外部排盘 API。

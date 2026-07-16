@@ -18,6 +18,8 @@
 - GREEN commit：`e82319734608aabc06166bf925e3757a1a6639f0`
 - GREEN 证据：同一聚焦目标 `29 passed`。
 - Fixture 纠错：最初人工期望把亥宫紫微对应的廉贞写成辰；公开口诀和独立实现都证明应为卯。测试期望被纠正，生产算法未为错误 fixture 改写。
+- 独立审查 RED commit：`7437c06af95632a0aac8594707fdaa378d6d4445`。`--path` benchmark 的空案例、过期算法版本和空期望三种输入均未抛错，回归目标为 `3 failed`。
+- 独立审查 GREEN commit：`079c08430e4aa686efee5bf780966b7df2f121ba`。同一目标变为 `3 passed`；benchmark 现在校验 schema/算法版本、来源、非空案例、唯一 case ID 和完整预期字段。
 
 ## Test specification
 
@@ -32,9 +34,10 @@
 | 7 | 五个固定盘覆盖五行局 | `test_fixed_engine_benchmark...` | benchmark | PASS |
 | 8 | 未知时辰保持 degraded，Runtime 接受 complete 并保留现实硬覆盖 | 既有 Ziwei/runtime tests | integration | PASS |
 | 9 | CLI 输出完整盘并可运行固定 benchmark | `tests/test_ziwei_cli.py` | CLI | PASS |
+| 10 | 外部 benchmark 不能以空案例、过期算法版本或空期望产生 false pass | `test_engine_benchmark_rejects_inputs_that_could_false_pass` | unit/security regression | PASS |
 
 ## Coverage and known gaps
 
-目标模块覆盖率 `84.28%`，其中 `mingli.ziwei_engine` 为 `95%`，满足 80% 门禁。完整互斥门禁结果为：fast 206 passed/1 skipped，benchmark 35 passed，real_case 58 passed；无失败。规则内容、真实案例效果和商业发布不在 PR A 测试范围，分别由后续 PR B/PR C 和独立商业验收负责。
+独立审查后目标模块覆盖率 `84.19%`，其中 `mingli.ziwei_engine` 为 `95%`，满足 80% 门禁；五份紫微聚焦测试为 `44 passed`。完整互斥门禁结果为：fast 215 passed/1 skipped，benchmark 38 passed，real_case 58 passed；无失败。规则内容、真实案例效果和商业发布不在 PR A 测试范围，分别由后续 PR B/PR C 和独立商业验收负责。
 
-wheel/sdist 构建、从 wheel zip 的 `python -I` 五局 benchmark 和 `pip-audit . --strict` 均已通过。精确命令与结果同步写入实现报告和 Draft PR body；未运行命令不会标成 PASS。
+wheel/sdist 构建、从 wheel zip 的 `python -I` 五局 benchmark 与打包 Schema 检查均已通过。原实现阶段的 `pip-audit . --strict` 结果为无已知漏洞；本次审查没有依赖变更，并依照仓库禁止外部网络调用的边界未重跑在线漏洞查询。精确命令与结果同步写入实现报告和本地 Merge Gate 报告；尚未推送分支或创建 PR。
