@@ -242,6 +242,13 @@ def test_decade_year_month_overlays_produce_only_bounded_event_windows() -> None
         "bounded": True,
         "precision": "month",
     }
+    assert "event_prediction" not in result
+    assert all(
+        item["event_time_window"] is None
+        if item["scope"] == "natal"
+        else item["event_time_window"] == windows[item["scope"]]
+        for item in result["findings"]
+    )
 
 
 def test_mixed_temporal_overlays_require_parent_window_containment() -> None:
@@ -257,13 +264,6 @@ def test_mixed_temporal_overlays_require_parent_window_containment() -> None:
     month_outside_year[2]["year"] = 2029
     with pytest.raises(ZiweiTemporalV2Error, match="contained.*year"):
         evaluate_ziwei_temporal_v2(chart, overlays=month_outside_year)
-    assert "event_prediction" not in result
-    assert all(
-        item["event_time_window"] is None
-        if item["scope"] == "natal"
-        else item["event_time_window"] == windows[item["scope"]]
-        for item in result["findings"]
-    )
 
 
 def test_priority_suppression_and_equal_priority_conflict_demote_confidence() -> None:
