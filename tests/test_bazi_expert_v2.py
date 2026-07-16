@@ -22,6 +22,7 @@ from mingli.bazi_expert_v2 import (
     load_bazi_expert_v2_schema,
     orchestrate_bazi_expert_v2,
 )
+from mingli.contracts.serialization import digest
 from mingli.phase13 import build_phase13_fixture
 from mingli.phase20 import DISCLAIMER, FORBIDDEN_PROMISES
 
@@ -113,6 +114,19 @@ def test_versioned_result_validates_and_preserves_non_accuracy_boundaries(
     schema = load_bazi_expert_v2_schema()
     assert schema["$id"].endswith("bazi_expert_v2_result.schema.json")
     assert not list(Draft202012Validator(schema).iter_errors(complete_payload))
+
+
+def test_canonical_hash_binds_all_public_boundary_metadata(
+    complete_payload: dict[str, object],
+) -> None:
+    body = {
+        key: value
+        for key, value in complete_payload.items()
+        if key != "canonical_hash"
+    }
+    assert complete_payload["canonical_hash"] == digest(
+        {"record_type": "BaziExpertV2Result", "payload": body}
+    )
 
 
 def test_facets_distinguish_implemented_conditional_and_unsupported(

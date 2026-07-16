@@ -9,6 +9,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from mingli.contracts import get_schema
+from mingli.contracts.serialization import digest
 from mingli.real_case_learning_v2 import (
     RealCaseLearningV2Error,
     adjudicate_outcome,
@@ -19,6 +20,7 @@ from mingli.real_case_learning_v2 import (
     record_future_outcome,
     record_prior_event_validation,
     summarize_learning_cases,
+    verify_temporal_partition_manifest,
     verify_learning_record,
     withdraw_case,
 )
@@ -712,3 +714,154 @@ def test_invalid_adjudication_and_leaky_benchmark_comparison_fail_closed() -> No
     kwargs["status"] = "fabricated-success"
     with pytest.raises(RealCaseLearningV2Error, match="UNSUPPORTED_ADJUDICATION_STATUS"):
         adjudicate_outcome(case, **kwargs)
+
+
+def _build_case_with_prediction(prediction: dict[str, object]) -> dict[str, Any]:
+    intake = intake_record()
+    return build_learning_case(
+        intake,
+        chart_snapshot={
+            "schema_version": "synthetic-chart-snapshot@2.0",
+            "chart_fingerprint": "sha256:" + "3" * 64,
+            "calculation_status": "complete",
+            "prediction_validity": "not_evaluated",
+        },
+        original_question="Synthetic contract question about a bounded exam window.",
+        prediction_time_reality_context={
+            "known_at": prediction["generated_at"],
+            "facts": {"exam_stage": "preparation", "preparation_months": 6},
+            "excluded_future_information": ["future_exam_result"],
+        },
+        prediction=prediction,
+        frozen_at="2025-02-01T00:01:00Z",
+        synthetic=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda prediction: prediction.update(
+            {"future_reality_metadata": {"outcome": "hidden-after-freeze"}}
+        ),
+        lambda prediction: prediction["structured_claims"][0].update(
+            {"metadata": {"scope": "career:other", "predicted_direction": "contradict"}}
+        ),
+    ],
+)
+def test_prediction_snapshot_contract_rejects_unknown_future_reality_fields(
+    mutate: Any,
+) -> None:
+    intake = intake_record()
+    prediction = prediction_record(
+        person_case_id=str(intake["person_case_id"]),
+        scenario_id="career:synthetic:001",
+    )
+    mutate(prediction)
+
+    with pytest.raises(RealCaseLearningV2Error, match="PREDICTION_CONTRACT_CLOSED"):
+        _build_case_with_prediction(prediction)
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"metadata": {"claim_id": "claim:other", "scope": "career:other"}},
+        {"source_provenance": {"direction": "support", "event_window": "other"}},
+        {"direction": {"value": "contradict", "claim_id": "claim:other"}},
+    ],
+)
+def test_reality_evidence_contract_rejects_open_or_nested_boundary_metadata(
+    updates: dict[str, object],
+) -> None:
+    case = learning_case()
+    evidence = evidence_record(
+        case,
+        evidence_id="outcome:closed-evidence-contract",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+        direction="support",
+    )
+    evidence.update(updates)
+
+    with pytest.raises(RealCaseLearningV2Error, match="REALITY_EVIDENCE_CONTRACT_CLOSED"):
+        record_future_outcome(case, evidence)
+
+
+def _reseal(record: dict[str, Any]) -> dict[str, Any]:
+    payload = {key: value for key, value in record.items() if key != "canonical_hash"}
+    record["canonical_hash"] = digest(
+        {"record_type": str(payload.get("record_type", "")), "payload": payload}
+    )
+    return record
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda manifest: manifest["train_case_ids"].append(
+            manifest["test_case_ids"][0]
+        ),
+        lambda manifest: manifest["forced_test_case_ids"].append(
+            manifest["test_case_ids"][0]
+        ),
+        lambda manifest: manifest.update(
+            {"corpus_hash": "sha256:" + "f" * 64}
+        ),
+        lambda manifest: manifest["dependency_hashes"].clear(),
+    ],
+)
+def test_hash_valid_partition_manifest_rejects_semantic_and_provenance_tampering(
+    mutate: Any,
+) -> None:
+    case = observed_case(
+        raw_identifier="synthetic-partition-integrity",
+        scenario_id="career:synthetic:partition-integrity",
+        prediction_id="prediction:synthetic:partition-integrity",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    manifest = build_temporal_partitions([case], cutoff_at="2026-01-01T00:00:00Z")
+    assert verify_temporal_partition_manifest(manifest)
+    assert manifest["corpus_hash"].startswith("sha256:")
+    assert manifest["dependency_hashes"] == [case["canonical_hash"]]
+    assert manifest["case_dependency_hashes"] == {
+        case["case_id"]: case["canonical_hash"]
+    }
+
+    tampered = deepcopy(manifest)
+    mutate(tampered)
+    assert verify_learning_record(_reseal(tampered))
+    assert not verify_temporal_partition_manifest(tampered)
+
+
+def test_partition_manifest_records_reproducible_base_and_forced_assignments() -> None:
+    duplicate = "sha256:" + "d" * 64
+    early = observed_case(
+        raw_identifier="synthetic-base-early",
+        scenario_id="career:synthetic:base-early",
+        prediction_id="prediction:synthetic:base-early",
+        generated_at="2024-01-01T00:00:00Z",
+        frozen_at="2024-01-01T00:01:00Z",
+        observed_at="2024-12-31T00:00:00Z",
+        collected_at="2024-12-31T00:01:00Z",
+        near_duplicate_fingerprint=duplicate,
+    )
+    late = observed_case(
+        raw_identifier="synthetic-base-late",
+        scenario_id="career:synthetic:base-late",
+        prediction_id="prediction:synthetic:base-late",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+        near_duplicate_fingerprint=duplicate,
+    )
+
+    manifest = build_temporal_partitions([early, late], cutoff_at="2026-01-01T00:00:00Z")
+    assert manifest["base_train_case_ids"] == [early["case_id"]]
+    assert manifest["base_test_case_ids"] == [late["case_id"]]
+    assert manifest["forced_test_case_ids"] == [early["case_id"]]
+    assert verify_temporal_partition_manifest(manifest)
