@@ -1,8 +1,11 @@
 # MINGLI Core Capability Surge V2 统一验证报告
 
-代码 checkpoint：`97a50149519f84099451a8c30e2dc54310c8fce6`  
-验证日期：2026-07-17  
-结果：本地工程门禁通过；远端 Draft PR CI 待创建后确认。  
+代码 checkpoint：`97a50149519f84099451a8c30e2dc54310c8fce6`
+
+验证日期：2026-07-17
+
+结果：本地工程门禁通过；远端 Draft PR CI 待创建后确认。
+
 Release Hold：`ACTIVE`
 
 ## 测试与合同

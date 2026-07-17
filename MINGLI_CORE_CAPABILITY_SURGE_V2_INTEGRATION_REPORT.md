@@ -1,10 +1,15 @@
 # MINGLI Core Capability Surge V2 集成报告
 
-状态：本地集成与对抗审查完成；最终集成 Draft PR 待创建。  
-冻结基线：`00eeaad66a2a36684ae2ad0b5b0074fcdf700640`  
-已验证代码 checkpoint：`97a50149519f84099451a8c30e2dc54310c8fce6`  
-分支：`integration/mingli-core-capability-surge-v2`  
-Release Hold：`ACTIVE`  
+状态：本地集成与对抗审查完成；最终集成 Draft PR 待创建。
+
+冻结基线：`00eeaad66a2a36684ae2ad0b5b0074fcdf700640`
+
+已验证代码 checkpoint：`97a50149519f84099451a8c30e2dc54310c8fce6`
+
+分支：`integration/mingli-core-capability-surge-v2`
+
+Release Hold：`ACTIVE`
+
 Prediction boundary：`prediction_validity=not_evaluated`
 
 ## 集成顺序
