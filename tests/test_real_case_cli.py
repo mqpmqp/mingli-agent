@@ -222,6 +222,8 @@ def test_case_os_cli_keeps_external_snapshots_append_only_after_start() -> None:
         observed_case_path = controlled / "observed-case.json"
         cases_path = controlled / "cases.json"
         partition_path = controlled / "partition.json"
+        adjudication_request_path = controlled / "adjudication-request.json"
+        adjudicated_case_path = controlled / "adjudicated-case.json"
         queue_path = controlled / "queue.json"
         withdrawal_path = controlled / "withdrawal.json"
         start_input.write_text(json.dumps(payload), encoding="utf-8")
@@ -319,16 +321,68 @@ def test_case_os_cli_keeps_external_snapshots_append_only_after_start() -> None:
         partition = json.loads(partition_path.read_text(encoding="utf-8"))
         assert observed_case["case_id"] in partition["test_case_ids"]
 
+        adjudication_request_path.write_text(
+            json.dumps(
+                {
+                    "adjudication_id": "adjudication:synthetic:cli",
+                    "claim_id": "claim:career:cli",
+                    "scope": "career:2025-h2",
+                    "outcome_evidence_ids": ["evidence:synthetic:future:cli"],
+                    "status": "miss",
+                    "error_taxonomy": ["wrong_direction"],
+                    "rule_attributions": [
+                        {
+                            "rule_id": "rule:synthetic:career:cli",
+                            "attribution": "candidate_contributor",
+                        }
+                    ],
+                    "revision": {
+                        "revision_id": "revision:synthetic:cli",
+                        "proposal": "Synthetic contract revision for operator review.",
+                    },
+                    "benchmark_comparison": {
+                        "baseline_version": "synthetic-rules@2.0.0",
+                        "candidate_version": "synthetic-rules@2.0.1-draft",
+                        "baseline_status": "miss",
+                        "candidate_status": "partial",
+                        "partition": "test",
+                        "leakage_clean": True,
+                        "partition_manifest": partition,
+                    },
+                    "recommendation": "demote",
+                    "adjudicated_at": "2026-01-03T00:00:00Z",
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert validation_main(
+            [
+                "case-adjudicate",
+                "--case",
+                str(observed_case_path),
+                "--request",
+                str(adjudication_request_path),
+                "--output",
+                str(adjudicated_case_path),
+            ]
+        ) == 0
+        adjudicated_case = json.loads(adjudicated_case_path.read_text(encoding="utf-8"))
+        assert adjudicated_case["lifecycle_status"] == "pending_operator_review"
+        assert adjudicated_case["negative_case_archive"]
+
+        cases_path.write_text(json.dumps([adjudicated_case]), encoding="utf-8")
         assert validation_main(
             ["case-review-queue", "--cases", str(cases_path), "--output", str(queue_path)]
         ) == 0
-        assert json.loads(queue_path.read_text(encoding="utf-8"))["automatic_actions_applied"] == 0
+        queue = json.loads(queue_path.read_text(encoding="utf-8"))
+        assert queue["automatic_actions_applied"] == 0
+        assert queue["entries"][0]["recommendation"] == "demote"
 
         assert validation_main(
             [
                 "case-withdraw",
                 "--case",
-                str(observed_case_path),
+                str(adjudicated_case_path),
                 "--withdrawn-at",
                 "2026-01-03T00:00:00Z",
                 "--output",
