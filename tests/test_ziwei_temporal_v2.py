@@ -280,6 +280,27 @@ def test_child_temporal_overlays_require_explicit_parent_hierarchy() -> None:
         evaluate_ziwei_temporal_v2(chart, overlays=[month])
 
 
+def test_child_temporal_overlays_require_unique_parent_hierarchy() -> None:
+    chart = synthetic_contract_chart()
+    decade, year, month = synthetic_contract_overlays()
+
+    overlapping_decade = deepcopy(decade)
+    overlapping_decade["overlay_id"] = "synthetic-decade-overlap-2020"
+    overlapping_decade["start_year"] = 2020
+    overlapping_decade["end_year"] = 2029
+    with pytest.raises(ZiweiTemporalV2Error, match="exactly one supplied decade"):
+        evaluate_ziwei_temporal_v2(
+            chart, overlays=[decade, overlapping_decade, year, month]
+        )
+
+    duplicate_year = deepcopy(year)
+    duplicate_year["overlay_id"] = "synthetic-year-2028-duplicate-parent"
+    with pytest.raises(ZiweiTemporalV2Error, match="exactly one supplied year"):
+        evaluate_ziwei_temporal_v2(
+            chart, overlays=[decade, year, duplicate_year, month]
+        )
+
+
 def test_priority_suppression_and_equal_priority_conflict_demote_confidence() -> None:
     chart = synthetic_contract_chart()
 
