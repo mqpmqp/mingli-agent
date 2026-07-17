@@ -985,7 +985,12 @@ def build_learning_case(
         {
             "known_at": str(reality_context["known_at"]),
             "facts": normalized_reality["facts"],
-            "excluded_future_information": list(reality_context.get("excluded_future_information", [])),
+            "excluded_future_information": list(
+                cast(
+                    Sequence[object],
+                    reality_context.get("excluded_future_information", []),
+                )
+            ),
             "freeze_status": "frozen",
             "frozen_at": frozen_at,
         },

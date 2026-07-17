@@ -345,6 +345,12 @@ def _strings(value: object, name: str, *, allow_empty: bool = False) -> list[str
     return result
 
 
+def _integer(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ZiweiTemporalV2Error(f"{name} must be an integer")
+    return value
+
+
 def _validate_rule(rule: Mapping[str, object]) -> None:
     rule_id = rule.get("rule_id")
     if not isinstance(rule_id, str) or not rule_id:
@@ -567,8 +573,8 @@ def _chart_tokens(chart: Mapping[str, object]) -> set[str]:
                     f"geometry:{anchor_name}:{relation}:transformation:{transformation}"
                 )
 
-    life = int(chart["life_palace"])
-    body = int(chart["body_palace"])
+    life = _integer(chart["life_palace"], "chart.life_palace")
+    body = _integer(chart["body_palace"], "chart.body_palace")
     distance = (body - life) % 12
     if distance == 0:
         relationship = "same_palace"
@@ -760,16 +766,18 @@ def _resolve_candidates(
         grouped[(str(rule["claim_id"]), str(rule["conflict_group"]))].append(rule)
     findings: list[dict[str, object]] = []
     for group_rules in grouped.values():
-        highest = max(int(rule["priority"]) for rule in group_rules)
+        highest = max(
+            _integer(rule["priority"], "rule.priority") for rule in group_rules
+        )
         top_directions = {
             str(rule["direction"])
             for rule in group_rules
-            if int(rule["priority"]) == highest
+            if _integer(rule["priority"], "rule.priority") == highest
         }
         for rule in group_rules:
             demotions: list[str] = []
             confidence = str(rule["confidence"])
-            if int(rule["priority"]) < highest:
+            if _integer(rule["priority"], "rule.priority") < highest:
                 resolution = "suppressed_by_higher_priority"
                 confidence = "low"
                 demotions.append("higher_priority_conflict")
@@ -783,7 +791,7 @@ def _resolve_candidates(
                 {
                     "rule_id": rule["rule_id"],
                     "category": rule["category"],
-                    "topics": list(rule["topics"]),
+                    "topics": _strings(rule["topics"], "rule.topics"),
                     "claim_id": rule["claim_id"],
                     "scope": scope,
                     "temporal_level": rule["temporal_level"],
@@ -959,7 +967,7 @@ def evaluate_ziwei_temporal_v2(
         key=lambda item: (
             str(item["scope"]),
             str(item["claim_id"]),
-            -int(item["priority"]),
+            -_integer(item["priority"], "finding.priority"),
             str(item["rule_id"]),
         )
     )
@@ -1038,7 +1046,9 @@ def _coverage_item(rule: Mapping[str, object]) -> dict[str, object]:
         lower_peer["direction"] = (
             "contradict" if rule["direction"] == "support" else "support"
         )
-        lower_peer["priority"] = max(0, int(rule["priority"]) - 1)
+        lower_peer["priority"] = max(
+            0, _integer(rule["priority"], "rule.priority") - 1
+        )
         lower_findings = _resolve_candidates(
             [rule, lower_peer], scope="synthetic-coverage", window=None
         )
@@ -1050,7 +1060,8 @@ def _coverage_item(rule: Mapping[str, object]) -> dict[str, object]:
             [rule, equal_peer], scope="synthetic-coverage", window=None
         )
         paths["priority_conflict"] = (
-            int(rule["priority"]) == int(rule["canonical_priority"])
+            _integer(rule["priority"], "rule.priority")
+            == _integer(rule["canonical_priority"], "rule.canonical_priority")
             and rule["conflict_policy"] == _CONFLICT_POLICY
             and lower_by_id[rule_id]["resolution"] == "matched"
             and lower_by_id[str(lower_peer["rule_id"])]["resolution"]

@@ -84,12 +84,18 @@ def _records(value: object, field: str) -> tuple[dict[str, object], ...]:
     return tuple(records)
 
 
+def _strings(value: object, field: str) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise CapabilitySurgeV2Error(f"{field} must be an array")
+    if any(not isinstance(item, str) or not item for item in value):
+        raise CapabilitySurgeV2Error(f"{field} must contain non-empty strings")
+    return list(value)
+
+
 def _unsupported_rows(bazi: Mapping[str, object]) -> tuple[dict[str, object], ...]:
     summary = _mapping(bazi.get("facet_summary"), "bazi.facet_summary")
-    raw = summary.get("unsupported")
-    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
-        raise CapabilitySurgeV2Error("bazi unsupported facet summary must be an array")
-    rows = [
+    raw = _strings(summary.get("unsupported"), "bazi.facet_summary.unsupported")
+    rows: list[dict[str, object]] = [
         {
             "capability": f"bazi.{facet}",
             "status": "unsupported",
@@ -135,7 +141,7 @@ def _capability_matrix(
     summary = _mapping(bazi.get("facet_summary"), "bazi.facet_summary")
     return {
         "bazi": {
-            key: list(summary.get(key, ()))
+            key: _strings(summary.get(key, ()), f"bazi.facet_summary.{key}")
             for key in ("implemented", "conditional", "unsupported")
         },
         "ziwei": {

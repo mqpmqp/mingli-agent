@@ -118,7 +118,7 @@ class BaziExpertV2InputError(ValueError):
     """Raised when V2 orchestration cannot proceed without guessing."""
 
 
-def _plain(value: object) -> dict[str, object]:
+def _plain(value: CapabilityFacet) -> dict[str, object]:
     return json.loads(canonical_json(asdict(value)))
 
 
@@ -215,6 +215,14 @@ def _mapping(value: object, name: str) -> dict[str, object]:
     if not isinstance(value, Mapping):
         raise BaziExpertV2InputError(f"{name} must be an object")
     return dict(value)
+
+
+def _string_values(value: object, name: str) -> tuple[str, ...]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise BaziExpertV2InputError(f"{name} must be an array")
+    if any(not isinstance(item, str) or not item for item in value):
+        raise BaziExpertV2InputError(f"{name} must contain non-empty strings")
+    return tuple(value)
 
 
 def _records(
@@ -778,8 +786,12 @@ def _compatibility_view(
     right_strength = peer["phase9"]
     left_xiji = left["phase12"]
     right_xiji = peer["phase12"]
-    left_yongshen = set(str(value) for value in left_xiji["yongshen_elements"])
-    right_yongshen = set(str(value) for value in right_xiji["yongshen_elements"])
+    left_yongshen = set(
+        _string_values(left_xiji["yongshen_elements"], "left.yongshen_elements")
+    )
+    right_yongshen = set(
+        _string_values(right_xiji["yongshen_elements"], "right.yongshen_elements")
+    )
     view = {
         "comparison_only": True,
         "left": {
@@ -801,7 +813,7 @@ def _compatibility_view(
             "no_relationship_outcome_prediction",
         ],
     }
-    peer_refs = {
+    peer_refs: dict[str, object] = {
         key: _source_ref(value) for key, value in sorted(peer.items())
     }
     return view, "available", peer_refs
