@@ -195,3 +195,95 @@ def test_case_start_operator_can_privacy_scan_an_external_contract_fixture() -> 
 
         assert code == 0
         assert json.loads(stdout.getvalue()) == {"findings": [], "passed": True}
+
+
+def test_case_os_cli_keeps_external_snapshots_append_only_after_start() -> None:
+    payload = _case_start_input()
+    with TemporaryDirectory(dir=Path.cwd().parent) as directory:
+        controlled = Path(directory)
+        start_input = controlled / "start.json"
+        frozen_case_path = controlled / "frozen-case.json"
+        evidence_path = controlled / "future-evidence.json"
+        observed_case_path = controlled / "observed-case.json"
+        cases_path = controlled / "cases.json"
+        partition_path = controlled / "partition.json"
+        queue_path = controlled / "queue.json"
+        withdrawal_path = controlled / "withdrawal.json"
+        start_input.write_text(json.dumps(payload), encoding="utf-8")
+        person_case_id = str(payload["intake"]["person_case_id"])
+        evidence_path.write_text(
+            json.dumps(
+                {
+                    "evidence_id": "evidence:synthetic:future:cli",
+                    "person_case_id": person_case_id,
+                    "scenario_id": "career:synthetic:cli",
+                    "claim_id": "claim:career:cli",
+                    "scope": "career:2025-h2",
+                    "event_window": "2025-07-01T00:00:00Z/2025-12-31T23:59:59Z",
+                    "observed_at": "2025-12-31T00:00:00Z",
+                    "collected_at": "2026-01-02T00:00:00Z",
+                    "source_provenance": "synthetic_contract_fixture",
+                    "evidence_quality": "high",
+                    "direction": "contradict",
+                    "verified": True,
+                    "synthetic": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert validation_main(
+            ["case-start", "--input", str(start_input), "--output", str(frozen_case_path)]
+        ) == 0
+        frozen_case = json.loads(frozen_case_path.read_text(encoding="utf-8"))
+
+        assert validation_main(
+            [
+                "case-future",
+                "--case",
+                str(frozen_case_path),
+                "--evidence",
+                str(evidence_path),
+                "--output",
+                str(observed_case_path),
+            ]
+        ) == 0
+        observed_case = json.loads(observed_case_path.read_text(encoding="utf-8"))
+        assert frozen_case["lifecycle_status"] == "prediction_frozen"
+        assert observed_case["lifecycle_status"] == "future_outcome_observed"
+        assert observed_case["future_outcomes"][0]["reality_resolution"]["status"] == "resolved_by_reality_override"
+
+        cases_path.write_text(json.dumps([observed_case]), encoding="utf-8")
+        assert validation_main(
+            [
+                "case-partition",
+                "--cases",
+                str(cases_path),
+                "--cutoff-at",
+                "2026-01-01T00:00:00Z",
+                "--output",
+                str(partition_path),
+            ]
+        ) == 0
+        partition = json.loads(partition_path.read_text(encoding="utf-8"))
+        assert observed_case["case_id"] in partition["test_case_ids"]
+
+        assert validation_main(
+            ["case-review-queue", "--cases", str(cases_path), "--output", str(queue_path)]
+        ) == 0
+        assert json.loads(queue_path.read_text(encoding="utf-8"))["automatic_actions_applied"] == 0
+
+        assert validation_main(
+            [
+                "case-withdraw",
+                "--case",
+                str(observed_case_path),
+                "--withdrawn-at",
+                "2026-01-03T00:00:00Z",
+                "--output",
+                str(withdrawal_path),
+            ]
+        ) == 0
+        withdrawal = json.loads(withdrawal_path.read_text(encoding="utf-8"))
+        assert withdrawal["lifecycle_status"] == "withdrawn"
+        assert withdrawal["commercial_release_hold"] == "ACTIVE"
