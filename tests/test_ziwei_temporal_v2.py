@@ -621,9 +621,14 @@ def test_source_template_rewrite_cannot_rederive_the_frozen_semantic_contract(
         for rule in templates
     }
     monkeypatch.setattr(ziwei_temporal_v2, "_RULE_TEMPLATES", templates)
-    monkeypatch.setattr(ziwei_temporal_v2, "_EXPECTED_RULE_HASHES", rederived_hashes)
     monkeypatch.setattr(
-        ziwei_temporal_v2, "_EXPECTED_RULE_IDS", frozenset(rederived_hashes)
+        ziwei_temporal_v2, "_EXPECTED_RULE_HASHES", rederived_hashes, raising=False
+    )
+    monkeypatch.setattr(
+        ziwei_temporal_v2,
+        "_EXPECTED_RULE_IDS",
+        frozenset(rederived_hashes),
+        raising=False,
     )
 
     pack = load_ziwei_temporal_v2_rule_pack()
