@@ -64,3 +64,26 @@ python -m coverage report --include='*/release_hold_attack_v1.py' --show-missing
 - 本提交没有也不会引入真实用户、同意书、反馈、个人标识或可反向识别的 case 数据。
 - 合成测试通过不表示任何准确率、校准质量、商业可用性或 Release Hold 状态发生改变。
 - 只有合规的场外真实案例与未来反馈，经过独立人工审阅和独立产品授权，才可以触发人工复审；系统继续输出 `release_hold=ACTIVE`。
+
+## TrainingStore false-pass 收口
+
+旧 TrainingStore 曾仅根据调用者输入的 `preregistered_claim_outcome`、claim ID 和来源等级将 outcome 标为商业验证合格；它并不保存 V2 冻结主张、时间分割或双人裁决，因此不能证明该资格。
+
+RED checkpoint：`f4f4632`。测试 `test_training_outcome_cannot_self_attest_commercial_eligibility` 在修复前失败，因为 `commercial_validation_eligible` 为 `True`。
+
+GREEN checkpoint：`cee86e4`。`TrainingStore.add_outcome` 现在始终写入：
+
+```text
+commercial_validation_eligible = false
+eligibility_reason = REAL_CASE_V2_ADJUDICATION_REQUIRED
+```
+
+验证：
+
+```powershell
+$env:PYTHONPATH='src'; python -m pytest tests/test_product_training_loop.py -q --basetemp .pytest-training-tmp
+```
+
+结果：`17 passed in 25.86s`。
+
+`training.py` 的分支覆盖率为 `85%`（80% 门槛通过）。这项修复不降低真实案例门槛：商业指标仍只来自受控场外的 V2 Case OS 审理记录。
