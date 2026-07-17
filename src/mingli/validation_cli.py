@@ -8,7 +8,14 @@ import sys
 from typing import Mapping, Sequence
 
 from .contracts.serialization import canonical_json
-from .real_case_learning_v2 import build_learning_case
+from .real_case_learning_v2 import (
+    build_learning_case,
+    build_operator_review_queue,
+    build_temporal_partitions,
+    record_future_outcome,
+    record_prior_event_validation,
+    withdraw_case,
+)
 from .validation_astro_etl import transform_astro_record
 from .validation_authorization import evaluate_product_release
 from .validation_dataset import build_dataset_manifest, verify_dataset_manifest
@@ -93,6 +100,22 @@ def _parser() -> argparse.ArgumentParser:
     case_start = commands.add_parser("case-start")
     case_start.add_argument("--input", type=Path, required=True)
     case_start.add_argument("--output", type=Path, required=True)
+    for command_name in ("case-prior", "case-future"):
+        transition = commands.add_parser(command_name)
+        transition.add_argument("--case", type=Path, required=True)
+        transition.add_argument("--evidence", type=Path, required=True)
+        transition.add_argument("--output", type=Path, required=True)
+    partition = commands.add_parser("case-partition")
+    partition.add_argument("--cases", type=Path, required=True)
+    partition.add_argument("--cutoff-at", required=True)
+    partition.add_argument("--output", type=Path, required=True)
+    review_queue = commands.add_parser("case-review-queue")
+    review_queue.add_argument("--cases", type=Path, required=True)
+    review_queue.add_argument("--output", type=Path, required=True)
+    withdrawal = commands.add_parser("case-withdraw")
+    withdrawal.add_argument("--case", type=Path, required=True)
+    withdrawal.add_argument("--withdrawn-at", required=True)
+    withdrawal.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -220,6 +243,70 @@ def main(argv: Sequence[str] | None = None) -> int:
                 frozen_at=payload["frozen_at"],
                 synthetic=payload["synthetic"],
             )
+            _write_new(output_path, result)
+        elif args.command in {"case-prior", "case-future"}:
+            repo_root = Path.cwd()
+            case_path = _controlled_external_path(
+                args.case, repo_root, label="Case snapshot"
+            )
+            evidence_path = _controlled_external_path(
+                args.evidence, repo_root, label="Case evidence"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case transition output"
+            )
+            case = _read(case_path)
+            evidence = _read(evidence_path)
+            if not isinstance(case, Mapping) or not isinstance(evidence, Mapping):
+                raise ValueError("Case transition inputs must each contain a JSON object")
+            result = (
+                record_prior_event_validation(case, evidence)
+                if args.command == "case-prior"
+                else record_future_outcome(case, evidence)
+            )
+            _write_new(output_path, result)
+        elif args.command == "case-partition":
+            repo_root = Path.cwd()
+            cases_path = _controlled_external_path(
+                args.cases, repo_root, label="Case partition input"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case partition output"
+            )
+            cases = _read(cases_path)
+            if not isinstance(cases, list) or any(
+                not isinstance(case, Mapping) for case in cases
+            ):
+                raise ValueError("Case partition input must contain a JSON array of case objects")
+            result = build_temporal_partitions(cases, cutoff_at=args.cutoff_at)
+            _write_new(output_path, result)
+        elif args.command == "case-review-queue":
+            repo_root = Path.cwd()
+            cases_path = _controlled_external_path(
+                args.cases, repo_root, label="Case review queue input"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case review queue output"
+            )
+            cases = _read(cases_path)
+            if not isinstance(cases, list) or any(
+                not isinstance(case, Mapping) for case in cases
+            ):
+                raise ValueError("Case review queue input must contain a JSON array of case objects")
+            result = build_operator_review_queue(cases)
+            _write_new(output_path, result)
+        elif args.command == "case-withdraw":
+            repo_root = Path.cwd()
+            case_path = _controlled_external_path(
+                args.case, repo_root, label="Case withdrawal input"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case withdrawal output"
+            )
+            case = _read(case_path)
+            if not isinstance(case, Mapping):
+                raise ValueError("Case withdrawal input must contain a JSON object")
+            result = withdraw_case(case, withdrawn_at=args.withdrawn_at)
             _write_new(output_path, result)
         else:
             manifest = _read(args.manifest)

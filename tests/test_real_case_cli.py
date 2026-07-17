@@ -95,6 +95,19 @@ def _case_start_input() -> dict[str, object]:
                     "specificity_level": "bounded",
                     "exclusion_conditions": [],
                     "rule_ids": ["rule:synthetic:career:cli"],
+                },
+                {
+                    "claim_id": "claim:career:prior:cli",
+                    "scope": "career:prior:2025-01",
+                    "domain": "career",
+                    "time_window": "2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+                    "claim_type": "state",
+                    "predicted_direction": "support",
+                    "predicted_event_or_state": "bounded_prior_state",
+                    "confidence": 0.6,
+                    "specificity_level": "bounded",
+                    "exclusion_conditions": [],
+                    "rule_ids": ["rule:synthetic:career:prior:cli"],
                 }
             ],
             "confidence": 0.6,
@@ -203,6 +216,8 @@ def test_case_os_cli_keeps_external_snapshots_append_only_after_start() -> None:
         controlled = Path(directory)
         start_input = controlled / "start.json"
         frozen_case_path = controlled / "frozen-case.json"
+        prior_evidence_path = controlled / "prior-evidence.json"
+        prior_case_path = controlled / "prior-case.json"
         evidence_path = controlled / "future-evidence.json"
         observed_case_path = controlled / "observed-case.json"
         cases_path = controlled / "cases.json"
@@ -211,6 +226,26 @@ def test_case_os_cli_keeps_external_snapshots_append_only_after_start() -> None:
         withdrawal_path = controlled / "withdrawal.json"
         start_input.write_text(json.dumps(payload), encoding="utf-8")
         person_case_id = str(payload["intake"]["person_case_id"])
+        prior_evidence_path.write_text(
+            json.dumps(
+                {
+                    "evidence_id": "evidence:synthetic:prior:cli",
+                    "person_case_id": person_case_id,
+                    "scenario_id": "career:synthetic:cli",
+                    "claim_id": "claim:career:prior:cli",
+                    "scope": "career:prior:2025-01",
+                    "event_window": "2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+                    "observed_at": "2025-01-30T00:00:00Z",
+                    "collected_at": "2025-01-31T00:00:00Z",
+                    "source_provenance": "synthetic_contract_fixture",
+                    "evidence_quality": "high",
+                    "direction": "support",
+                    "verified": True,
+                    "synthetic": True,
+                }
+            ),
+            encoding="utf-8",
+        )
         evidence_path.write_text(
             json.dumps(
                 {
@@ -239,9 +274,23 @@ def test_case_os_cli_keeps_external_snapshots_append_only_after_start() -> None:
 
         assert validation_main(
             [
-                "case-future",
+                "case-prior",
                 "--case",
                 str(frozen_case_path),
+                "--evidence",
+                str(prior_evidence_path),
+                "--output",
+                str(prior_case_path),
+            ]
+        ) == 0
+        prior_case = json.loads(prior_case_path.read_text(encoding="utf-8"))
+        assert prior_case["lifecycle_status"] == "prior_event_validated"
+
+        assert validation_main(
+            [
+                "case-future",
+                "--case",
+                str(prior_case_path),
                 "--evidence",
                 str(evidence_path),
                 "--output",
@@ -250,7 +299,9 @@ def test_case_os_cli_keeps_external_snapshots_append_only_after_start() -> None:
         ) == 0
         observed_case = json.loads(observed_case_path.read_text(encoding="utf-8"))
         assert frozen_case["lifecycle_status"] == "prediction_frozen"
+        assert frozen_case["prior_event_validations"] == []
         assert observed_case["lifecycle_status"] == "future_outcome_observed"
+        assert len(observed_case["prior_event_validations"]) == 1
         assert observed_case["future_outcomes"][0]["reality_resolution"]["status"] == "resolved_by_reality_override"
 
         cases_path.write_text(json.dumps([observed_case]), encoding="utf-8")
