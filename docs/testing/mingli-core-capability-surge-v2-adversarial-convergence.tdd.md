@@ -79,3 +79,13 @@ New guarantees: year/month overlays require an explicit decade parent and month 
 - Full regression disproved that interpretation: the established temporal-partition contract intentionally permits an outcome to be observed or collected after its event window, then uses event end, observation time, and collection availability together to assign train/test.
 - Correct invariant: the frozen `event_window` bounds the claimed event period; `observed_at` is when the outcome becomes observable. It must not precede the window start, but it may follow the window end. `collected_at` must not precede observation.
 - Correction evidence: the four V2 focused suites returned to `75 passed`; the invalid upper-bound tests and uncommitted implementation were removed without rewriting history.
+
+## Theme 1 unique-parent convergence
+
+- Fresh dual-review result before the fix: FAIL / PASS.
+- RED checkpoint: `87d58a6`; overlapping decade parents and duplicate year parents were accepted for the same child chain.
+- GREEN checkpoint: `d6bc69c`.
+- Parent containment target: `3 passed`.
+- Four V2 focused suites: `76 passed`.
+- Ziwei V2 branch coverage: 81%.
+- Rule: each child year must be contained by exactly one supplied decade, and each month must be contained by exactly one supplied year; ambiguous parents fail closed.
