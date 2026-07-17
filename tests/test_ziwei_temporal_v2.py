@@ -562,3 +562,50 @@ def test_invalid_rule_pack_is_rejected_by_runtime_even_if_coverage_reports_failu
         evaluate_ziwei_temporal_v2(
             synthetic_contract_chart(), rule_pack=pack
         )
+
+
+@pytest.mark.parametrize(
+    "replacement_tokens",
+    [
+        ["temporal:natal"],
+        [
+            "temporal:natal",
+            "palace:synthetic:never-derived-by-runtime",
+        ],
+    ],
+)
+def test_coordinated_semantic_trigger_rewrites_cannot_reseal_false_coverage(
+    replacement_tokens: list[str],
+) -> None:
+    pack = deepcopy(load_ziwei_temporal_v2_rule_pack())
+    rule = pack["rules"][0]
+    assert isinstance(rule, dict)
+    rule["trigger"]["all"] = list(replacement_tokens)
+    rule["canonical_trigger"]["all"] = list(replacement_tokens)
+    rule["synthetic_contract_fixture"]["tokens"] = list(replacement_tokens)
+    _rehash_rule(rule)
+    _rehash_pack(pack)
+
+    coverage = build_ziwei_temporal_v2_coverage(pack)
+    item = next(
+        record
+        for record in coverage["rules"]
+        if record["rule_id"] == rule["rule_id"]
+    )
+    assert item["covered"] is False
+    assert item["paths"]["canonical_trigger"] is False
+    assert coverage["complete"] is False
+    with pytest.raises(ZiweiTemporalV2Error, match="semantic|ruleset"):
+        evaluate_ziwei_temporal_v2(synthetic_contract_chart(), rule_pack=pack)
+
+
+def test_resealed_subset_cannot_claim_complete_ruleset_coverage() -> None:
+    pack = deepcopy(load_ziwei_temporal_v2_rule_pack())
+    pack["rules"] = pack["rules"][:1]
+    _rehash_pack(pack)
+
+    coverage = build_ziwei_temporal_v2_coverage(pack)
+    assert coverage["rule_count"] == 1
+    assert coverage["complete"] is False
+    with pytest.raises(ZiweiTemporalV2Error, match="ruleset"):
+        evaluate_ziwei_temporal_v2(synthetic_contract_chart(), rule_pack=pack)
