@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -158,6 +159,35 @@ def test_case_start_rejects_a_checkout_output_without_writing() -> None:
 
         assert code == 1
         assert not output_path.exists()
+        assert "outside the Git checkout" in stderr.getvalue()
+
+
+def test_case_start_rejects_a_checkout_output_when_called_from_controlled_storage() -> None:
+    repo_root = Path.cwd()
+    output_path = repo_root / "case-start-cwd-escape.json"
+    if output_path.exists():
+        output_path.unlink()
+    with (
+        TemporaryDirectory(dir=repo_root.parent) as controlled_directory,
+        TemporaryDirectory(dir=repo_root.parent) as input_directory,
+    ):
+        controlled = Path(controlled_directory)
+        input_path = Path(input_directory) / "start.json"
+        input_path.write_text(json.dumps(_case_start_input()), encoding="utf-8")
+        stderr = io.StringIO()
+        original_cwd = Path.cwd()
+        try:
+            os.chdir(controlled)
+            with redirect_stderr(stderr):
+                code = validation_main(
+                    ["case-start", "--input", str(input_path), "--output", str(output_path)]
+                )
+        finally:
+            os.chdir(original_cwd)
+            if output_path.exists():
+                output_path.unlink()
+
+        assert code == 1
         assert "outside the Git checkout" in stderr.getvalue()
 
 
