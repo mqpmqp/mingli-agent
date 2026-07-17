@@ -89,3 +89,12 @@ New guarantees: year/month overlays require an explicit decade parent and month 
 - Four V2 focused suites: `76 passed`.
 - Ziwei V2 branch coverage: 81%.
 - Rule: each child year must be contained by exactly one supplied decade, and each month must be contained by exactly one supplied year; ambiguous parents fail closed.
+
+## Theme 1 dedup-contract convergence
+
+- Fresh dual-review result before the fix: FAIL / FAIL.
+- RED checkpoint: `7a396ff`; manifest declared a standalone `event_window` dedup key that the identity graph did not and should not apply across unrelated people.
+- GREEN checkpoint: `0057490`.
+- Correct dedup identity keys: `person_case_id`, `prediction_id`, `derived_fingerprint`, `near_duplicate_fingerprint`. The derived fingerprint already binds person, prediction, chart/question hashes, and claim windows.
+- Different people sharing a common event period remain independently partitionable; near-duplicate or identity-linked components still use test-priority union.
+- Four V2 focused suites: `76 passed`; Real Case branch coverage 81%; contract/packaging regression `16 passed`; frozen contracts 78/78.
