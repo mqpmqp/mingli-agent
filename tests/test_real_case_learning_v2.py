@@ -633,7 +633,11 @@ def test_withdrawal_returns_only_tombstone_and_invalidates_all_dependencies() ->
     assert case["person_case_id"] not in json.dumps(tombstone, sort_keys=True)
     assert verify_learning_record(tombstone)
 
-    manifest = build_temporal_partitions([tombstone], cutoff_at="2026-01-01T00:00:00Z")
+    manifest = build_temporal_partitions(
+        [tombstone],
+        cutoff_at="2026-01-01T00:00:00Z",
+        trusted_withdrawal_hashes=[tombstone["canonical_hash"]],
+    )
     assert manifest["withdrawn_case_refs"] == [tombstone["case_ref_hash"]]
     assert manifest["train_case_ids"] == []
     assert manifest["test_case_ids"] == []

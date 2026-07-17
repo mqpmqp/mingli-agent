@@ -452,12 +452,31 @@ def _privacy_scan_projection(value: object) -> object:
         projected: dict[str, object] = {}
         for key, item in value.items():
             field = str(key)
-            if (
-                field == "person_case_id"
-                or field.endswith("_hash")
-                or field.endswith("_hashes")
-                or field.endswith("_sha")
-            ):
+            valid_person_id = field == "person_case_id" and isinstance(
+                item, str
+            ) and _PERSON_CASE_ID.fullmatch(item)
+            valid_hash = (
+                field.endswith("_hash")
+                and isinstance(item, str)
+                and _SHA256.fullmatch(item)
+            )
+            valid_hashes = (
+                field.endswith("_hashes")
+                and isinstance(item, list)
+                and all(
+                    isinstance(entry, str) and _SHA256.fullmatch(entry)
+                    for entry in item
+                )
+            )
+            valid_sha = (
+                field.endswith("_sha")
+                and isinstance(item, str)
+                and (
+                    _SHA256.fullmatch(item) is not None
+                    or re.fullmatch(r"[0-9a-f]{40}", item) is not None
+                )
+            )
+            if valid_person_id or valid_hash or valid_hashes or valid_sha:
                 continue
             projected[field] = _privacy_scan_projection(item)
         return projected
@@ -1197,6 +1216,31 @@ def record_future_outcome(
             "FUTURE_OUTCOME_BEFORE_WINDOW",
             "future outcome cannot be observed before its frozen event window starts",
         )
+    outcomes = cast(list[object], result["future_outcomes"])
+    if any(
+        isinstance(item, Mapping)
+        and item.get("evidence_id") == entry["evidence_id"]
+        for item in outcomes
+    ):
+        raise RealCaseLearningV2Error(
+            "DUPLICATE_EVIDENCE", "future outcome evidence_id already exists"
+        )
+    for item in outcomes:
+        if not isinstance(item, Mapping):
+            continue
+        existing = item.get("evidence_snapshot")
+        if (
+            isinstance(existing, Mapping)
+            and existing.get("claim_id") == payload.get("claim_id")
+            and existing.get("scope") == payload.get("scope")
+            and existing.get("verified") is True
+            and payload.get("verified") is True
+            and existing.get("direction") != payload.get("direction")
+        ):
+            raise RealCaseLearningV2Error(
+                "CONFLICTING_REALITY_EVIDENCE",
+                "opposite verified outcomes for one claim and scope require operator reconciliation",
+            )
     chart_evidence = {
         "evidence_id": f"prediction:{result['case_id']}:{claim['claim_id']}",
         "claim_id": claim["claim_id"],
@@ -1227,9 +1271,6 @@ def record_future_outcome(
         raise RealCaseLearningV2Error("REALITY_EVIDENCE_REJECTED", str(exc)) from exc
     entry["reality_resolution"] = fusion.claims[0].to_dict()
     sealed_entry = _seal(entry)
-    outcomes = cast(list[object], result["future_outcomes"])
-    if any(isinstance(item, Mapping) and item.get("evidence_id") == entry["evidence_id"] for item in outcomes):
-        raise RealCaseLearningV2Error("DUPLICATE_EVIDENCE", "future outcome evidence_id already exists")
     outcomes.append(sealed_entry)
     result["lifecycle_status"] = "future_outcome_observed"
     result["dependency_hashes"] = _dependency_hashes(result, sealed_entry["canonical_hash"])
@@ -1844,9 +1885,26 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
 
 
 def build_temporal_partitions(
-    cases: Sequence[Mapping[str, object]], *, cutoff_at: str
+    cases: Sequence[Mapping[str, object]],
+    *,
+    cutoff_at: str,
+    trusted_withdrawal_hashes: Sequence[str] = (),
 ) -> dict[str, object]:
     cutoff = _parse_time(cutoff_at, code="TEMPORAL_BOUNDARY_MISSING", field="cutoff_at")
+    if isinstance(trusted_withdrawal_hashes, (str, bytes)) or any(
+        not isinstance(item, str) or _SHA256.fullmatch(item) is None
+        for item in trusted_withdrawal_hashes
+    ):
+        raise RealCaseLearningV2Error(
+            "WITHDRAWAL_TRUST_INVALID",
+            "trusted withdrawal registry must contain canonical tombstone hashes",
+        )
+    trusted_withdrawals = set(trusted_withdrawal_hashes)
+    if len(trusted_withdrawals) != len(trusted_withdrawal_hashes):
+        raise RealCaseLearningV2Error(
+            "WITHDRAWAL_TRUST_INVALID",
+            "trusted withdrawal registry cannot contain duplicates",
+        )
     candidates: list[dict[str, object]] = []
     tombstones: dict[str, dict[str, object]] = {}
     for case in cases:
@@ -1870,12 +1928,14 @@ def build_temporal_partitions(
             "DUPLICATE_CASE", "partition input contains a duplicate case_id"
         )
     active: list[dict[str, object]] = []
+    matched_withdrawal_refs: set[str] = set()
     for payload in candidates:
         case_ref = digest({"case_id": payload["case_id"]})
         tombstone = tombstones.get(case_ref)
         if tombstone is None:
             active.append(payload)
             continue
+        matched_withdrawal_refs.add(case_ref)
         expected_invalidated = sorted(
             set(_dependency_hashes(payload, payload.get("canonical_hash")))
             | _collect_hashes(payload)
@@ -1902,6 +1962,17 @@ def build_temporal_partitions(
                 "WITHDRAWAL_CONTRACT_INVALID",
                 "withdrawal tombstone does not bind the matching case and dependencies",
             )
+    unbound_tombstones = [
+        item
+        for case_ref, item in tombstones.items()
+        if case_ref not in matched_withdrawal_refs
+        and item.get("canonical_hash") not in trusted_withdrawals
+    ]
+    if unbound_tombstones:
+        raise RealCaseLearningV2Error(
+            "WITHDRAWAL_TRUST_REQUIRED",
+            "standalone withdrawal tombstones require an explicit trusted registry proof",
+        )
 
     withdrawn_refs = sorted(tombstones)
     withdrawal_dependency_hashes = sorted(
