@@ -40,6 +40,10 @@ def _write_new(path: Path, value: object) -> None:
         handle.write(canonical_json(value) + "\n")
 
 
+def _checkout_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
 def _controlled_external_path(path: Path, repo_root: Path, *, label: str) -> Path:
     resolved = path.resolve()
     root = repo_root.resolve()
@@ -128,7 +132,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "astro-intake":
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             source_path = _controlled_external_path(
                 args.file,
                 repo_root,
@@ -151,19 +155,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 dry_run=args.dry_run,
             ).to_dict()
         elif args.command == "intake":
-            store = _controlled_store(args.store, Path.cwd())
+            store = _controlled_store(args.store, _checkout_root())
             result = import_intakes(store, [_read(args.file)], source_ref=args.source_ref, dry_run=args.dry_run).to_dict()
         elif args.command == "intake-batch":
-            store = _controlled_store(args.store, Path.cwd())
+            store = _controlled_store(args.store, _checkout_root())
             records = [_read(path) for path in sorted(args.directory.glob("*.json"))]
             result = import_intakes(store, records, source_ref=args.source_ref, dry_run=args.dry_run).to_dict()
         elif args.command == "rollback-import":
-            store = _controlled_store(args.store, Path.cwd())
+            store = _controlled_store(args.store, _checkout_root())
             result = rollback_import(store, args.batch_id).__dict__
         elif args.command == "validate-intake":
             result = {"valid": True, "intake_canonical_hash": validate_intake(_read(args.file))["intake_canonical_hash"]}
         elif args.command == "freeze-prediction":
-            store = _controlled_store(args.store, Path.cwd())
+            store = _controlled_store(args.store, _checkout_root())
             result = freeze_prediction(
                 _read(args.file), store=store,
                 frozen_at=args.frozen_at or datetime.now(timezone.utc).isoformat(),
@@ -187,7 +191,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "verify-protocol":
             result = {"valid": verify_validation_protocol(_read(args.file))}
         elif args.command == "hold-reassessment":
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             records_path = _controlled_external_path(
                 args.records,
                 repo_root,
@@ -212,7 +216,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             }
             _write_new(output_path, result)
         elif args.command == "case-start":
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             input_path = _controlled_external_path(
                 args.input,
                 repo_root,
@@ -250,7 +254,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _write_new(output_path, result)
         elif args.command in {"case-prior", "case-future"}:
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             case_path = _controlled_external_path(
                 args.case, repo_root, label="Case snapshot"
             )
@@ -271,7 +275,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _write_new(output_path, result)
         elif args.command == "case-partition":
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             cases_path = _controlled_external_path(
                 args.cases, repo_root, label="Case partition input"
             )
@@ -286,7 +290,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = build_temporal_partitions(cases, cutoff_at=args.cutoff_at)
             _write_new(output_path, result)
         elif args.command == "case-adjudicate":
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             case_path = _controlled_external_path(
                 args.case, repo_root, label="Case adjudication input"
             )
@@ -333,7 +337,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _write_new(output_path, result)
         elif args.command == "case-review-queue":
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             cases_path = _controlled_external_path(
                 args.cases, repo_root, label="Case review queue input"
             )
@@ -348,7 +352,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = build_operator_review_queue(cases)
             _write_new(output_path, result)
         elif args.command == "case-withdraw":
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             case_path = _controlled_external_path(
                 args.case, repo_root, label="Case withdrawal input"
             )
