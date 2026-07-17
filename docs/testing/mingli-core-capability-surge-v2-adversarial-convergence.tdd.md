@@ -123,3 +123,15 @@ New guarantees: every direct Bazi/Ziwei Reality Evidence record declares a close
 - Ruff and `git diff --check`: PASS.
 
 New guarantees: a rule carrying the fixed V2 content version must match the built-in semantic rule hash for its rule ID, and a runtime rule pack must contain the exact complete versioned rule-ID set. Behavioral coverage therefore fails for coordinated trigger/fixture/hash rewrites and for resealed subsets; conflict suppression/demotion remains tested directly at the shared resolver boundary.
+
+## Theme 2 independent-manifest convergence
+
+- Fresh dual-review result before the fix: FAIL / PASS.
+- RED checkpoint: `1f23a74`; a source-level semantic rewrite could still rederive the expected hashes from the same active `_RULE_TEMPLATES` under the unchanged content version.
+- RED target: `test_source_template_rewrite_cannot_rederive_the_frozen_semantic_contract` failed because the coordinated rewrite reported `covered=true`.
+- GREEN checkpoint: `14fd9b1`.
+- Ziwei focused result: `28 passed`.
+- Explicit Ziwei plus manifest branch coverage: 81% with `--cov-branch --cov-fail-under=80`.
+- Ruff and `git diff --check`: PASS.
+
+The fixed content version now resolves against literal rule IDs and semantic hashes in an independent frozen manifest. Executable rule templates cannot regenerate or replace that trust anchor at import time; a source-template rewrite therefore fails both behavioral coverage and runtime validation unless the content version and independently reviewed manifest are intentionally advanced together.
