@@ -209,12 +209,15 @@ class TrainingStore:
         return result
 
     def add_outcome(self, value: Mapping[str, object]) -> dict[str, object]:
-        preregistered = bool(
-            value.get("relation_to_prior_claim") == "preregistered_claim_outcome"
-            and value.get("preregistered_claim_id")
-            and value.get("source_reliability") == "independently_verified"
-        )
-        payload = {**value, "commercial_validation_eligible": preregistered, "valid": True}
+        # This legacy training loop does not carry a V2 frozen-claim snapshot,
+        # a temporal partition, or double-human adjudication.  Caller-provided
+        # fields therefore cannot self-attest commercial-validation eligibility.
+        payload = {
+            **value,
+            "commercial_validation_eligible": False,
+            "eligibility_reason": "REAL_CASE_V2_ADJUDICATION_REQUIRED",
+            "valid": True,
+        }
         case_id = str(payload.get("case_id", ""))
         self.show_case(case_id)
         run = self._read("run", str(payload.get("run_id", "")))
@@ -318,6 +321,7 @@ class TrainingStore:
             "commercial_validation_eligible_observations": len(eligible),
             "limitations": [
                 "training_feedback_is_not_prediction_accuracy",
+                "training_outcomes_require_real_case_v2_adjudication",
                 "commercial_validation_requires_separate_frozen_dataset_and_independent_scoring",
             ],
         }
