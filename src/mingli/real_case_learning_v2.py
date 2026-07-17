@@ -5,6 +5,9 @@ import json
 import re
 from typing import Mapping, Sequence, cast
 
+from jsonschema import Draft202012Validator, ValidationError
+
+from .contracts import get_schema
 from .contracts.serialization import canonical_json, digest
 from .phase18 import Phase18InputError, normalize_reality_context, orchestrate_evidence_fusion
 from .training import TRAINING_SCHEMA_VERSION
@@ -435,7 +438,134 @@ def _verify_sealed_record(record: Mapping[str, object]) -> bool:
     )
 
 
+def _validate_schema(
+    payload: Mapping[str, object], *, schema_name: str, code: str
+) -> None:
+    try:
+        Draft202012Validator(get_schema(schema_name)).validate(payload)
+    except ValidationError as exc:
+        raise RealCaseLearningV2Error(code, exc.message) from exc
+
+
+def _privacy_scan_projection(value: object) -> object:
+    if isinstance(value, Mapping):
+        projected: dict[str, object] = {}
+        for key, item in value.items():
+            field = str(key)
+            if (
+                field == "person_case_id"
+                or field.endswith("_hash")
+                or field.endswith("_hashes")
+                or field.endswith("_sha")
+            ):
+                continue
+            projected[field] = _privacy_scan_projection(item)
+        return projected
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [_privacy_scan_projection(item) for item in value]
+    return value
+
+
+def _validate_v2_case_intake(case: Mapping[str, object]) -> None:
+    _require_clean(_privacy_scan_projection(case))
+    intake = case.get("intake_snapshot")
+    if not isinstance(intake, Mapping):
+        raise RealCaseLearningV2Error(
+            "CASE_INTAKE_CONTRACT_INVALID", "intake snapshot is missing"
+        )
+    intake_source = cast(dict[str, object], _plain(intake))
+    intake_source.pop("intake_canonical_hash", None)
+    try:
+        validated_intake = validate_intake(intake_source)
+    except IntakeError as exc:
+        raise RealCaseLearningV2Error(
+            "CASE_INTAKE_CONTRACT_INVALID", str(exc)
+        ) from exc
+    if validated_intake != intake:
+        raise RealCaseLearningV2Error(
+            "CASE_INTAKE_CONTRACT_INVALID",
+            "intake snapshot canonical hash or semantics changed after intake",
+        )
+    consent = cast(Mapping[str, object], validated_intake["consent"])
+    expected_consent = {
+        "status": consent["consent_status"],
+        "research_use_allowed": consent["research_use_allowed"],
+        "benchmark_use_allowed": consent["benchmark_use_allowed"],
+        "withdrawal_supported": consent["withdrawal_supported"],
+    }
+    if case.get("consent") != expected_consent:
+        raise RealCaseLearningV2Error(
+            "CASE_CONSENT_CONTRACT_INVALID",
+            "case consent projection diverges from the validated intake snapshot",
+        )
+    scenarios = validated_intake.get("scenarios")
+    scenario_ids = {
+        str(item.get("scenario_id"))
+        for item in cast(list[object], scenarios)
+        if isinstance(item, Mapping)
+    }
+    if (
+        case.get("person_case_id") != validated_intake.get("person_case_id")
+        or case.get("scenario_id") not in scenario_ids
+    ):
+        raise RealCaseLearningV2Error(
+            "CASE_INTAKE_CONTRACT_INVALID",
+            "case identity diverges from the validated intake snapshot",
+        )
+    metadata = cast(Mapping[str, object], validated_intake["case_metadata"])
+    birth = cast(Mapping[str, object], validated_intake["birth_input"])
+    provenance = (
+        str(metadata.get("collection_channel", "")),
+        str(metadata.get("source_provenance", "")),
+        str(birth.get("source", "")),
+    )
+    if any("synthetic" in item.casefold() for item in provenance) and case.get(
+        "synthetic"
+    ) is not True:
+        raise RealCaseLearningV2Error(
+            "CASE_SYNTHETIC_CONTRACT_INVALID",
+            "synthetic intake provenance cannot be relabelled as a real case",
+        )
+
+
+def _validate_v2_review_records(
+    case: Mapping[str, object], dependency_hashes: set[str]
+) -> None:
+    checks = {
+        "adjudications": lambda item: item.get("operator_review_required") is True,
+        "revisions": lambda item: item.get("review_state")
+        == "pending_operator_review"
+        and item.get("applied") is False,
+        "benchmark_comparisons": lambda item: item.get("prediction_validity")
+        == PREDICTION_VALIDITY,
+        "rule_recommendations": lambda item: item.get("review_state")
+        == "pending_operator_review"
+        and item.get("applied_to_rules") is False,
+        "negative_case_archive": lambda item: item.get("review_state")
+        == "pending_operator_review"
+        and item.get("accuracy_eligible") is False,
+    }
+    for field, safe in checks.items():
+        records = case.get(field)
+        if not isinstance(records, list):
+            raise RealCaseLearningV2Error(
+                "CASE_REVIEW_CONTRACT_INVALID", f"{field} must be an array"
+            )
+        for item in records:
+            if (
+                not isinstance(item, Mapping)
+                or not _verify_sealed_record(item)
+                or item.get("canonical_hash") not in dependency_hashes
+                or not safe(item)
+            ):
+                raise RealCaseLearningV2Error(
+                    "CASE_REVIEW_CONTRACT_INVALID",
+                    f"{field} contains an unsafe or unbound review record",
+                )
+
+
 def _validate_v2_case_semantics(case: Mapping[str, object]) -> None:
+    _validate_v2_case_intake(case)
     prediction = case.get("prediction_snapshot")
     if not isinstance(prediction, Mapping):
         raise RealCaseLearningV2Error(
@@ -460,6 +590,80 @@ def _validate_v2_case_semantics(case: Mapping[str, object]) -> None:
             "CASE_PREDICTION_CONTRACT_INVALID",
             "prediction snapshot hash is not bound into case dependencies",
         )
+    dependency_hash_set = {str(item) for item in dependency_hashes}
+    intake_snapshot = cast(Mapping[str, object], case["intake_snapshot"])
+    if intake_snapshot.get("intake_canonical_hash") not in dependency_hash_set:
+        raise RealCaseLearningV2Error(
+            "CASE_INTAKE_CONTRACT_INVALID",
+            "intake snapshot hash is not bound into case dependencies",
+        )
+    for field, record_type in (
+        ("chart_snapshot", "RealCaseChartSnapshotV2"),
+        ("original_question_snapshot", "OriginalQuestionSnapshotV2"),
+        ("prediction_time_reality_snapshot", "PredictionTimeRealitySnapshotV2"),
+    ):
+        snapshot = case.get(field)
+        if (
+            not isinstance(snapshot, Mapping)
+            or snapshot.get("record_type") != record_type
+            or snapshot.get("freeze_status") != "frozen"
+            or not _verify_sealed_record(snapshot)
+            or snapshot.get("canonical_hash") not in dependency_hash_set
+        ):
+            raise RealCaseLearningV2Error(
+                "CASE_SNAPSHOT_CONTRACT_INVALID",
+                f"{field} is not a frozen dependency-bound V2 snapshot",
+            )
+    reality_snapshot = cast(
+        Mapping[str, object], case["prediction_time_reality_snapshot"]
+    )
+    if _parse_time(
+        reality_snapshot.get("known_at"),
+        code="CASE_SNAPSHOT_CONTRACT_INVALID",
+        field="prediction_time_reality_snapshot.known_at",
+    ) > generated:
+        raise RealCaseLearningV2Error(
+            "CASE_SNAPSHOT_CONTRACT_INVALID",
+            "prediction-time reality snapshot contains future information",
+        )
+    expected_case_seed = digest(
+        {
+            "person_case_id": case.get("person_case_id"),
+            "scenario_id": case.get("scenario_id"),
+            "prediction_id": prediction.get("prediction_id"),
+        }
+    )
+    if case.get("case_id") != f"case:{expected_case_seed[7:]}":
+        raise RealCaseLearningV2Error(
+            "CASE_IDENTITY_CONTRACT_INVALID", "case_id diverges from frozen identity"
+        )
+    chart = cast(Mapping[str, object], case["chart_snapshot"])
+    question = cast(Mapping[str, object], case["original_question_snapshot"])
+    claims = prediction.get("structured_claims")
+    assert isinstance(claims, list)
+    expected_fingerprint = digest(
+        {
+            "person_case_id": case.get("person_case_id"),
+            "prediction_id": prediction.get("prediction_id"),
+            "chart_snapshot_hash": chart.get("canonical_hash"),
+            "question_snapshot_hash": question.get("canonical_hash"),
+            "claim_windows": sorted(
+                (
+                    str(item["claim_id"]),
+                    str(item["scope"]),
+                    str(item.get("time_window", "")),
+                )
+                for item in claims
+                if isinstance(item, Mapping)
+            ),
+        }
+    )
+    if case.get("derived_fingerprint") != expected_fingerprint:
+        raise RealCaseLearningV2Error(
+            "CASE_IDENTITY_CONTRACT_INVALID",
+            "derived fingerprint diverges from frozen case dependencies",
+        )
+    _validate_v2_review_records(case, dependency_hash_set)
     for relation, field, expected_fields in (
         ("prior", "prior_event_validations", _PRIOR_EVIDENCE_ENTRY_FIELDS),
         ("future", "future_outcomes", _FUTURE_EVIDENCE_ENTRY_FIELDS),
@@ -563,6 +767,26 @@ def _validate_v2_case_semantics(case: Mapping[str, object]) -> None:
                         "CASE_EVIDENCE_CONTRACT_INVALID",
                         "future evidence resolution diverges from claim and scope",
                     )
+    _validate_schema(
+        case,
+        schema_name="real_case_learning_v2_case.schema.json",
+        code="CASE_SCHEMA_INVALID",
+    )
+    has_review = any(
+        cast(list[object], case[field])
+        for field in (
+            "adjudications",
+            "revisions",
+            "benchmark_comparisons",
+            "rule_recommendations",
+            "negative_case_archive",
+        )
+    )
+    if has_review and case.get("lifecycle_status") != "pending_operator_review":
+        raise RealCaseLearningV2Error(
+            "CASE_LIFECYCLE_CONTRACT_INVALID",
+            "case lifecycle diverges from its frozen evidence and review records",
+        )
 
 
 def _claim(snapshot: Mapping[str, object], claim_id: str, scope: str) -> dict[str, object]:
@@ -1250,6 +1474,43 @@ def _utc_iso(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _collect_hashes(value: object) -> set[str]:
+    if isinstance(value, Mapping):
+        return {
+            str(item)
+            for key, item in value.items()
+            if key == "canonical_hash"
+            and isinstance(item, str)
+            and _SHA256.fullmatch(item)
+        } | set().union(*(_collect_hashes(item) for item in value.values()))
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return set().union(*(_collect_hashes(item) for item in value))
+    return set()
+
+
+def _validate_v2_withdrawal_tombstone(payload: Mapping[str, object]) -> None:
+    _validate_schema(
+        payload,
+        schema_name="real_case_learning_v2_withdrawal.schema.json",
+        code="WITHDRAWAL_CONTRACT_INVALID",
+    )
+    _parse_time(
+        payload.get("withdrawn_at"),
+        code="WITHDRAWAL_CONTRACT_INVALID",
+        field="withdrawn_at",
+    )
+    invalidated = payload.get("invalidated_dependency_hashes")
+    if (
+        not isinstance(invalidated, list)
+        or invalidated != sorted(set(str(item) for item in invalidated))
+        or any(_SHA256.fullmatch(str(item)) is None for item in invalidated)
+    ):
+        raise RealCaseLearningV2Error(
+            "WITHDRAWAL_CONTRACT_INVALID",
+            "invalidated dependency hashes must be non-empty, unique, and canonical",
+        )
+
+
 def _verified_for_partition(case: Mapping[str, object]) -> dict[str, object]:
     payload = cast(dict[str, object], _plain(case))
     ingested_at = payload.pop("ingested_at", None)
@@ -1259,6 +1520,8 @@ def _verified_for_partition(case: Mapping[str, object]) -> dict[str, object]:
         raise RealCaseLearningV2Error("CASE_HASH_INVALID", "case hash is invalid")
     if payload.get("record_type") == "RealCaseLearningV2Case":
         _validate_v2_case_semantics(payload)
+    elif payload.get("record_type") == "RealCaseLearningV2Withdrawal":
+        _validate_v2_withdrawal_tombstone(payload)
     return payload
 
 
@@ -1437,6 +1700,7 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
         test = set(cast(list[str], manifest["test_case_ids"]))
         forced = set(cast(list[str], manifest["forced_test_case_ids"]))
         synthetic = set(cast(list[str], manifest["synthetic_case_ids"]))
+        withdrawn = set(cast(list[str], manifest["withdrawn_case_refs"]))
         case_dependencies = manifest.get("case_dependency_hashes")
         case_inputs = manifest.get("case_partition_inputs")
         if not isinstance(case_dependencies, Mapping) or not isinstance(
@@ -1541,6 +1805,10 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
             or train != base_train - forced
             or test != base_test | forced
             or not synthetic <= dependency_cases
+            or any(
+                digest({"case_id": case_id}) in withdrawn
+                for case_id in dependency_cases
+            )
             or cast(list[object], manifest["accuracy_eligible_case_ids"])
             or any(
                 _SHA256.fullmatch(value) is None
@@ -1579,18 +1847,66 @@ def build_temporal_partitions(
     cases: Sequence[Mapping[str, object]], *, cutoff_at: str
 ) -> dict[str, object]:
     cutoff = _parse_time(cutoff_at, code="TEMPORAL_BOUNDARY_MISSING", field="cutoff_at")
-    active: list[dict[str, object]] = []
-    withdrawn_refs: list[str] = []
-    withdrawal_dependency_hashes: list[str] = []
+    candidates: list[dict[str, object]] = []
+    tombstones: dict[str, dict[str, object]] = {}
     for case in cases:
         payload = _verified_for_partition(case)
         if payload.get("record_type") == "RealCaseLearningV2Withdrawal":
-            withdrawn_refs.append(str(payload["case_ref_hash"]))
-            withdrawal_dependency_hashes.append(str(payload["canonical_hash"]))
+            case_ref = str(payload["case_ref_hash"])
+            if case_ref in tombstones:
+                raise RealCaseLearningV2Error(
+                    "DUPLICATE_WITHDRAWAL",
+                    "only one withdrawal tombstone is accepted per case reference",
+                )
+            tombstones[case_ref] = payload
             continue
         if payload.get("record_type") != "RealCaseLearningV2Case":
             raise RealCaseLearningV2Error("UNSUPPORTED_CASE_SCHEMA", "partition input is not a V2 case")
-        active.append(payload)
+        candidates.append(payload)
+
+    candidate_ids = [str(item["case_id"]) for item in candidates]
+    if len(candidate_ids) != len(set(candidate_ids)):
+        raise RealCaseLearningV2Error(
+            "DUPLICATE_CASE", "partition input contains a duplicate case_id"
+        )
+    active: list[dict[str, object]] = []
+    for payload in candidates:
+        case_ref = digest({"case_id": payload["case_id"]})
+        tombstone = tombstones.get(case_ref)
+        if tombstone is None:
+            active.append(payload)
+            continue
+        expected_invalidated = sorted(
+            set(_dependency_hashes(payload, payload.get("canonical_hash")))
+            | _collect_hashes(payload)
+        )
+        prediction = cast(Mapping[str, object], payload["prediction_snapshot"])
+        if (
+            tombstone.get("person_ref_hash")
+            != digest({"person_case_id": payload["person_case_id"]})
+            or tombstone.get("synthetic") is not payload.get("synthetic")
+            or tombstone.get("invalidated_dependency_hashes")
+            != expected_invalidated
+            or _parse_time(
+                tombstone.get("withdrawn_at"),
+                code="WITHDRAWAL_CONTRACT_INVALID",
+                field="withdrawn_at",
+            )
+            < _parse_time(
+                prediction.get("freeze_timestamp"),
+                code="WITHDRAWAL_CONTRACT_INVALID",
+                field="prediction.freeze_timestamp",
+            )
+        ):
+            raise RealCaseLearningV2Error(
+                "WITHDRAWAL_CONTRACT_INVALID",
+                "withdrawal tombstone does not bind the matching case and dependencies",
+            )
+
+    withdrawn_refs = sorted(tombstones)
+    withdrawal_dependency_hashes = sorted(
+        str(item["canonical_hash"]) for item in tombstones.values()
+    )
 
     metadata: dict[str, dict[str, object]] = {}
     for case in active:
@@ -1627,12 +1943,12 @@ def build_temporal_partitions(
         "train_case_ids": train_ids,
         "test_case_ids": test_ids,
         "forced_test_case_ids": sorted(forced_test),
-        "withdrawn_case_refs": sorted(withdrawn_refs),
+        "withdrawn_case_refs": withdrawn_refs,
         "synthetic_case_ids": synthetic_ids,
         "accuracy_eligible_case_ids": [],
         "case_dependency_hashes": case_dependency_hashes,
         "case_partition_inputs": metadata,
-        "withdrawal_dependency_hashes": sorted(withdrawal_dependency_hashes),
+        "withdrawal_dependency_hashes": withdrawal_dependency_hashes,
         "dependency_hashes": dependency_hashes,
         "corpus_hash": _partition_corpus_hash(
             case_dependency_hashes=case_dependency_hashes,
@@ -1686,21 +2002,23 @@ def build_operator_review_queue(cases: Sequence[Mapping[str, object]]) -> dict[s
 
 def withdraw_case(case: Mapping[str, object], *, withdrawn_at: str) -> dict[str, object]:
     payload = _case_copy(case)
-    _parse_time(withdrawn_at, code="WITHDRAWAL_TIME_INVALID", field="withdrawn_at")
-
-    def collect_hashes(value: object) -> set[str]:
-        if isinstance(value, Mapping):
-            return {
-                str(item)
-                for key, item in value.items()
-                if key == "canonical_hash" and isinstance(item, str) and _SHA256.fullmatch(item)
-            } | set().union(*(collect_hashes(item) for item in value.values()))
-        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            return set().union(*(collect_hashes(item) for item in value))
-        return set()
+    withdrawal_time = _parse_time(
+        withdrawn_at, code="WITHDRAWAL_TIME_INVALID", field="withdrawn_at"
+    )
+    prediction = cast(Mapping[str, object], payload["prediction_snapshot"])
+    if withdrawal_time < _parse_time(
+        prediction.get("freeze_timestamp"),
+        code="WITHDRAWAL_TIME_INVALID",
+        field="prediction.freeze_timestamp",
+    ):
+        raise RealCaseLearningV2Error(
+            "WITHDRAWAL_TIME_INVALID",
+            "withdrawal cannot precede the frozen case it invalidates",
+        )
 
     dependencies = sorted(
-        set(_dependency_hashes(payload, case.get("canonical_hash"))) | collect_hashes(case)
+        set(_dependency_hashes(payload, case.get("canonical_hash")))
+        | _collect_hashes(case)
     )
     body = {
         "record_type": "RealCaseLearningV2Withdrawal",

@@ -1297,6 +1297,40 @@ def test_withdrawal_suppresses_matching_original_case_from_all_partitions() -> N
     assert manifest["dependency_hashes"] == [tombstone["canonical_hash"]]
 
 
+def test_manifest_rejects_resealed_active_and_withdrawn_same_case() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-withdrawal-manifest-forgery",
+        scenario_id="career:synthetic:withdrawal-manifest-forgery",
+        prediction_id="prediction:synthetic:withdrawal-manifest-forgery",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    tombstone = withdraw_case(case, withdrawn_at="2026-02-01T00:00:00Z")
+    forged = build_temporal_partitions(
+        [case], cutoff_at="2026-01-01T00:00:00Z"
+    )
+    forged["withdrawn_case_refs"] = [tombstone["case_ref_hash"]]
+    forged["withdrawal_dependency_hashes"] = [tombstone["canonical_hash"]]
+    forged["dependency_hashes"] = sorted(
+        {*forged["dependency_hashes"], tombstone["canonical_hash"]}
+    )
+    forged["corpus_hash"] = digest(
+        {
+            "case_dependency_hashes": forged["case_dependency_hashes"],
+            "case_partition_inputs": forged["case_partition_inputs"],
+            "withdrawn_case_refs": forged["withdrawn_case_refs"],
+            "withdrawal_dependency_hashes": forged[
+                "withdrawal_dependency_hashes"
+            ],
+        }
+    )
+    _reseal(forged)
+    assert verify_learning_record(forged)
+    assert verify_temporal_partition_manifest(forged) is False
+
+
 @pytest.mark.parametrize(
     ("field", "unsafe_value"),
     [
