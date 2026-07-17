@@ -8,6 +8,7 @@ import sys
 from typing import Mapping, Sequence
 
 from .contracts.serialization import canonical_json
+from .real_case_learning_v2 import build_learning_case
 from .validation_astro_etl import transform_astro_record
 from .validation_authorization import evaluate_product_release
 from .validation_dataset import build_dataset_manifest, verify_dataset_manifest
@@ -89,6 +90,9 @@ def _parser() -> argparse.ArgumentParser:
     reassessment = commands.add_parser("hold-reassessment")
     reassessment.add_argument("--records", type=Path, required=True)
     reassessment.add_argument("--output", type=Path, required=True)
+    case_start = commands.add_parser("case-start")
+    case_start.add_argument("--input", type=Path, required=True)
+    case_start.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -178,6 +182,44 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "metrics": metrics,
                 "reassessment": reassessment,
             }
+            _write_new(output_path, result)
+        elif args.command == "case-start":
+            repo_root = Path.cwd()
+            input_path = _controlled_external_path(
+                args.input,
+                repo_root,
+                label="Case start input",
+            )
+            output_path = _controlled_external_path(
+                args.output,
+                repo_root,
+                label="Case start output",
+            )
+            payload = _read(input_path)
+            required_fields = {
+                "intake",
+                "chart_snapshot",
+                "original_question",
+                "prediction_time_reality_context",
+                "prediction",
+                "frozen_at",
+                "synthetic",
+            }
+            if not isinstance(payload, Mapping) or set(payload) != required_fields:
+                raise ValueError(
+                    "Case start input must contain exactly the required V2 case fields"
+                )
+            result = build_learning_case(
+                payload["intake"],
+                chart_snapshot=payload["chart_snapshot"],
+                original_question=payload["original_question"],
+                prediction_time_reality_context=payload[
+                    "prediction_time_reality_context"
+                ],
+                prediction=payload["prediction"],
+                frozen_at=payload["frozen_at"],
+                synthetic=payload["synthetic"],
+            )
             _write_new(output_path, result)
         else:
             manifest = _read(args.manifest)

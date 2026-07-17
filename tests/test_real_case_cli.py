@@ -127,3 +127,71 @@ def test_case_start_cli_writes_only_an_external_frozen_contract_fixture() -> Non
         assert case["synthetic"] is True
         assert case["accuracy_eligible"] is False
         assert case["commercial_release_hold"] == "ACTIVE"
+
+
+def test_case_start_rejects_a_checkout_output_without_writing() -> None:
+    with TemporaryDirectory(dir=Path.cwd().parent) as directory:
+        input_path = Path(directory) / "start.json"
+        output_path = Path.cwd() / "case-start-output.json"
+        input_path.write_text(json.dumps(_case_start_input()), encoding="utf-8")
+        if output_path.exists():
+            output_path.unlink()
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            code = validation_main(
+                ["case-start", "--input", str(input_path), "--output", str(output_path)]
+            )
+
+        assert code == 1
+        assert not output_path.exists()
+        assert "outside the Git checkout" in stderr.getvalue()
+
+
+def test_case_start_fails_closed_when_synthetic_provenance_is_relabelled_real() -> None:
+    payload = _case_start_input()
+    payload["synthetic"] = False
+    with TemporaryDirectory(dir=Path.cwd().parent) as directory:
+        input_path = Path(directory) / "start.json"
+        output_path = Path(directory) / "case.json"
+        input_path.write_text(json.dumps(payload), encoding="utf-8")
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            code = validation_main(
+                ["case-start", "--input", str(input_path), "--output", str(output_path)]
+            )
+
+        assert code == 1
+        assert not output_path.exists()
+        assert "synthetic" in stderr.getvalue()
+
+
+def test_case_start_rejects_an_unsealed_payload_shape_without_writing() -> None:
+    with TemporaryDirectory(dir=Path.cwd().parent) as directory:
+        input_path = Path(directory) / "start.json"
+        output_path = Path(directory) / "case.json"
+        input_path.write_text(json.dumps({"synthetic": True}), encoding="utf-8")
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            code = validation_main(
+                ["case-start", "--input", str(input_path), "--output", str(output_path)]
+            )
+
+        assert code == 1
+        assert not output_path.exists()
+        assert "exactly the required V2 case fields" in stderr.getvalue()
+
+
+def test_case_start_operator_can_privacy_scan_an_external_contract_fixture() -> None:
+    with TemporaryDirectory(dir=Path.cwd().parent) as directory:
+        fixture_path = Path(directory) / "synthetic-contract.json"
+        fixture_path.write_text(json.dumps({"synthetic": True}), encoding="utf-8")
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            code = validation_main(["privacy-scan", str(fixture_path)])
+
+        assert code == 0
+        assert json.loads(stdout.getvalue()) == {"findings": [], "passed": True}
