@@ -9,6 +9,7 @@ from typing import Mapping, Sequence
 
 from .contracts.serialization import canonical_json
 from .real_case_learning_v2 import (
+    adjudicate_outcome,
     build_learning_case,
     build_operator_review_queue,
     build_temporal_partitions,
@@ -109,6 +110,10 @@ def _parser() -> argparse.ArgumentParser:
     partition.add_argument("--cases", type=Path, required=True)
     partition.add_argument("--cutoff-at", required=True)
     partition.add_argument("--output", type=Path, required=True)
+    adjudicate = commands.add_parser("case-adjudicate")
+    adjudicate.add_argument("--case", type=Path, required=True)
+    adjudicate.add_argument("--request", type=Path, required=True)
+    adjudicate.add_argument("--output", type=Path, required=True)
     review_queue = commands.add_parser("case-review-queue")
     review_queue.add_argument("--cases", type=Path, required=True)
     review_queue.add_argument("--output", type=Path, required=True)
@@ -279,6 +284,53 @@ def main(argv: Sequence[str] | None = None) -> int:
             ):
                 raise ValueError("Case partition input must contain a JSON array of case objects")
             result = build_temporal_partitions(cases, cutoff_at=args.cutoff_at)
+            _write_new(output_path, result)
+        elif args.command == "case-adjudicate":
+            repo_root = Path.cwd()
+            case_path = _controlled_external_path(
+                args.case, repo_root, label="Case adjudication input"
+            )
+            request_path = _controlled_external_path(
+                args.request, repo_root, label="Case adjudication request"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case adjudication output"
+            )
+            case = _read(case_path)
+            request = _read(request_path)
+            required_fields = {
+                "adjudication_id",
+                "claim_id",
+                "scope",
+                "outcome_evidence_ids",
+                "status",
+                "error_taxonomy",
+                "rule_attributions",
+                "revision",
+                "benchmark_comparison",
+                "recommendation",
+                "adjudicated_at",
+            }
+            if not isinstance(case, Mapping):
+                raise ValueError("Case adjudication input must contain a JSON object")
+            if not isinstance(request, Mapping) or set(request) != required_fields:
+                raise ValueError(
+                    "Case adjudication request must contain exactly the required V2 fields"
+                )
+            result = adjudicate_outcome(
+                case,
+                adjudication_id=request["adjudication_id"],
+                claim_id=request["claim_id"],
+                scope=request["scope"],
+                outcome_evidence_ids=request["outcome_evidence_ids"],
+                status=request["status"],
+                error_taxonomy=request["error_taxonomy"],
+                rule_attributions=request["rule_attributions"],
+                revision=request["revision"],
+                benchmark_comparison=request["benchmark_comparison"],
+                recommendation=request["recommendation"],
+                adjudicated_at=request["adjudicated_at"],
+            )
             _write_new(output_path, result)
         elif args.command == "case-review-queue":
             repo_root = Path.cwd()
