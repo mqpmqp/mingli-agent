@@ -1372,3 +1372,73 @@ def test_withdrawal_must_invalidate_the_matching_original_case_dependencies() ->
         build_temporal_partitions(
             [case, tombstone], cutoff_at="2026-01-01T00:00:00Z"
         )
+
+
+def test_hash_named_open_snapshot_field_cannot_hide_resealed_pii() -> None:
+    case = learning_case(raw_identifier="synthetic-hidden-pii-reseal")
+    chart = case["chart_snapshot"]
+    old_chart_hash = chart["canonical_hash"]
+    chart["contact_sha"] = "alice@example.com"
+    _reseal(chart)
+    case["dependency_hashes"] = sorted(
+        chart["canonical_hash"] if value == old_chart_hash else value
+        for value in case["dependency_hashes"]
+    )
+    case["derived_fingerprint"] = digest(
+        {
+            "person_case_id": case["person_case_id"],
+            "prediction_id": case["prediction_snapshot"]["prediction_id"],
+            "chart_snapshot_hash": chart["canonical_hash"],
+            "question_snapshot_hash": case["original_question_snapshot"][
+                "canonical_hash"
+            ],
+            "claim_windows": sorted(
+                (
+                    item["claim_id"],
+                    item["scope"],
+                    item.get("time_window", ""),
+                )
+                for item in case["prediction_snapshot"]["structured_claims"]
+            ),
+        }
+    )
+    _reseal(case)
+    assert verify_learning_record(case)
+
+    with pytest.raises(RealCaseLearningV2Error, match="PII_DETECTED"):
+        summarize_learning_cases([case])
+
+
+def test_conflicting_verified_future_reality_for_same_claim_scope_fails_closed() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-conflicting-future-reality",
+        scenario_id="career:synthetic:conflicting-future-reality",
+        prediction_id="prediction:synthetic:conflicting-future-reality",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    conflicting = evidence_record(
+        case,
+        evidence_id="outcome:synthetic:conflicting-support",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-03T00:00:00Z",
+        direction="support",
+    )
+
+    with pytest.raises(RealCaseLearningV2Error, match="CONFLICTING_REALITY_EVIDENCE"):
+        record_future_outcome(case, conflicting)
+
+
+def test_standalone_withdrawal_requires_explicit_trusted_registry_proof() -> None:
+    case = learning_case(raw_identifier="synthetic-standalone-forged-withdrawal")
+    tombstone = withdraw_case(case, withdrawn_at="2026-02-01T00:00:00Z")
+    tombstone["case_ref_hash"] = "sha256:" + "a" * 64
+    tombstone["person_ref_hash"] = "sha256:" + "b" * 64
+    tombstone["invalidated_dependency_hashes"] = ["sha256:" + "c" * 64]
+    _reseal(tombstone)
+    assert verify_learning_record(tombstone)
+
+    with pytest.raises(RealCaseLearningV2Error, match="WITHDRAWAL_TRUST_REQUIRED"):
+        build_temporal_partitions([tombstone], cutoff_at="2026-01-01T00:00:00Z")
