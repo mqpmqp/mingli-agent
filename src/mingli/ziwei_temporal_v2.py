@@ -670,7 +670,7 @@ def _normalize_overlay(
 
 def _validate_overlay_containment(overlays: Sequence[Mapping[str, object]]) -> None:
     decades: list[tuple[int, int]] = []
-    years: set[int] = set()
+    years: list[int] = []
     months: list[int] = []
     for overlay in overlays:
         level = overlay.get("level")
@@ -686,7 +686,7 @@ def _validate_overlay_containment(overlays: Sequence[Mapping[str, object]]) -> N
             year = overlay.get("year")
             if not isinstance(year, int) or isinstance(year, bool):
                 raise ZiweiTemporalV2Error("normalized year overlay is invalid")
-            years.add(year)
+            years.append(year)
         elif level == "month":
             year = overlay.get("year")
             if not isinstance(year, int) or isinstance(year, bool):
@@ -702,16 +702,19 @@ def _validate_overlay_containment(overlays: Sequence[Mapping[str, object]]) -> N
             "month overlays require a supplied year overlay"
         )
     if decades:
-        for child_year in sorted(years | set(months)):
-            if not any(start <= child_year <= end for start, end in decades):
+        for child_year in sorted(set(years) | set(months)):
+            parent_count = sum(
+                start <= child_year <= end for start, end in decades
+            )
+            if parent_count != 1:
                 raise ZiweiTemporalV2Error(
-                    "year and month overlays must be contained by a supplied decade overlay"
+                    "year and month overlays must be contained by exactly one supplied decade overlay"
                 )
     if years:
         for month_year in months:
-            if month_year not in years:
+            if years.count(month_year) != 1:
                 raise ZiweiTemporalV2Error(
-                    "month overlays must be contained by a supplied year overlay"
+                    "month overlays must be contained by exactly one supplied year overlay"
                 )
 
 
