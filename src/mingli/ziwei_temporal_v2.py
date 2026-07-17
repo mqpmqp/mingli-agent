@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from copy import deepcopy
+from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from jsonschema import Draft202012Validator, ValidationError
@@ -300,6 +301,15 @@ def _with_hash(record_type: str, value: Mapping[str, object]) -> dict[str, objec
     return result
 
 
+_EXPECTED_RULE_HASHES = MappingProxyType(
+    {
+        str(rule["rule_id"]): _record_hash(_RULE_RECORD_TYPE, rule)
+        for rule in _RULE_TEMPLATES
+    }
+)
+_EXPECTED_RULE_IDS = frozenset(_EXPECTED_RULE_HASHES)
+
+
 def load_ziwei_temporal_v2_rule_pack() -> dict[str, object]:
     """Load a fresh deterministic copy of the built-in additive v2 rule pack."""
     rules = [_with_hash(_RULE_RECORD_TYPE, rule) for rule in _RULE_TEMPLATES]
@@ -399,6 +409,11 @@ def _validate_rule(rule: Mapping[str, object]) -> None:
     if set(fixture["tokens"]) != set(trigger_tokens):
         raise ZiweiTemporalV2Error(f"{rule_id} fixture does not exercise its trigger")
     expected_hash = _record_hash(_RULE_RECORD_TYPE, rule)
+    expected_semantic_hash = _EXPECTED_RULE_HASHES.get(rule_id)
+    if expected_semantic_hash is None or expected_hash != expected_semantic_hash:
+        raise ZiweiTemporalV2Error(
+            f"{rule_id} differs from the versioned ruleset semantic contract"
+        )
     if rule.get("canonical_hash") != expected_hash:
         raise ZiweiTemporalV2Error(f"{rule_id} canonical_hash mismatch")
 
@@ -424,6 +439,10 @@ def _validate_pack(pack: Mapping[str, object]) -> list[Mapping[str, object]]:
     ids = [str(item["rule_id"]) for item in rules]
     if not rules or len(ids) != len(set(ids)):
         raise ZiweiTemporalV2Error("rule pack rule_id values must be non-empty and unique")
+    if set(ids) != _EXPECTED_RULE_IDS:
+        raise ZiweiTemporalV2Error(
+            "rule pack differs from the complete versioned ruleset"
+        )
     expected_hash = _record_hash(_PACK_RECORD_TYPE, pack)
     if pack.get("canonical_hash") != expected_hash:
         raise ZiweiTemporalV2Error("rule pack canonical_hash mismatch")
@@ -1088,6 +1107,7 @@ def build_ziwei_temporal_v2_coverage(
         bool(items)
         and all(bool(item["covered"]) for item in items)
         and len(ids) == len(set(ids))
+        and set(ids) == _EXPECTED_RULE_IDS
         and pack_hash_valid
         and metadata_valid
     )

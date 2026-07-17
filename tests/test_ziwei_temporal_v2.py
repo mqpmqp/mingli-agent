@@ -14,6 +14,7 @@ from mingli.ziwei_temporal_v2 import (
     ZIWEI_TEMPORAL_V2_RULESET_VERSION,
     ZIWEI_TEMPORAL_V2_SCHEMA_VERSION,
     ZiweiTemporalV2Error,
+    _resolve_candidates,
     build_ziwei_temporal_v2_coverage,
     evaluate_ziwei_temporal_v2,
     load_ziwei_temporal_v2_rule_pack,
@@ -126,7 +127,7 @@ def _rehash_chart(chart: dict[str, object]) -> dict[str, object]:
     return chart
 
 
-def _custom_conflict_pack(*, equal_priority: bool) -> dict[str, object]:
+def _custom_conflict_rules(*, equal_priority: bool) -> list[dict[str, object]]:
     pack = deepcopy(load_ziwei_temporal_v2_rule_pack())
     winner = deepcopy(pack["rules"][0])
     assert isinstance(winner, dict)
@@ -145,8 +146,7 @@ def _custom_conflict_pack(*, equal_priority: bool) -> dict[str, object]:
     challenger["canonical_priority"] = challenger["priority"]
     _rehash_rule(challenger)
 
-    pack["rules"] = [winner, challenger]
-    return _rehash_pack(pack)
+    return [winner, challenger]
 
 
 def _finding(result: dict[str, object], rule_id: str, scope: str) -> dict[str, object]:
@@ -302,28 +302,34 @@ def test_child_temporal_overlays_require_unique_parent_hierarchy() -> None:
 
 
 def test_priority_suppression_and_equal_priority_conflict_demote_confidence() -> None:
-    chart = synthetic_contract_chart()
-
-    prioritized = evaluate_ziwei_temporal_v2(
-        chart, rule_pack=_custom_conflict_pack(equal_priority=False)
+    prioritized = _resolve_candidates(
+        _custom_conflict_rules(equal_priority=False),
+        scope="natal",
+        window=None,
     )
-    winner = _finding(
-        prioritized, "ziwei-temporal-v2:test:priority-winner", "natal"
+    winner = next(
+        item
+        for item in prioritized
+        if item["rule_id"] == "ziwei-temporal-v2:test:priority-winner"
     )
-    loser = _finding(
-        prioritized, "ziwei-temporal-v2:test:priority-challenger", "natal"
+    loser = next(
+        item
+        for item in prioritized
+        if item["rule_id"] == "ziwei-temporal-v2:test:priority-challenger"
     )
     assert winner["resolution"] == "matched"
     assert loser["resolution"] == "suppressed_by_higher_priority"
     assert loser["confidence"] == "low"
     assert "higher_priority_conflict" in loser["confidence_demotion_reasons"]
 
-    conflicted = evaluate_ziwei_temporal_v2(
-        chart, rule_pack=_custom_conflict_pack(equal_priority=True)
+    conflicted = _resolve_candidates(
+        _custom_conflict_rules(equal_priority=True),
+        scope="natal",
+        window=None,
     )
     peers = [
         item
-        for item in conflicted["findings"]
+        for item in conflicted
         if item["claim_id"] == "synthetic-contract:priority-conflict"
     ]
     assert len(peers) == 2
