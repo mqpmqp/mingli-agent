@@ -786,6 +786,22 @@ def _validate_v2_case_semantics(case: Mapping[str, object]) -> None:
                         "CASE_EVIDENCE_CONTRACT_INVALID",
                         "future evidence resolution diverges from claim and scope",
                     )
+    verified_future_directions: dict[tuple[str, str], set[str]] = {}
+    for entry in cast(list[object], case["future_outcomes"]):
+        if not isinstance(entry, Mapping):
+            continue
+        snapshot = entry.get("evidence_snapshot")
+        if not isinstance(snapshot, Mapping) or snapshot.get("verified") is not True:
+            continue
+        key = (str(snapshot.get("claim_id")), str(snapshot.get("scope")))
+        verified_future_directions.setdefault(key, set()).add(
+            str(snapshot.get("direction"))
+        )
+    if any(len(directions) > 1 for directions in verified_future_directions.values()):
+        raise RealCaseLearningV2Error(
+            "CONFLICTING_REALITY_EVIDENCE",
+            "opposite verified outcomes for one claim and scope require operator reconciliation",
+        )
     _validate_schema(
         case,
         schema_name="real_case_learning_v2_case.schema.json",
