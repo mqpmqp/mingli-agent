@@ -161,3 +161,14 @@ New guarantees: every downstream V2 case use revalidates the closed case schema,
 - Ruff and `git diff --check`: PASS.
 
 Only values that actually satisfy the canonical digest, source-SHA, or pseudonymous-person formats are excluded from downstream PII pattern scanning; a field name alone cannot hide PII. Opposite verified future outcomes for the same claim and scope now fail closed pending operator reconciliation. A standalone withdrawal tombstone is accepted only when its canonical hash appears in an explicit trusted withdrawal registry; tombstones supplied with their original case may instead prove trust through exact person, synthetic, time, and invalidated-dependency bindings.
+
+## Theme 3 coordinated-reseal escalation gate
+
+- The third full Santa round returned PASS / FAIL. The remaining blocker was narrower than the API conflict guard: a coordinated hash-valid case reseal could inject two independently valid, opposite verified future entries and bypass append-time checks.
+- Escalated RED checkpoint: `407208e`; downstream summary accepted the forged two-entry case.
+- GREEN checkpoint: `af14590`.
+- Downstream conflict target: `1 passed`.
+- Real Case focused result: `54 passed`.
+- Explicit Real Case branch coverage: 81% with `--cov-branch --cov-fail-under=80`.
+
+The V2 semantic verifier now aggregates every verified future evidence snapshot by `(claim_id, scope)` after validating each sealed entry. Any direction set containing both support and contradict fails closed with `CONFLICTING_REALITY_EVIDENCE`, so append-time and downstream-reseal paths enforce the same operator-reconciliation boundary.
