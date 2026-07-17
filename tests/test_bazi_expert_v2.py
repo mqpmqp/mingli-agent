@@ -55,6 +55,19 @@ def _request(graph: dict[str, object], **updates: object) -> dict[str, object]:
     return request
 
 
+def _evidence_availability(
+    *,
+    event_window: str = "2028-01-01T00:00:00Z/2028-12-31T23:59:59Z",
+    observed_at: str = "2029-01-01T00:00:00Z",
+    collected_at: str = "2029-01-02T00:00:00Z",
+) -> dict[str, str]:
+    return {
+        "event_window": event_window,
+        "observed_at": observed_at,
+        "collected_at": collected_at,
+    }
+
+
 @pytest.fixture(scope="module")
 def complete_payload(synthetic_graph: dict[str, object]) -> dict[str, object]:
     timeline = synthetic_graph["timeline"]
@@ -65,6 +78,7 @@ def complete_payload(synthetic_graph: dict[str, object]) -> dict[str, object]:
     assert isinstance(first_year, dict)
     request = _request(
         synthetic_graph,
+        evaluation_at="2025-02-01T00:00:00Z",
         reality_context={
             "major_eligible": False,
             "preparation_months": 1,
@@ -81,6 +95,11 @@ def complete_payload(synthetic_graph: dict[str, object]) -> dict[str, object]:
                 "direction": "support",
                 "verified": True,
                 "detail_code": "synthetic_contract_fixture_only",
+                **_evidence_availability(
+                    event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+                    observed_at="2025-01-31T23:59:59Z",
+                    collected_at="2025-02-01T00:00:00Z",
+                ),
             }
         ],
         renderer_context={
@@ -243,6 +262,7 @@ def test_reality_evidence_hard_override_is_claim_and_scope_specific(
 ) -> None:
     request = _request(synthetic_graph)
     target_id = request["target_id"]
+    request["evaluation_at"] = "2029-01-02T00:00:00Z"
     request["domain_reality_evidence"] = [
         {
             "evidence_id": "reality:career:blocked",
@@ -253,6 +273,7 @@ def test_reality_evidence_hard_override_is_claim_and_scope_specific(
             "weight": 10,
             "verified": True,
             "source_id": "synthetic-contract-reality",
+            **_evidence_availability(),
         }
     ]
     payload = orchestrate_bazi_expert_v2(request).to_dict()
@@ -283,12 +304,14 @@ def test_conflicting_verified_reality_is_unresolved_and_low_confidence(
 ) -> None:
     request = _request(synthetic_graph)
     target_id = request["target_id"]
+    request["evaluation_at"] = "2029-01-02T00:00:00Z"
     common = {
         "target_id": target_id,
         "domain": "relationship",
         "detail": "synthetic contradictory contract evidence",
         "weight": 10,
         "verified": True,
+        **_evidence_availability(),
     }
     request["domain_reality_evidence"] = [
         {
@@ -318,6 +341,85 @@ def test_conflicting_verified_reality_is_unresolved_and_low_confidence(
     assert fused["status"] == "unresolved_conflict"
     assert fused["confidence"] == "low"
     assert fused["hard_override_direction"] is None
+
+
+@pytest.mark.parametrize(
+    ("field", "record"),
+    [
+        (
+            "temporal_reality_evidence",
+            {
+                "evidence_id": "reality:temporal:future",
+                "direction": "support",
+                "detail": "synthetic future availability mutation",
+                "weight": 1,
+                "verified": True,
+                "source_id": "synthetic-contract-source",
+            },
+        ),
+        (
+            "domain_reality_evidence",
+            {
+                "evidence_id": "reality:domain:future",
+                "domain": "career",
+                "direction": "support",
+                "detail": "synthetic future availability mutation",
+                "weight": 1,
+                "verified": True,
+                "source_id": "synthetic-contract-source",
+            },
+        ),
+        (
+            "prior_event_evidence",
+            {
+                "evidence_id": "reality:prior:future",
+                "claim_id": "prior-event:employment-history",
+                "scope": "before-anchor:employment",
+                "source_id": "synthetic-contract-source",
+                "direction": "support",
+                "verified": True,
+                "detail_code": "synthetic_future_availability_mutation",
+            },
+        ),
+    ],
+)
+def test_direct_reality_evidence_rejects_information_available_after_evaluation(
+    synthetic_graph: dict[str, object], field: str, record: dict[str, object]
+) -> None:
+    request = _request(
+        synthetic_graph,
+        evaluation_at="2028-12-31T23:59:59Z",
+    )
+    record = deepcopy(record)
+    if field != "prior_event_evidence":
+        record["target_id"] = request["target_id"]
+    record.update(_evidence_availability())
+    request[field] = [record]
+
+    with pytest.raises(BaziExpertV2InputError, match="available after evaluation_at"):
+        orchestrate_bazi_expert_v2(request)
+
+
+def test_direct_reality_evidence_requires_an_explicit_evaluation_cutoff(
+    synthetic_graph: dict[str, object],
+) -> None:
+    request = _request(synthetic_graph)
+    request["domain_reality_evidence"] = [
+        {
+            "evidence_id": "reality:domain:no-cutoff",
+            "target_id": request["target_id"],
+            "domain": "career",
+            "direction": "support",
+            "detail": "synthetic missing cutoff mutation",
+            "weight": 1,
+            "verified": True,
+            "source_id": "synthetic-contract-source",
+            **_evidence_availability(),
+        }
+    ]
+
+    with pytest.raises(BaziExpertV2InputError, match="evaluation_at"):
+        orchestrate_bazi_expert_v2(request)
 
 
 def test_yuan_adapter_uses_phase20_without_inventing_text(

@@ -359,6 +359,7 @@ def test_reality_evidence_hard_override_is_claim_and_scope_specific() -> None:
     overridden = evaluate_ziwei_temporal_v2(
         chart,
         overlays=overlays,
+        evaluation_at="2029-01-02T00:00:00Z",
         reality_evidence=[
             {
                 "evidence_id": "synthetic-reality-2028",
@@ -367,6 +368,9 @@ def test_reality_evidence_hard_override_is_claim_and_scope_specific() -> None:
                 "direction": override_direction,
                 "verified": True,
                 "source_id": "synthetic-contract-observation",
+                "event_window": "2028-01-01T00:00:00Z/2028-12-31T23:59:59Z",
+                "observed_at": "2029-01-01T00:00:00Z",
+                "collected_at": "2029-01-02T00:00:00Z",
             }
         ],
     )
@@ -378,6 +382,51 @@ def test_reality_evidence_hard_override_is_claim_and_scope_specific() -> None:
     assert changed["reality_evidence_ids"] == ["synthetic-reality-2028"]
     assert unchanged["direction"] == untouched["direction"]
     assert unchanged["resolution"] == untouched["resolution"]
+
+
+@pytest.mark.parametrize(
+    ("evaluation_at", "event_window", "observed_at", "collected_at"),
+    [
+        (None, "2028-01-01T00:00:00Z/2028-12-31T23:59:59Z", "2029-01-01T00:00:00Z", "2029-01-02T00:00:00Z"),
+        ("2028-12-31T23:59:59Z", "2028-01-01T00:00:00Z/2028-12-31T23:59:59Z", "2029-01-01T00:00:00Z", "2029-01-02T00:00:00Z"),
+        ("2029-01-02T00:00:00Z", "2028-01-01T00:00:00Z/2028-12-31T23:59:59Z", "2027-12-31T23:59:59Z", "2029-01-02T00:00:00Z"),
+        ("2029-01-02T00:00:00Z", "2028-01-01T00:00:00Z/2028-12-31T23:59:59Z", "2029-01-02T00:00:00Z", "2029-01-01T00:00:00Z"),
+    ],
+)
+def test_reality_evidence_temporal_availability_fails_closed(
+    evaluation_at: str | None,
+    event_window: str,
+    observed_at: str,
+    collected_at: str,
+) -> None:
+    chart = synthetic_contract_chart()
+    overlays = synthetic_contract_overlays()
+    baseline = evaluate_ziwei_temporal_v2(chart, overlays=overlays)
+    selected = next(
+        item
+        for item in baseline["findings"]
+        if item["category"] == "temporal_overlay"
+        and item["scope"] == "synthetic-year-2028"
+    )
+    evidence = {
+        "evidence_id": "synthetic-reality-invalid-time",
+        "claim_id": selected["claim_id"],
+        "scope": selected["scope"],
+        "direction": "contradict",
+        "verified": True,
+        "source_id": "synthetic-contract-observation",
+        "event_window": event_window,
+        "observed_at": observed_at,
+        "collected_at": collected_at,
+    }
+
+    with pytest.raises(ZiweiTemporalV2Error, match="Reality Evidence|evaluation_at"):
+        evaluate_ziwei_temporal_v2(
+            chart,
+            overlays=overlays,
+            evaluation_at=evaluation_at,
+            reality_evidence=[evidence],
+        )
 
 
 @pytest.mark.parametrize(

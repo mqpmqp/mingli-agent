@@ -1005,6 +1005,43 @@ def test_hash_valid_semantically_false_partition_assignment_is_rejected() -> Non
     assert not verify_temporal_partition_manifest(tampered)
 
 
+def test_partition_manifest_recomputes_event_window_end_from_declared_windows() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-window-summary-forgery",
+        scenario_id="career:synthetic:window-summary-forgery",
+        prediction_id="prediction:synthetic:window-summary-forgery",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    manifest = build_temporal_partitions([case], cutoff_at="2026-01-01T00:00:00Z")
+    case_id = case["case_id"]
+    assert manifest["case_partition_inputs"][case_id]["base_assignment"] == "test"
+
+    tampered = deepcopy(manifest)
+    inputs = tampered["case_partition_inputs"][case_id]
+    inputs["available_at"] = "2025-06-01T00:00:00Z"
+    inputs["observed_at"] = "2025-06-01T00:00:00Z"
+    inputs["event_window_end"] = "2025-06-01T00:00:00Z"
+    inputs["base_assignment"] = "train"
+    tampered["base_train_case_ids"] = [case_id]
+    tampered["base_test_case_ids"] = []
+    tampered["train_case_ids"] = [case_id]
+    tampered["test_case_ids"] = []
+    tampered["corpus_hash"] = digest(
+        {
+            "case_dependency_hashes": tampered["case_dependency_hashes"],
+            "case_partition_inputs": tampered["case_partition_inputs"],
+            "withdrawn_case_refs": tampered["withdrawn_case_refs"],
+            "withdrawal_dependency_hashes": tampered["withdrawal_dependency_hashes"],
+        }
+    )
+    _reseal(tampered)
+    assert verify_learning_record(tampered)
+    assert not verify_temporal_partition_manifest(tampered)
+
+
 def test_rule_recommendation_rejects_stale_partition_case_hash() -> None:
     case = observed_case(
         raw_identifier="synthetic-stale-partition",

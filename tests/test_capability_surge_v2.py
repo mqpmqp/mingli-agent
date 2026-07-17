@@ -197,6 +197,54 @@ def test_runtime_fail_closes_on_unknown_input_missing_renderer_and_extra_fields(
         run_capability_surge_v2(tampered)
 
 
+def test_unified_runtime_rejects_future_reality_evidence_at_component_boundaries() -> None:
+    ziwei_request = surge_request()
+    baseline = run_capability_surge_v2(ziwei_request).to_dict()
+    selected = next(
+        item
+        for item in baseline["components"]["ziwei"]["findings"]
+        if item["category"] == "temporal_overlay"
+        and item["scope"] == "synthetic-year-2028"
+    )
+    ziwei_request["evaluation_at"] = "2028-12-31T23:59:59Z"
+    ziwei_request["ziwei_reality_evidence"] = [
+        {
+            "evidence_id": "synthetic-unified-ziwei-future",
+            "claim_id": selected["claim_id"],
+            "scope": selected["scope"],
+            "direction": "contradict",
+            "verified": True,
+            "source_id": "synthetic-contract-observation",
+            "event_window": "2028-01-01T00:00:00Z/2028-12-31T23:59:59Z",
+            "observed_at": "2029-01-01T00:00:00Z",
+            "collected_at": "2029-01-02T00:00:00Z",
+        }
+    ]
+    with pytest.raises(CapabilitySurgeV2Error, match="Ziwei.*evaluation_at"):
+        run_capability_surge_v2(ziwei_request)
+
+    bazi_request_payload = surge_request()
+    bazi_request_payload["evaluation_at"] = "2028-12-31T23:59:59Z"
+    bazi = bazi_request_payload["bazi_request"]
+    bazi["domain_reality_evidence"] = [
+        {
+            "evidence_id": "synthetic-unified-bazi-future",
+            "target_id": bazi["target_id"],
+            "domain": "career",
+            "direction": "support",
+            "detail": "synthetic future availability mutation",
+            "weight": 1,
+            "verified": True,
+            "source_id": "synthetic-contract-observation",
+            "event_window": "2028-01-01T00:00:00Z/2028-12-31T23:59:59Z",
+            "observed_at": "2029-01-01T00:00:00Z",
+            "collected_at": "2029-01-02T00:00:00Z",
+        }
+    ]
+    with pytest.raises(CapabilitySurgeV2Error, match="Bazi.*evaluation_at"):
+        run_capability_surge_v2(bazi_request_payload)
+
+
 def test_http_surface_runs_unified_runtime_and_preserves_security_headers() -> None:
     with TestClient(
         create_capability_surge_app(),
