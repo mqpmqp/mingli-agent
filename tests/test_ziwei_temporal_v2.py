@@ -6,6 +6,7 @@ import json
 from jsonschema import Draft202012Validator
 import pytest
 
+import mingli.ziwei_temporal_v2 as ziwei_temporal_v2
 from mingli.contracts import get_schema
 from mingli.contracts.serialization import digest
 from mingli.ziwei import build_ziwei_chart
@@ -600,6 +601,38 @@ def test_coordinated_semantic_trigger_rewrites_cannot_reseal_false_coverage(
     )
     assert item["covered"] is False
     assert item["paths"]["canonical_trigger"] is False
+    assert coverage["complete"] is False
+    with pytest.raises(ZiweiTemporalV2Error, match="semantic|ruleset"):
+        evaluate_ziwei_temporal_v2(synthetic_contract_chart(), rule_pack=pack)
+
+
+def test_source_template_rewrite_cannot_rederive_the_frozen_semantic_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    templates = deepcopy(ziwei_temporal_v2._RULE_TEMPLATES)
+    first = templates[0]
+    first["trigger"]["all"] = ["temporal:natal"]
+    first["canonical_trigger"]["all"] = ["temporal:natal"]
+    first["synthetic_contract_fixture"]["tokens"] = ["temporal:natal"]
+    rederived_hashes = {
+        str(rule["rule_id"]): ziwei_temporal_v2._record_hash(
+            "ZiweiTemporalCombinationRuleV2", rule
+        )
+        for rule in templates
+    }
+    monkeypatch.setattr(ziwei_temporal_v2, "_RULE_TEMPLATES", templates)
+    monkeypatch.setattr(ziwei_temporal_v2, "_EXPECTED_RULE_HASHES", rederived_hashes)
+    monkeypatch.setattr(
+        ziwei_temporal_v2, "_EXPECTED_RULE_IDS", frozenset(rederived_hashes)
+    )
+
+    pack = load_ziwei_temporal_v2_rule_pack()
+    coverage = build_ziwei_temporal_v2_coverage(pack)
+    first_coverage = next(
+        item for item in coverage["rules"] if item["rule_id"] == first["rule_id"]
+    )
+
+    assert first_coverage["covered"] is False
     assert coverage["complete"] is False
     with pytest.raises(ZiweiTemporalV2Error, match="semantic|ruleset"):
         evaluate_ziwei_temporal_v2(synthetic_contract_chart(), rule_pack=pack)
