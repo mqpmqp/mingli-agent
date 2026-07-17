@@ -111,3 +111,15 @@ New guarantees: year/month overlays require an explicit decade parent and month 
 - Ruff and `git diff --check`: PASS.
 
 New guarantees: every direct Bazi/Ziwei Reality Evidence record declares a closed event window plus observation and collection availability; an explicit `evaluation_at` cutoff is mandatory whenever direct evidence is supplied; observation may follow event-window end but cannot precede its start; collection cannot precede observation; evidence unavailable at the cutoff fails closed. The standalone temporal partition verifier now parses declared event windows and recomputes their maximum end instead of trusting a hash-valid summary field.
+
+## Theme 2 semantic-coverage convergence
+
+- Fresh rule-content/false-pass dual review: FAIL / FAIL.
+- RED checkpoint: `09d70ba`.
+- RED result: `3 failed`; coordinated rewrites of `trigger`, `canonical_trigger`, synthetic fixture tokens, and hashes could report a rule covered, and a resealed one-rule subset could report the versioned ruleset complete.
+- GREEN checkpoint: `930f8ab`.
+- Ziwei focused result: `27 passed`.
+- Explicit Ziwei branch coverage: 81.54% with `--cov-branch --cov-fail-under=80`.
+- Ruff and `git diff --check`: PASS.
+
+New guarantees: a rule carrying the fixed V2 content version must match the built-in semantic rule hash for its rule ID, and a runtime rule pack must contain the exact complete versioned rule-ID set. Behavioral coverage therefore fails for coordinated trigger/fixture/hash rewrites and for resealed subsets; conflict suppression/demotion remains tested directly at the shared resolver boundary.
