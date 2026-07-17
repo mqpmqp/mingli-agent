@@ -1446,3 +1446,38 @@ def test_standalone_withdrawal_requires_explicit_trusted_registry_proof() -> Non
 
     with pytest.raises(RealCaseLearningV2Error, match="WITHDRAWAL_TRUST_REQUIRED"):
         build_temporal_partitions([tombstone], cutoff_at="2026-01-01T00:00:00Z")
+
+
+def test_downstream_reseal_cannot_inject_conflicting_verified_future_reality() -> None:
+    base = learning_case(raw_identifier="synthetic-downstream-reality-conflict")
+    contradict = record_future_outcome(
+        base,
+        evidence_record(
+            base,
+            evidence_id="outcome:synthetic:downstream-contradict",
+            observed_at="2025-12-31T00:00:00Z",
+            collected_at="2026-01-02T00:00:00Z",
+            direction="contradict",
+        ),
+    )
+    support = record_future_outcome(
+        base,
+        evidence_record(
+            base,
+            evidence_id="outcome:synthetic:downstream-support",
+            observed_at="2025-12-31T00:00:00Z",
+            collected_at="2026-01-03T00:00:00Z",
+            direction="support",
+        ),
+    )
+    forged = deepcopy(contradict)
+    support_entry = deepcopy(support["future_outcomes"][0])
+    forged["future_outcomes"].append(support_entry)
+    forged["dependency_hashes"] = sorted(
+        {*forged["dependency_hashes"], support_entry["canonical_hash"]}
+    )
+    _reseal(forged)
+    assert verify_learning_record(forged)
+
+    with pytest.raises(RealCaseLearningV2Error, match="CONFLICTING_REALITY_EVIDENCE"):
+        summarize_learning_cases([forged])
