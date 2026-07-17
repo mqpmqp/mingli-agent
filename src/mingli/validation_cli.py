@@ -15,6 +15,10 @@ from .validation_freeze import freeze_prediction, verify_prediction_snapshot
 from .validation_intake import import_intakes, rollback_import, validate_intake
 from .validation_privacy import scan_for_pii
 from .validation_protocol import verify_validation_protocol
+from .release_hold_attack_v1 import (
+    assess_release_hold_reassessment,
+    calculate_release_hold_attack_metrics,
+)
 
 
 def _read(path: Path) -> object:
@@ -82,6 +86,9 @@ def _parser() -> argparse.ArgumentParser:
     benchmark.add_argument("--manifest", type=Path, default=Path("validation_dataset_manifest.json"))
     benchmark.add_argument("--authorization", type=Path, default=Path("product_release_authorization.json"))
     benchmark.add_argument("--gates", type=Path)
+    reassessment = commands.add_parser("hold-reassessment")
+    reassessment.add_argument("--records", type=Path, required=True)
+    reassessment.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -147,6 +154,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = {"valid": verify_dataset_manifest(_read(args.file))}
         elif args.command == "verify-protocol":
             result = {"valid": verify_validation_protocol(_read(args.file))}
+        elif args.command == "hold-reassessment":
+            repo_root = Path.cwd()
+            records_path = _controlled_external_path(
+                args.records,
+                repo_root,
+                label="Hold reassessment records",
+            )
+            output_path = _controlled_external_path(
+                args.output,
+                repo_root,
+                label="Hold reassessment output",
+            )
+            records = _read(records_path)
+            if not isinstance(records, list):
+                raise ValueError("Hold reassessment records must contain a JSON array")
+            metrics = calculate_release_hold_attack_metrics(records)
+            reassessment = assess_release_hold_reassessment(metrics)
+            result = {
+                "report_type": "ReleaseHoldAttackReassessmentReportV1",
+                "source_commit_sha": metrics["source_commit_sha"],
+                "data_classification": metrics["data_classification"],
+                "metrics": metrics,
+                "reassessment": reassessment,
+            }
+            _write_new(output_path, result)
         else:
             manifest = _read(args.manifest)
             authorization = _read(args.authorization)
