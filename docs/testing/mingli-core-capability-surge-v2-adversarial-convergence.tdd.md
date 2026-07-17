@@ -98,3 +98,16 @@ New guarantees: year/month overlays require an explicit decade parent and month 
 - Correct dedup identity keys: `person_case_id`, `prediction_id`, `derived_fingerprint`, `near_duplicate_fingerprint`. The derived fingerprint already binds person, prediction, chart/question hashes, and claim windows.
 - Different people sharing a common event period remain independently partitionable; near-duplicate or identity-linked components still use test-priority union.
 - Four V2 focused suites: `76 passed`; Real Case branch coverage 81%; contract/packaging regression `16 passed`; frozen contracts 78/78.
+
+## Theme 1 evidence-availability and manifest-summary convergence
+
+- Fresh dual-review result before the fix: FAIL / FAIL.
+- RED checkpoint: `7de0ebd`.
+- RED target: Bazi temporal/domain/prior evidence availability, Ziwei direct evidence availability, the unified capability boundary, and a hash-valid resealed partition-summary forgery.
+- RED result: the focused counterexample run produced `7 failed, 3 passed`; a tightened Bazi target independently produced `3 failed`. Failures were caused by the missing `evaluation_at` contract, the missing Ziwei argument, the unified input rejecting the cutoff field, and `verify_temporal_partition_manifest` accepting the forged summary.
+- GREEN checkpoint: `cfde91e`.
+- Four V2 focused suites: `86 passed`.
+- Explicit branch-coverage gate: `--cov-branch --cov-fail-under=80` passed at 82.20% total. Module results were Bazi 84%, capability runtime 83%, Real Case 81%, shared Reality Evidence temporal validator 82%, and Ziwei 82%.
+- Ruff and `git diff --check`: PASS.
+
+New guarantees: every direct Bazi/Ziwei Reality Evidence record declares a closed event window plus observation and collection availability; an explicit `evaluation_at` cutoff is mandatory whenever direct evidence is supplied; observation may follow event-window end but cannot precede its start; collection cannot precede observation; evidence unavailable at the cutoff fails closed. The standalone temporal partition verifier now parses declared event windows and recomputes their maximum end instead of trusting a hash-valid summary field.
