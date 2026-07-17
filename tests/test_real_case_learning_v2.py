@@ -454,6 +454,23 @@ def test_miss_creates_negative_archive_revision_and_review_only_demotion() -> No
     assert queue["entries"][0]["review_state"] == "pending_operator_review"
     assert queue["prediction_validity"] == "not_evaluated"
 
+    forged = deepcopy(adjudicated)
+    recommendation_record = forged["rule_recommendations"][0]
+    original_recommendation_hash = recommendation_record["canonical_hash"]
+    recommendation_record["review_state"] = "approved"
+    recommendation_record["applied_to_rules"] = True
+    _reseal(recommendation_record)
+    forged["dependency_hashes"] = sorted(
+        recommendation_record["canonical_hash"]
+        if value == original_recommendation_hash
+        else value
+        for value in forged["dependency_hashes"]
+    )
+    _reseal(forged)
+    assert verify_learning_record(forged)
+    with pytest.raises(RealCaseLearningV2Error):
+        build_operator_review_queue([forged])
+
 
 @pytest.mark.parametrize("status", ["hit", "partial", "miss", "unverifiable"])
 def test_all_outcome_classes_are_supported_but_never_auto_promote(status: str) -> None:
@@ -1226,4 +1243,98 @@ def test_v2_case_rejects_hash_valid_prior_observation_before_window() -> None:
                 collected_at="2026-01-02T00:00:00Z",
                 direction="support",
             ),
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["consent_revoked", "pii_injected", "accuracy_enabled", "synthetic_relabelled"],
+)
+def test_hash_valid_case_reseal_revalidates_intake_privacy_and_safety(
+    mutation: str,
+) -> None:
+    case = learning_case(raw_identifier=f"synthetic-reseal-{mutation}")
+    if mutation == "consent_revoked":
+        case["intake_snapshot"]["consent"]["research_use_allowed"] = False
+    elif mutation == "pii_injected":
+        case["intake_snapshot"]["contact_email"] = "alice@example.com"
+    elif mutation == "accuracy_enabled":
+        case["accuracy_eligible"] = True
+    elif mutation == "synthetic_relabelled":
+        case["synthetic"] = False
+    else:  # pragma: no cover - parametrization guard
+        raise AssertionError(mutation)
+    _reseal(case)
+    assert verify_learning_record(case)
+
+    with pytest.raises(RealCaseLearningV2Error):
+        summarize_learning_cases([case])
+
+
+def test_withdrawal_suppresses_matching_original_case_from_all_partitions() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-withdrawal-suppression",
+        scenario_id="career:synthetic:withdrawal-suppression",
+        prediction_id="prediction:synthetic:withdrawal-suppression",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    tombstone = withdraw_case(case, withdrawn_at="2026-02-01T00:00:00Z")
+
+    manifest = build_temporal_partitions(
+        [case, tombstone], cutoff_at="2026-01-01T00:00:00Z"
+    )
+
+    assert manifest["withdrawn_case_refs"] == [tombstone["case_ref_hash"]]
+    assert manifest["base_train_case_ids"] == []
+    assert manifest["base_test_case_ids"] == []
+    assert manifest["train_case_ids"] == []
+    assert manifest["test_case_ids"] == []
+    assert manifest["case_dependency_hashes"] == {}
+    assert manifest["case_partition_inputs"] == {}
+    assert manifest["dependency_hashes"] == [tombstone["canonical_hash"]]
+
+
+@pytest.mark.parametrize(
+    ("field", "unsafe_value"),
+    [
+        ("schema_version", "real-case-learning-withdrawal@forged"),
+        ("dependencies_valid", True),
+        ("dependent_records_retained", True),
+        ("invalidated_dependency_hashes", []),
+    ],
+)
+def test_hash_valid_forged_withdrawal_tombstone_fails_closed(
+    field: str, unsafe_value: object
+) -> None:
+    case = learning_case(raw_identifier=f"synthetic-forged-withdrawal-{field}")
+    tombstone = withdraw_case(case, withdrawn_at="2026-02-01T00:00:00Z")
+    tombstone[field] = unsafe_value
+    _reseal(tombstone)
+    assert verify_learning_record(tombstone)
+
+    with pytest.raises(RealCaseLearningV2Error):
+        build_temporal_partitions([tombstone], cutoff_at="2026-01-01T00:00:00Z")
+
+
+def test_withdrawal_must_invalidate_the_matching_original_case_dependencies() -> None:
+    case = observed_case(
+        raw_identifier="synthetic-withdrawal-dependency-forgery",
+        scenario_id="career:synthetic:withdrawal-dependency-forgery",
+        prediction_id="prediction:synthetic:withdrawal-dependency-forgery",
+        generated_at="2025-02-01T00:00:00Z",
+        frozen_at="2025-02-01T00:01:00Z",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+    )
+    tombstone = withdraw_case(case, withdrawn_at="2026-02-01T00:00:00Z")
+    tombstone["invalidated_dependency_hashes"] = ["sha256:" + "f" * 64]
+    _reseal(tombstone)
+    assert verify_learning_record(tombstone)
+
+    with pytest.raises(RealCaseLearningV2Error):
+        build_temporal_partitions(
+            [case, tombstone], cutoff_at="2026-01-01T00:00:00Z"
         )
