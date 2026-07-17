@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/real_case_learning_v2_prediction.schema.json",
+  "title": "Real Case Learning OS V2 Frozen Prediction",
+  "type": "object",
+  "required": [
+    "prediction_id",
+    "person_case_id",
+    "scenario_id",
+    "engine_version",
+    "source_commit_sha",
+    "rule_set_version",
+    "knowledge_manifest_sha",
+    "input_manifest_sha",
+    "generated_at",
+    "prediction_content",
+    "structured_claims",
+    "confidence",
+    "blocked_fields",
+    "reality_evidence_visibility",
+    "prediction_validity",
+    "freeze_status",
+    "freeze_timestamp",
+    "canonical_hash"
+  ],
+  "properties": {
+    "prediction_id": {"type": "string", "minLength": 1},
+    "person_case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "engine_version": {"type": "string", "minLength": 1},
+    "source_commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "rule_set_version": {"type": "string", "minLength": 1},
+    "knowledge_manifest_sha": {"$ref": "#/$defs/hash"},
+    "input_manifest_sha": {"$ref": "#/$defs/hash"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "prediction_content": {"type": "string", "minLength": 1},
+    "structured_claims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/predictionClaim"},
+      "minItems": 1
+    },
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "blocked_fields": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "reality_evidence_visibility": {"const": false},
+    "prediction_validity": {"const": "not_evaluated"},
+    "freeze_status": {"const": "frozen"},
+    "freeze_timestamp": {"type": "string", "format": "date-time"},
+    "canonical_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "predictionClaim": {
+      "type": "object",
+      "required": [
+        "claim_id",
+        "scope",
+        "domain",
+        "time_window",
+        "claim_type",
+        "predicted_direction",
+        "predicted_event_or_state",
+        "confidence",
+        "specificity_level",
+        "exclusion_conditions",
+        "rule_ids"
+      ],
+      "properties": {
+        "claim_id": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "domain": {"type": "string", "minLength": 1},
+        "time_window": {"type": "string", "minLength": 1},
+        "claim_type": {"type": "string", "minLength": 1},
+        "predicted_direction": {"enum": ["support", "contradict"]},
+        "predicted_event_or_state": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "specificity_level": {"type": "string", "minLength": 1},
+        "exclusion_conditions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "rule_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

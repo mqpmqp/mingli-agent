@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/real_case_learning_v2_partition.schema.json",
+  "title": "Real Case Learning OS V2 Temporal Partition Manifest",
+  "type": "object",
+  "required": [
+    "record_type",
+    "schema_version",
+    "cutoff_at",
+    "assignment_basis",
+    "ingestion_order_used",
+    "deduplication_keys",
+    "base_train_case_ids",
+    "base_test_case_ids",
+    "train_case_ids",
+    "test_case_ids",
+    "forced_test_case_ids",
+    "withdrawn_case_refs",
+    "synthetic_case_ids",
+    "accuracy_eligible_case_ids",
+    "case_dependency_hashes",
+    "case_partition_inputs",
+    "withdrawal_dependency_hashes",
+    "dependency_hashes",
+    "corpus_hash",
+    "leakage_detected",
+    "leakage_prevention",
+    "product_claim_eligible",
+    "commercial_release_hold",
+    "prediction_validity",
+    "canonical_hash"
+  ],
+  "properties": {
+    "record_type": {"const": "RealCaseLearningV2PartitionManifest"},
+    "schema_version": {"const": "real-case-learning-partition@2.0"},
+    "cutoff_at": {"type": "string", "format": "date-time"},
+    "assignment_basis": {"const": "event_and_observation_time"},
+    "ingestion_order_used": {"const": false},
+    "deduplication_keys": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "person_case_id",
+          "prediction_id",
+          "derived_fingerprint",
+          "near_duplicate_fingerprint"
+        ]
+      },
+      "minItems": 4,
+      "uniqueItems": true
+    },
+    "base_train_case_ids": {"$ref": "#/$defs/caseIds"},
+    "base_test_case_ids": {"$ref": "#/$defs/caseIds"},
+    "train_case_ids": {"$ref": "#/$defs/caseIds"},
+    "test_case_ids": {"$ref": "#/$defs/caseIds"},
+    "forced_test_case_ids": {"$ref": "#/$defs/caseIds"},
+    "withdrawn_case_refs": {"$ref": "#/$defs/hashes"},
+    "synthetic_case_ids": {"$ref": "#/$defs/caseIds"},
+    "accuracy_eligible_case_ids": {"type": "array", "maxItems": 0},
+    "case_dependency_hashes": {
+      "type": "object",
+      "propertyNames": {"pattern": "^case:[0-9a-f]{64}$"},
+      "additionalProperties": {"$ref": "#/$defs/hash"}
+    },
+    "case_partition_inputs": {
+      "type": "object",
+      "propertyNames": {"pattern": "^case:[0-9a-f]{64}$"},
+      "additionalProperties": {"$ref": "#/$defs/partitionInput"}
+    },
+    "withdrawal_dependency_hashes": {"$ref": "#/$defs/hashes"},
+    "dependency_hashes": {"$ref": "#/$defs/hashes"},
+    "corpus_hash": {"$ref": "#/$defs/hash"},
+    "leakage_detected": {"const": false},
+    "leakage_prevention": {"const": "duplicate_components_use_test_partition"},
+    "product_claim_eligible": {"const": false},
+    "commercial_release_hold": {"const": "ACTIVE"},
+    "prediction_validity": {"const": "not_evaluated"},
+    "canonical_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "hashes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/hash"},
+      "uniqueItems": true
+    },
+    "caseIds": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^case:[0-9a-f]{64}$"},
+      "uniqueItems": true
+    },
+    "partitionInput": {
+      "type": "object",
+      "required": [
+        "person_case_id",
+        "prediction_id",
+        "event_windows",
+        "available_at",
+        "observed_at",
+        "event_window_end",
+        "derived_fingerprint",
+        "near_duplicate_fingerprint",
+        "base_assignment"
+      ],
+      "properties": {
+        "person_case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+        "prediction_id": {"type": "string", "minLength": 1},
+        "event_windows": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "available_at": {"type": "string", "format": "date-time"},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "event_window_end": {"type": "string", "format": "date-time"},
+        "derived_fingerprint": {"$ref": "#/$defs/hash"},
+        "near_duplicate_fingerprint": {"$ref": "#/$defs/hash"},
+        "base_assignment": {"enum": ["train", "test"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

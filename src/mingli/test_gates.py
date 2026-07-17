@@ -13,6 +13,7 @@ REAL_CASE_TEST_FILES = frozenset(
     {
         "test_phase22_case_benchmark.py",
         "test_phase24_release_candidate.py",
+        "test_real_case_learning_v2.py",
         "test_real_case_validation_os.py",
         "test_validation_astro_etl.py",
     }
