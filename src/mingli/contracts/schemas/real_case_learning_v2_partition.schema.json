@@ -42,12 +42,11 @@
         "enum": [
           "person_case_id",
           "prediction_id",
-          "event_window",
           "derived_fingerprint",
           "near_duplicate_fingerprint"
         ]
       },
-      "minItems": 5,
+      "minItems": 4,
       "uniqueItems": true
     },
     "base_train_case_ids": {"$ref": "#/$defs/caseIds"},

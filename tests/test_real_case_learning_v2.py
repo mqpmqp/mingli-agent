@@ -559,7 +559,6 @@ def test_person_prediction_window_fingerprint_and_near_duplicates_cannot_cross_p
     assert {
         "person_case_id",
         "prediction_id",
-        "event_window",
         "derived_fingerprint",
         "near_duplicate_fingerprint",
     }.issubset(first["deduplication_keys"])

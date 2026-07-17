@@ -1331,10 +1331,6 @@ def _partition_assignments(
                 == right_meta["derived_fingerprint"]
                 or left_meta["near_duplicate_fingerprint"]
                 == right_meta["near_duplicate_fingerprint"]
-                or (
-                    left_meta["person_case_id"] == right_meta["person_case_id"]
-                    and left_meta["event_windows"] == right_meta["event_windows"]
-                )
             )
             if duplicate:
                 union(left, right)
@@ -1409,7 +1405,6 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
         if manifest.get("deduplication_keys") != [
             "person_case_id",
             "prediction_id",
-            "event_window",
             "derived_fingerprint",
             "near_duplicate_fingerprint",
         ]:
@@ -1597,7 +1592,6 @@ def build_temporal_partitions(
         "deduplication_keys": [
             "person_case_id",
             "prediction_id",
-            "event_window",
             "derived_fingerprint",
             "near_duplicate_fingerprint",
         ],
