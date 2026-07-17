@@ -135,3 +135,17 @@ New guarantees: a rule carrying the fixed V2 content version must match the buil
 - Ruff and `git diff --check`: PASS.
 
 The fixed content version now resolves against literal rule IDs and semantic hashes in an independent frozen manifest. Executable rule templates cannot regenerate or replace that trust anchor at import time; a source-template rewrite therefore fails both behavioral coverage and runtime validation unless the content version and independently reviewed manifest are intentionally advanced together.
+
+## Theme 3 privacy, withdrawal, and operator-boundary convergence
+
+- Fresh leakage/privacy/Reality Override dual review before the fix: FAIL / FAIL.
+- RED checkpoint: `91a5909`.
+- RED target: hash-valid consent denial, PII injection, accuracy/synthetic relabelling, operator recommendation application, forged withdrawal tombstones, missing dependency invalidation, and simultaneous active/withdrawn partition input.
+- RED result: `11 failed`; every counterexample reached an unsafe downstream path or left the original case active.
+- GREEN checkpoint: `b9071d4`.
+- Real Case focused result: `50 passed`.
+- Four V2 focused suites: `101 passed`.
+- Explicit Real Case branch coverage: 81% with `--cov-branch --cov-fail-under=80`.
+- Ruff and `git diff --check`: PASS.
+
+New guarantees: every downstream V2 case use revalidates the closed case schema, canonical intake, explicit consent projection, PII-safe payload projection, synthetic provenance, frozen snapshot dependencies, case identity/fingerprint, and operator-only review records. Withdrawal tombstones are schema- and time-validated; when the matching case is present, person/synthetic/dependency bindings must match exactly and the active case is removed from every partition and dependency map. The standalone manifest verifier also rejects any hash-valid manifest that lists the same case as both active and withdrawn.
