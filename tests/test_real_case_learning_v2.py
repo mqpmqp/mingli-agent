@@ -514,6 +514,12 @@ def test_temporal_partition_uses_event_and_observation_time_not_ingestion_order(
     assert manifest["train_case_ids"] == [train["case_id"]]
     assert manifest["test_case_ids"] == [test["case_id"]]
     assert manifest["assignment_basis"] == "event_and_observation_time"
+    assert manifest["deduplication_keys"] == [
+        "person_case_id",
+        "prediction_id",
+        "derived_fingerprint",
+        "near_duplicate_fingerprint",
+    ]
     assert manifest["ingestion_order_used"] is False
     assert manifest["leakage_detected"] is False
     assert manifest["prediction_validity"] == "not_evaluated"
