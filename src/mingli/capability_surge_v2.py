@@ -32,6 +32,7 @@ _ALLOWED_INPUT_FIELDS = frozenset(
         "ziwei_overlays",
         "ziwei_reality_evidence",
         "learning_cases",
+        "evaluation_at",
     }
 )
 
@@ -175,6 +176,30 @@ def run_capability_surge_v2(
         "ziwei_reality_evidence",
     )
     learning_cases = _records(request.get("learning_cases", ()), "learning_cases")
+    evaluation_at = request.get("evaluation_at")
+    bazi_evidence_fields = (
+        "temporal_reality_evidence",
+        "domain_reality_evidence",
+        "prior_event_evidence",
+    )
+    has_direct_evidence = bool(ziwei_evidence) or any(
+        bool(bazi_request.get(field)) for field in bazi_evidence_fields
+    )
+    if has_direct_evidence and (
+        not isinstance(evaluation_at, str) or not evaluation_at
+    ):
+        raise CapabilitySurgeV2Error(
+            "evaluation_at is required when direct Reality Evidence is supplied"
+        )
+    if evaluation_at is not None:
+        if not isinstance(evaluation_at, str) or not evaluation_at:
+            raise CapabilitySurgeV2Error("evaluation_at must be a non-empty string")
+        nested_evaluation_at = bazi_request.get("evaluation_at")
+        if nested_evaluation_at is not None and nested_evaluation_at != evaluation_at:
+            raise CapabilitySurgeV2Error(
+                "bazi_request evaluation_at must match the unified evaluation_at"
+            )
+        bazi_request["evaluation_at"] = evaluation_at
 
     try:
         bazi = orchestrate_bazi_expert_v2(bazi_request).to_dict()
@@ -185,6 +210,7 @@ def run_capability_surge_v2(
             ziwei_chart,
             overlays=overlays,
             reality_evidence=ziwei_evidence,
+            evaluation_at=evaluation_at,
         )
         ziwei_coverage = build_ziwei_temporal_v2_coverage()
     except ZiweiTemporalV2Error as exc:

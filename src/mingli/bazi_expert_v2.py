@@ -38,6 +38,10 @@ from .phase18 import (
 from .phase20 import Phase20InputError, render_yuan_eight_sections
 from .phase9_contracts import Phase9InputError
 from .phase9_engine import calculate_day_master_strength
+from .reality_evidence_temporal_v2 import (
+    RealityEvidenceTemporalError,
+    validate_reality_evidence_availability,
+)
 
 BAZI_EXPERT_V2_INPUT_SCHEMA_VERSION = "bazi-expert-orchestration-input@2.0"
 BAZI_EXPERT_V2_SCHEMA_VERSION = "bazi-expert-orchestration-result@2.0"
@@ -60,6 +64,7 @@ _INPUT_FIELDS = frozenset(
         "compatibility_peer_fact_graph",
         "renderer_context",
         "fixture_provenance",
+        "evaluation_at",
     }
 )
 _FACET_ORDER = (
@@ -106,6 +111,7 @@ _LABEL_TO_RENDER_STATUS = {
     "neutral_tendency": "mixed",
     "unresolved": "unresolved",
 }
+_EVIDENCE_TIME_FIELDS = frozenset({"event_window", "observed_at", "collected_at"})
 
 
 class BaziExpertV2InputError(ValueError):
@@ -240,6 +246,15 @@ def _records(
                 )
         records.append(record)
     return tuple(sorted(records, key=canonical_json))
+
+
+def _without_evidence_time(
+    records: Sequence[Mapping[str, object]],
+) -> tuple[dict[str, object], ...]:
+    return tuple(
+        {key: value for key, value in record.items() if key not in _EVIDENCE_TIME_FIELDS}
+        for record in records
+    )
 
 
 def _fixture_provenance(value: object) -> dict[str, object] | None:
@@ -929,7 +944,7 @@ def orchestrate_bazi_expert_v2(
             "verified",
             "source_id",
         }
-    )
+    ) | _EVIDENCE_TIME_FIELDS
     temporal_reality = _records(
         request.get("temporal_reality_evidence", []),
         "temporal_reality_evidence",
@@ -947,7 +962,7 @@ def orchestrate_bazi_expert_v2(
             "verified",
             "source_id",
         }
-    )
+    ) | _EVIDENCE_TIME_FIELDS
     domain_reality = _records(
         request.get("domain_reality_evidence", []),
         "domain_reality_evidence",
@@ -967,8 +982,44 @@ def orchestrate_bazi_expert_v2(
                 "verified",
                 "detail_code",
             }
-        ),
+        )
+        | _EVIDENCE_TIME_FIELDS,
+        allowed_fields=frozenset(
+            {
+                "evidence_id",
+                "claim_id",
+                "scope",
+                "source_id",
+                "direction",
+                "verified",
+                "detail_code",
+            }
+        )
+        | _EVIDENCE_TIME_FIELDS,
     )
+    evaluation_at = request.get("evaluation_at")
+    try:
+        validate_reality_evidence_availability(
+            temporal_reality,
+            evaluation_at=evaluation_at,
+            field="temporal_reality_evidence",
+        )
+        validate_reality_evidence_availability(
+            domain_reality,
+            evaluation_at=evaluation_at,
+            field="domain_reality_evidence",
+        )
+        validate_reality_evidence_availability(
+            prior_events,
+            evaluation_at=evaluation_at,
+            field="prior_event_evidence",
+            require_completed_window=True,
+        )
+    except RealityEvidenceTemporalError as exc:
+        raise BaziExpertV2InputError(str(exc)) from exc
+    temporal_phase_reality = _without_evidence_time(temporal_reality)
+    domain_phase_reality = _without_evidence_time(domain_reality)
+    prior_fusion_events = _without_evidence_time(prior_events)
     fixture = _fixture_provenance(request.get("fixture_provenance"))
     peer_raw = request.get("compatibility_peer_fact_graph")
     peer_graph = (
@@ -985,13 +1036,13 @@ def orchestrate_bazi_expert_v2(
         trend = evaluate_bazi_temporal_trends(
             fact_graph,
             interaction,
-            reality_evidence=temporal_reality,
+            reality_evidence=temporal_phase_reality,
         ).to_dict()
         domains = evaluate_bazi_tengod_domains(
             fact_graph,
             interaction,
             trend,
-            reality_evidence=domain_reality,
+            reality_evidence=domain_phase_reality,
         ).to_dict()
         base_domains = evaluate_base_domain_contracts(domains).to_dict()
         exam = evaluate_special_scenario(
@@ -1058,7 +1109,7 @@ def orchestrate_bazi_expert_v2(
     )
     fusion_items.extend(_scenario_fusion_evidence(exam))
     fusion_items.extend(_scenario_fusion_evidence(reunion))
-    fusion_items.extend(_prior_event_fusion_evidence(prior_events))
+    fusion_items.extend(_prior_event_fusion_evidence(prior_fusion_events))
     try:
         fusion = orchestrate_evidence_fusion(
             reality_context, tuple(sorted(fusion_items, key=canonical_json))
@@ -1448,6 +1499,7 @@ def orchestrate_bazi_expert_v2(
         "compatibility_peer_fact_graph": peer_graph,
         "renderer_context": request.get("renderer_context"),
         "fixture_provenance": fixture,
+        "evaluation_at": evaluation_at,
     }
     request_hash = _record_digest("BaziExpertV2Request", normalized_request)
     warnings = (

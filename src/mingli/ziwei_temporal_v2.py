@@ -8,6 +8,10 @@ from jsonschema import Draft202012Validator, ValidationError
 
 from .contracts import get_schema
 from .contracts.serialization import digest
+from .reality_evidence_temporal_v2 import (
+    RealityEvidenceTemporalError,
+    validate_reality_evidence_availability,
+)
 from .ziwei_engine import AUXILIARY_STAR_IDS, PRIMARY_STAR_IDS
 from .ziwei_rules import ZIWEI_CHART_ALGORITHM, ZiweiRuleError, extract_ziwei_rule_facts
 
@@ -782,6 +786,8 @@ def _resolve_candidates(
 def _apply_reality_evidence(
     findings: list[dict[str, object]],
     evidence: Sequence[Mapping[str, object]],
+    *,
+    evaluation_at: object,
 ) -> list[str]:
     valid_targets = {
         (str(item["claim_id"]), str(item["scope"])) for item in findings
@@ -795,7 +801,18 @@ def _apply_reality_evidence(
         "direction",
         "verified",
         "source_id",
+        "event_window",
+        "observed_at",
+        "collected_at",
     }
+    try:
+        validate_reality_evidence_availability(
+            evidence,
+            evaluation_at=evaluation_at,
+            field="Reality Evidence",
+        )
+    except RealityEvidenceTemporalError as exc:
+        raise ZiweiTemporalV2Error(str(exc)) from exc
     for item in evidence:
         if not isinstance(item, Mapping) or set(item) != allowed:
             raise ZiweiTemporalV2Error("Reality Evidence record is unsupported")
@@ -848,6 +865,7 @@ def evaluate_ziwei_temporal_v2(
     *,
     overlays: Sequence[Mapping[str, object]] = (),
     reality_evidence: Sequence[Mapping[str, object]] = (),
+    evaluation_at: str | None = None,
     rule_pack: Mapping[str, object] | None = None,
     requested_outputs: Sequence[str] = ("findings", "event_time_windows"),
 ) -> dict[str, object]:
@@ -928,7 +946,11 @@ def evaluate_ziwei_temporal_v2(
             str(item["rule_id"]),
         )
     )
-    applied_evidence = _apply_reality_evidence(findings, reality_evidence)
+    applied_evidence = _apply_reality_evidence(
+        findings,
+        reality_evidence,
+        evaluation_at=evaluation_at,
+    )
     windows.sort(key=lambda item: str(item["scope"]))
     body: dict[str, object] = {
         "schema_version": ZIWEI_TEMPORAL_V2_SCHEMA_VERSION,

@@ -1223,10 +1223,27 @@ def adjudicate_outcome(
     return _seal(result)
 
 
+def _event_window_bounds(value: object) -> tuple[datetime, datetime]:
+    if not isinstance(value, str) or value.count("/") != 1:
+        raise RealCaseLearningV2Error(
+            "TEMPORAL_BOUNDARY_MISSING", "event_window must have start/end"
+        )
+    start_raw, end_raw = value.split("/", 1)
+    start = _parse_time(
+        start_raw, code="TEMPORAL_BOUNDARY_MISSING", field="event_window.start"
+    )
+    end = _parse_time(
+        end_raw, code="TEMPORAL_BOUNDARY_MISSING", field="event_window.end"
+    )
+    if end < start:
+        raise RealCaseLearningV2Error(
+            "TEMPORAL_BOUNDARY_MISSING", "event_window end precedes start"
+        )
+    return start, end
+
+
 def _event_window_end(value: object) -> datetime:
-    if not isinstance(value, str) or "/" not in value:
-        raise RealCaseLearningV2Error("TEMPORAL_BOUNDARY_MISSING", "event_window must have start/end")
-    return _parse_time(value.split("/", 1)[1], code="TEMPORAL_BOUNDARY_MISSING", field="event_window.end")
+    return _event_window_bounds(value)[1]
 
 
 def _utc_iso(value: datetime) -> str:
@@ -1469,6 +1486,16 @@ def verify_temporal_partition_manifest(manifest: Mapping[str, object]) -> bool:
                 code="TEMPORAL_BOUNDARY_MISSING",
                 field="event_window_end",
             )
+            declared_windows = [
+                _event_window_bounds(item)
+                for item in cast(list[str], event_windows)
+            ]
+            if (
+                event_end != max(end for _, end in declared_windows)
+                or available_at < observed_at
+                or observed_at < min(start for start, _ in declared_windows)
+            ):
+                return False
             expected_base = (
                 "train"
                 if max(available_at, observed_at, event_end) < cutoff

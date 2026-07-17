@@ -501,8 +501,12 @@ def test_fail_closed_for_unknown_versions_tampering_and_private_fields(
 def test_nested_reality_evidence_rejects_ignored_claim_scope_fields(
     synthetic_graph: dict[str, object], field: str, record: dict[str, object]
 ) -> None:
-    request = _request(synthetic_graph)
+    request = _request(
+        synthetic_graph,
+        evaluation_at="2029-01-02T00:00:00Z",
+    )
     record["target_id"] = request["target_id"]
+    record.update(_evidence_availability())
     request[field] = [record]
     with pytest.raises(BaziExpertV2InputError, match="unsupported fields"):
         orchestrate_bazi_expert_v2(request)
