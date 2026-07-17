@@ -149,3 +149,15 @@ The fixed content version now resolves against literal rule IDs and semantic has
 - Ruff and `git diff --check`: PASS.
 
 New guarantees: every downstream V2 case use revalidates the closed case schema, canonical intake, explicit consent projection, PII-safe payload projection, synthetic provenance, frozen snapshot dependencies, case identity/fingerprint, and operator-only review records. Withdrawal tombstones are schema- and time-validated; when the matching case is present, person/synthetic/dependency bindings must match exactly and the active case is removed from every partition and dependency map. The standalone manifest verifier also rejects any hash-valid manifest that lists the same case as both active and withdrawn.
+
+## Theme 3 trust-proof and conflicting-Reality convergence
+
+- Fresh dual review after the first privacy fix: FAIL / FAIL.
+- RED checkpoint: `bf435cb`; counterexamples covered PII hidden behind a forged `*_sha` field in an open frozen snapshot, opposite verified future evidence for one claim/scope, and a schema-valid standalone tombstone with arbitrary references.
+- RED result: `3 failed`.
+- GREEN checkpoint: `48e42c0`.
+- Real Case focused result: `53 passed`.
+- Explicit Real Case branch coverage: 81% with `--cov-branch --cov-fail-under=80`.
+- Ruff and `git diff --check`: PASS.
+
+Only values that actually satisfy the canonical digest, source-SHA, or pseudonymous-person formats are excluded from downstream PII pattern scanning; a field name alone cannot hide PII. Opposite verified future outcomes for the same claim and scope now fail closed pending operator reconciliation. A standalone withdrawal tombstone is accepted only when its canonical hash appears in an explicit trusted withdrawal registry; tombstones supplied with their original case may instead prove trust through exact person, synthetic, time, and invalidated-dependency bindings.
