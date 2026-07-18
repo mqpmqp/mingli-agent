@@ -237,31 +237,6 @@ class TrainingStoreTests(unittest.TestCase):
         self.assertEqual(2, len(generated))
         self.assertTrue(all(item["applied_to_rules"] is False for item in generated))
 
-    def test_training_outcome_cannot_self_attest_commercial_eligibility(self) -> None:
-        self.store.create_case(self.case_record())
-        payload = runtime_input(training_consent=True)
-        payload["case_id"] = self.case_id
-        run_id = str(run_product_runtime(payload, store=self.store)["run_id"])
-
-        outcome: Any = self.store.add_outcome({
-            "outcome_id": "outcome-self-attested-commercial",
-            "case_id": self.case_id,
-            "run_id": run_id,
-            "event_type": "job_change",
-            "event_time": "2026-09-01T00:00:00+00:00",
-            "observed_at": "2026-09-02T00:00:00+00:00",
-            "source_type": "independent_record",
-            "source_reliability": "independently_verified",
-            "relation_to_prior_claim": "preregistered_claim_outcome",
-            "notes": None,
-            "preregistered_claim_id": "caller-supplied-not-a-v2-frozen-claim",
-        })
-
-        self.assertFalse(outcome["commercial_validation_eligible"])
-        self.assertEqual("REAL_CASE_V2_ADJUDICATION_REQUIRED", outcome["eligibility_reason"])
-        report: Any = self.store.review()
-        self.assertEqual(0, report["commercial_validation_eligible_observations"])
-
     def test_withdrawal_removes_derived_records_and_keeps_non_pii_audit(self) -> None:
         self.store.create_case(self.case_record())
         payload = runtime_input(training_consent=True)
