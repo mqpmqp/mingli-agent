@@ -8,6 +8,15 @@ import sys
 from typing import Mapping, Sequence
 
 from .contracts.serialization import canonical_json
+from .real_case_learning_v2 import (
+    adjudicate_outcome,
+    build_learning_case,
+    build_operator_review_queue,
+    build_temporal_partitions,
+    record_future_outcome,
+    record_prior_event_validation,
+    withdraw_case,
+)
 from .validation_astro_etl import transform_astro_record
 from .validation_authorization import evaluate_product_release
 from .validation_dataset import build_dataset_manifest, verify_dataset_manifest
@@ -15,6 +24,10 @@ from .validation_freeze import freeze_prediction, verify_prediction_snapshot
 from .validation_intake import import_intakes, rollback_import, validate_intake
 from .validation_privacy import scan_for_pii
 from .validation_protocol import verify_validation_protocol
+from .release_hold_attack_v1 import (
+    assess_release_hold_reassessment,
+    calculate_release_hold_attack_metrics,
+)
 
 
 def _read(path: Path) -> object:
@@ -25,6 +38,10 @@ def _write_new(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("x", encoding="utf-8", newline="\n") as handle:
         handle.write(canonical_json(value) + "\n")
+
+
+def _checkout_root() -> Path:
+    return Path(__file__).resolve().parents[2]
 
 
 def _controlled_external_path(path: Path, repo_root: Path, *, label: str) -> Path:
@@ -82,6 +99,32 @@ def _parser() -> argparse.ArgumentParser:
     benchmark.add_argument("--manifest", type=Path, default=Path("validation_dataset_manifest.json"))
     benchmark.add_argument("--authorization", type=Path, default=Path("product_release_authorization.json"))
     benchmark.add_argument("--gates", type=Path)
+    reassessment = commands.add_parser("hold-reassessment")
+    reassessment.add_argument("--records", type=Path, required=True)
+    reassessment.add_argument("--output", type=Path, required=True)
+    case_start = commands.add_parser("case-start")
+    case_start.add_argument("--input", type=Path, required=True)
+    case_start.add_argument("--output", type=Path, required=True)
+    for command_name in ("case-prior", "case-future"):
+        transition = commands.add_parser(command_name)
+        transition.add_argument("--case", type=Path, required=True)
+        transition.add_argument("--evidence", type=Path, required=True)
+        transition.add_argument("--output", type=Path, required=True)
+    partition = commands.add_parser("case-partition")
+    partition.add_argument("--cases", type=Path, required=True)
+    partition.add_argument("--cutoff-at", required=True)
+    partition.add_argument("--output", type=Path, required=True)
+    adjudicate = commands.add_parser("case-adjudicate")
+    adjudicate.add_argument("--case", type=Path, required=True)
+    adjudicate.add_argument("--request", type=Path, required=True)
+    adjudicate.add_argument("--output", type=Path, required=True)
+    review_queue = commands.add_parser("case-review-queue")
+    review_queue.add_argument("--cases", type=Path, required=True)
+    review_queue.add_argument("--output", type=Path, required=True)
+    withdrawal = commands.add_parser("case-withdraw")
+    withdrawal.add_argument("--case", type=Path, required=True)
+    withdrawal.add_argument("--withdrawn-at", required=True)
+    withdrawal.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -89,7 +132,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "astro-intake":
-            repo_root = Path.cwd()
+            repo_root = _checkout_root()
             source_path = _controlled_external_path(
                 args.file,
                 repo_root,
@@ -112,19 +155,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 dry_run=args.dry_run,
             ).to_dict()
         elif args.command == "intake":
-            store = _controlled_store(args.store, Path.cwd())
+            store = _controlled_store(args.store, _checkout_root())
             result = import_intakes(store, [_read(args.file)], source_ref=args.source_ref, dry_run=args.dry_run).to_dict()
         elif args.command == "intake-batch":
-            store = _controlled_store(args.store, Path.cwd())
+            store = _controlled_store(args.store, _checkout_root())
             records = [_read(path) for path in sorted(args.directory.glob("*.json"))]
             result = import_intakes(store, records, source_ref=args.source_ref, dry_run=args.dry_run).to_dict()
         elif args.command == "rollback-import":
-            store = _controlled_store(args.store, Path.cwd())
+            store = _controlled_store(args.store, _checkout_root())
             result = rollback_import(store, args.batch_id).__dict__
         elif args.command == "validate-intake":
             result = {"valid": True, "intake_canonical_hash": validate_intake(_read(args.file))["intake_canonical_hash"]}
         elif args.command == "freeze-prediction":
-            store = _controlled_store(args.store, Path.cwd())
+            store = _controlled_store(args.store, _checkout_root())
             result = freeze_prediction(
                 _read(args.file), store=store,
                 frozen_at=args.frozen_at or datetime.now(timezone.utc).isoformat(),
@@ -147,6 +190,180 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = {"valid": verify_dataset_manifest(_read(args.file))}
         elif args.command == "verify-protocol":
             result = {"valid": verify_validation_protocol(_read(args.file))}
+        elif args.command == "hold-reassessment":
+            repo_root = _checkout_root()
+            records_path = _controlled_external_path(
+                args.records,
+                repo_root,
+                label="Hold reassessment records",
+            )
+            output_path = _controlled_external_path(
+                args.output,
+                repo_root,
+                label="Hold reassessment output",
+            )
+            records = _read(records_path)
+            if not isinstance(records, list):
+                raise ValueError("Hold reassessment records must contain a JSON array")
+            metrics = calculate_release_hold_attack_metrics(records)
+            reassessment = assess_release_hold_reassessment(metrics)
+            result = {
+                "report_type": "ReleaseHoldAttackReassessmentReportV1",
+                "source_commit_sha": metrics["source_commit_sha"],
+                "data_classification": metrics["data_classification"],
+                "metrics": metrics,
+                "reassessment": reassessment,
+            }
+            _write_new(output_path, result)
+        elif args.command == "case-start":
+            repo_root = _checkout_root()
+            input_path = _controlled_external_path(
+                args.input,
+                repo_root,
+                label="Case start input",
+            )
+            output_path = _controlled_external_path(
+                args.output,
+                repo_root,
+                label="Case start output",
+            )
+            payload = _read(input_path)
+            required_fields = {
+                "intake",
+                "chart_snapshot",
+                "original_question",
+                "prediction_time_reality_context",
+                "prediction",
+                "frozen_at",
+                "synthetic",
+            }
+            if not isinstance(payload, Mapping) or set(payload) != required_fields:
+                raise ValueError(
+                    "Case start input must contain exactly the required V2 case fields"
+                )
+            result = build_learning_case(
+                payload["intake"],
+                chart_snapshot=payload["chart_snapshot"],
+                original_question=payload["original_question"],
+                prediction_time_reality_context=payload[
+                    "prediction_time_reality_context"
+                ],
+                prediction=payload["prediction"],
+                frozen_at=payload["frozen_at"],
+                synthetic=payload["synthetic"],
+            )
+            _write_new(output_path, result)
+        elif args.command in {"case-prior", "case-future"}:
+            repo_root = _checkout_root()
+            case_path = _controlled_external_path(
+                args.case, repo_root, label="Case snapshot"
+            )
+            evidence_path = _controlled_external_path(
+                args.evidence, repo_root, label="Case evidence"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case transition output"
+            )
+            case = _read(case_path)
+            evidence = _read(evidence_path)
+            if not isinstance(case, Mapping) or not isinstance(evidence, Mapping):
+                raise ValueError("Case transition inputs must each contain a JSON object")
+            result = (
+                record_prior_event_validation(case, evidence)
+                if args.command == "case-prior"
+                else record_future_outcome(case, evidence)
+            )
+            _write_new(output_path, result)
+        elif args.command == "case-partition":
+            repo_root = _checkout_root()
+            cases_path = _controlled_external_path(
+                args.cases, repo_root, label="Case partition input"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case partition output"
+            )
+            cases = _read(cases_path)
+            if not isinstance(cases, list) or any(
+                not isinstance(case, Mapping) for case in cases
+            ):
+                raise ValueError("Case partition input must contain a JSON array of case objects")
+            result = build_temporal_partitions(cases, cutoff_at=args.cutoff_at)
+            _write_new(output_path, result)
+        elif args.command == "case-adjudicate":
+            repo_root = _checkout_root()
+            case_path = _controlled_external_path(
+                args.case, repo_root, label="Case adjudication input"
+            )
+            request_path = _controlled_external_path(
+                args.request, repo_root, label="Case adjudication request"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case adjudication output"
+            )
+            case = _read(case_path)
+            request = _read(request_path)
+            required_fields = {
+                "adjudication_id",
+                "claim_id",
+                "scope",
+                "outcome_evidence_ids",
+                "status",
+                "error_taxonomy",
+                "rule_attributions",
+                "revision",
+                "benchmark_comparison",
+                "recommendation",
+                "adjudicated_at",
+            }
+            if not isinstance(case, Mapping):
+                raise ValueError("Case adjudication input must contain a JSON object")
+            if not isinstance(request, Mapping) or set(request) != required_fields:
+                raise ValueError(
+                    "Case adjudication request must contain exactly the required V2 fields"
+                )
+            result = adjudicate_outcome(
+                case,
+                adjudication_id=request["adjudication_id"],
+                claim_id=request["claim_id"],
+                scope=request["scope"],
+                outcome_evidence_ids=request["outcome_evidence_ids"],
+                status=request["status"],
+                error_taxonomy=request["error_taxonomy"],
+                rule_attributions=request["rule_attributions"],
+                revision=request["revision"],
+                benchmark_comparison=request["benchmark_comparison"],
+                recommendation=request["recommendation"],
+                adjudicated_at=request["adjudicated_at"],
+            )
+            _write_new(output_path, result)
+        elif args.command == "case-review-queue":
+            repo_root = _checkout_root()
+            cases_path = _controlled_external_path(
+                args.cases, repo_root, label="Case review queue input"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case review queue output"
+            )
+            cases = _read(cases_path)
+            if not isinstance(cases, list) or any(
+                not isinstance(case, Mapping) for case in cases
+            ):
+                raise ValueError("Case review queue input must contain a JSON array of case objects")
+            result = build_operator_review_queue(cases)
+            _write_new(output_path, result)
+        elif args.command == "case-withdraw":
+            repo_root = _checkout_root()
+            case_path = _controlled_external_path(
+                args.case, repo_root, label="Case withdrawal input"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case withdrawal output"
+            )
+            case = _read(case_path)
+            if not isinstance(case, Mapping):
+                raise ValueError("Case withdrawal input must contain a JSON object")
+            result = withdraw_case(case, withdrawn_at=args.withdrawn_at)
+            _write_new(output_path, result)
         else:
             manifest = _read(args.manifest)
             authorization = _read(args.authorization)

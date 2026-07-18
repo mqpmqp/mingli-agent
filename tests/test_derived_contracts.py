@@ -281,7 +281,7 @@ class SourceAndPackagingTests(unittest.TestCase):
                     for name in archive.namelist()
                     if "/schemas/" in name and name.endswith(".json")
                 }
-            self.assertEqual(42, len(packaged))
+            self.assertEqual(43, len(packaged))
             ziwei_schemas = {
                 f"ziwei_{name}.schema.json"
                 for name in (
@@ -330,6 +330,7 @@ class SourceAndPackagingTests(unittest.TestCase):
                     "analysis_run.schema.json",
                     "user_feedback.schema.json",
                     "outcome_observation.schema.json",
+                    "outcome_observation_v2.schema.json",
                     "rule_review_candidate.schema.json",
                     "training_iteration.schema.json",
                 }.issubset(packaged_names)
