@@ -45,7 +45,7 @@ Explicitly excluded:
 
 ## Frozen Components
 
-The exact bytes of the relevant components are recorded in
+The exact Git blob bytes of the relevant components are recorded in
 `src/mingli/derived/data/real_case_candidate_freeze_v1.json`:
 
 - Python package version: `2.0.0`

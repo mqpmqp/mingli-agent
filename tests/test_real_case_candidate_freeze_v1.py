@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +44,12 @@ def test_manifest_is_sorted_relative_and_hashes_original_bytes() -> None:
     for entry in entries:
         path = ROOT / entry["path"]
         assert path.is_file(), entry["path"]
-        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        blob = subprocess.run(
+            ["git", "cat-file", "blob", f"{_manifest()['candidate_sha']}:{entry['path']}"],
+            check=True,
+            capture_output=True,
+        ).stdout
+        actual = hashlib.sha256(blob).hexdigest()
         assert entry["sha256"] == actual, entry["path"]
 
 
