@@ -1,0 +1,16 @@
+{
+  "source_id": "luming-bazi-casebook-v1",
+  "title": "八字实战案例集弟子班体系",
+  "source_type": "licensed_historical_case_collection",
+  "copyright_authorization_status": "AUTHORIZED",
+  "authorization_basis": "USER_ATTESTED",
+  "allowed_use": ["INTERNAL_RESEARCH", "COMMERCIAL_TRAINING"],
+  "verification_level": "unverified_retrospective",
+  "prediction_validity": "not_evaluated",
+  "commercial_validation_eligible": false,
+  "release_hold_evidence": false,
+  "raw_file_in_git": false,
+  "sha256": "20b88e8a72dee433575a2ce986866f139b437da9d7c63c96656e72df071c48bc",
+  "page_count": 240,
+  "ingestion_version": 1
+}
