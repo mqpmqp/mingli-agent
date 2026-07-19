@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from copy import deepcopy
+from functools import lru_cache
 import json
 from importlib.resources import files
 from typing import Mapping, Sequence
@@ -89,11 +91,16 @@ def _score(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP), "f")
 
 
-def _resource(name: str, label: str) -> dict[str, object]:
+@lru_cache(maxsize=None)
+def _resource_cached(name: str, label: str) -> dict[str, object]:
     value = json.loads(files("mingli.derived.data").joinpath(name).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be an object")
     return value
+
+
+def _resource(name: str, label: str) -> dict[str, object]:
+    return deepcopy(_resource_cached(name, label))
 
 
 def load_phase15_domain_profiles() -> dict[str, object]:
@@ -104,8 +111,9 @@ def load_phase15_domain_assertions() -> dict[str, object]:
     return _resource(ASSERTION_RESOURCE, "Phase 15 assertion manifest")
 
 
-def get_tengod_domain_profile(profile_id: str = DEFAULT_PHASE15_PROFILE_ID) -> dict[str, object]:
-    raw = load_phase15_domain_profiles().get("profiles")
+@lru_cache(maxsize=None)
+def _get_tengod_domain_profile_cached(profile_id: str) -> dict[str, object]:
+    raw = _resource_cached(PROFILE_RESOURCE, "Phase 15 profile manifest").get("profiles")
     if not isinstance(raw, list):
         raise ValueError("profiles must be an array")
     for item in raw:
@@ -117,6 +125,10 @@ def get_tengod_domain_profile(profile_id: str = DEFAULT_PHASE15_PROFILE_ID) -> d
             })
             return result
     raise ValueError(f"unsupported Phase 15 profile: {profile_id}")
+
+
+def get_tengod_domain_profile(profile_id: str = DEFAULT_PHASE15_PROFILE_ID) -> dict[str, object]:
+    return deepcopy(_get_tengod_domain_profile_cached(profile_id))
 
 
 def validate_phase15_profiles() -> tuple[str, ...]:
@@ -981,7 +993,7 @@ def evaluate_bazi_tengod_domains(
         raise Phase15InputError("Phase 13 Interaction Result is required")
     if not isinstance(temporal_trend_result, Mapping) or not temporal_trend_result:
         raise Phase15InputError("Phase 14 Temporal Trend Result is required")
-    profile = get_tengod_domain_profile(profile_id)
+    profile = _get_tengod_domain_profile_cached(profile_id)
     graph_hash = _verify_fact_graph(fact_graph)
     interaction_hash = _verify_phase13(interaction_result, graph_hash)
     trend_hash = _verify_phase14(temporal_trend_result, graph_hash, interaction_hash)
@@ -1168,7 +1180,8 @@ def domain_result_to_phase8_evidence(
     return tuple(item.to_phase8_evidence() for item in sorted(records, key=lambda value: value.evidence_id))
 
 
-def build_phase15_fixture(
+@lru_cache(maxsize=None)
+def _build_phase15_fixture_cached(
     day_stem: str,
     month_branch: str,
 ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
@@ -1176,6 +1189,35 @@ def build_phase15_fixture(
     interaction = evaluate_luck_cycle_role_interactions(graph, xiji).to_dict()
     trend = evaluate_bazi_temporal_trends(graph, interaction).to_dict()
     return graph, interaction, trend
+
+
+def build_phase15_fixture(
+    day_stem: str,
+    month_branch: str,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    return deepcopy(_build_phase15_fixture_cached(day_stem, month_branch))
+
+
+@lru_cache(maxsize=None)
+def _build_phase15_result_cached(
+    day_stem: str,
+    month_branch: str,
+) -> BaziTenGodDomainJudgementResult:
+    graph, interaction, trend = _build_phase15_fixture_cached(day_stem, month_branch)
+    return evaluate_bazi_tengod_domains(graph, interaction, trend)
+
+
+def _benchmark_reordered_copy(value: Mapping[str, object]) -> dict[str, object]:
+    """Copy benchmark input with mapping keys reordered without JSON file IO."""
+    return {
+        str(key): [
+            _benchmark_reordered_copy(item) if isinstance(item, Mapping) else item
+            for item in child
+        ] if isinstance(child, list) else (
+            _benchmark_reordered_copy(child) if isinstance(child, Mapping) else child
+        )
+        for key, child in sorted(value.items(), key=lambda item: str(item[0]))
+    }
 
 
 def benchmark_phase15() -> Phase15BenchmarkResult:
@@ -1191,14 +1233,30 @@ def benchmark_phase15() -> Phase15BenchmarkResult:
         else:
             failures.append(message)
 
+    result_cache: dict[tuple[str, str, str], BaziTenGodDomainJudgementResult] = {}
+
+    def evaluate_cached(
+        graph: Mapping[str, object],
+        interaction: Mapping[str, object],
+        trend: Mapping[str, object],
+    ) -> BaziTenGodDomainJudgementResult:
+        key = (str(graph["canonical_hash"]), str(interaction["canonical_hash"]), str(trend["canonical_hash"]))
+        if key not in result_cache:
+            result_cache[key] = evaluate_bazi_tengod_domains(graph, interaction, trend)
+        return result_cache[key]
+
     for day_stem in STEMS:
         for month_branch in BRANCHES:
             graph, interaction, trend = build_phase15_fixture(day_stem, month_branch)
-            result = evaluate_bazi_tengod_domains(graph, interaction, trend)
-            reordered = evaluate_bazi_tengod_domains(
-                json.loads(json.dumps(graph, ensure_ascii=False, sort_keys=True)),
-                json.loads(json.dumps(interaction, ensure_ascii=False, sort_keys=True)),
-                json.loads(json.dumps(trend, ensure_ascii=False, sort_keys=True)),
+            result = _build_phase15_result_cached(day_stem, month_branch)
+            result_cache.setdefault(
+                (str(graph["canonical_hash"]), str(interaction["canonical_hash"]), str(trend["canonical_hash"])),
+                result,
+            )
+            reordered = evaluate_cached(
+                _benchmark_reordered_copy(graph),
+                _benchmark_reordered_copy(interaction),
+                _benchmark_reordered_copy(trend),
             )
             payload = result.to_dict()
             target_ids = {str(item["target_id"]) for key in ("dayun_trends", "liunian_trends", "combined_trends") for item in trend[key]}
