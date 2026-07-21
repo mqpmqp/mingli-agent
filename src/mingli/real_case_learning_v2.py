@@ -38,6 +38,15 @@ _SUPPORTED_CHART_PREFIXES = (
     "bazi-chart@",
 )
 _OUTCOME_STATUSES = frozenset({"hit", "partial", "miss", "unverifiable"})
+_CASE_CLASSIFICATIONS = frozenset(
+    {
+        "development_case",
+        "blind_evaluation_case",
+        "test_fixture",
+        "synthetic_case",
+        "imported_historical_case",
+    }
+)
 _ERROR_TAXONOMY = frozenset(
     {
         "wrong_direction",
@@ -48,6 +57,17 @@ _ERROR_TAXONOMY = frozenset(
         "unsupported_input",
         "insufficient_evidence",
         "data_quality",
+        "deterministic_chart_error",
+        "input_precision_insufficient",
+        "reality_context_missing",
+        "rule_misapplication",
+        "unsupported_claim",
+        "vague_or_non_falsifiable",
+        "post_hoc_interpretation",
+        "incorrect_prediction",
+        "partially_supported",
+        "not_yet_verifiable",
+        "user_satisfaction_only",
     }
 )
 _RECOMMENDATIONS = frozenset({"promote", "demote", "retain", "investigate"})
@@ -585,6 +605,7 @@ def _validate_v2_review_records(
 
 def _validate_v2_case_semantics(case: Mapping[str, object]) -> None:
     _validate_v2_case_intake(case)
+    _case_classification(case)
     prediction = case.get("prediction_snapshot")
     if not isinstance(prediction, Mapping):
         raise RealCaseLearningV2Error(
@@ -867,6 +888,33 @@ def _dependency_hashes(case: Mapping[str, object], *new_hashes: object) -> list[
     return sorted(set(values))
 
 
+def _case_classification(case: Mapping[str, object]) -> str:
+    classification = case.get("case_classification")
+    if classification is None:
+        classification = "synthetic_case" if case.get("synthetic") is True else "development_case"
+    if classification not in _CASE_CLASSIFICATIONS:
+        raise RealCaseLearningV2Error(
+            "CASE_CLASSIFICATION_INVALID", "unsupported case classification"
+        )
+    if case.get("synthetic") is True and classification not in {
+        "synthetic_case",
+        "test_fixture",
+    }:
+        raise RealCaseLearningV2Error(
+            "CASE_CLASSIFICATION_INVALID",
+            "synthetic cases must be synthetic_case or test_fixture",
+        )
+    if case.get("synthetic") is False and classification in {
+        "synthetic_case",
+        "test_fixture",
+    }:
+        raise RealCaseLearningV2Error(
+            "CASE_CLASSIFICATION_INVALID",
+            "real cases cannot use a synthetic classification",
+        )
+    return str(classification)
+
+
 def build_learning_case(
     intake: Mapping[str, object],
     *,
@@ -926,6 +974,12 @@ def build_learning_case(
             "SYNTHETIC_MARKER_REQUIRED",
             "synthetic provenance cannot be represented as a real case",
         )
+    case_classification = _case_classification(
+        {
+            "synthetic": synthetic,
+            "case_classification": metadata.get("case_classification"),
+        }
+    )
     if prediction_payload.get("prediction_validity") != PREDICTION_VALIDITY:
         raise RealCaseLearningV2Error("PREDICTION_VALIDITY_CHANGED", "prediction_validity must remain not_evaluated")
     if prediction_payload.get("reality_evidence_visibility") is not False:
@@ -1070,6 +1124,7 @@ def build_learning_case(
             "withdrawal_supported": consent["withdrawal_supported"],
         },
         "synthetic": synthetic,
+        "case_classification": case_classification,
         "accuracy_eligible": False,
         "product_claim_eligible": False,
         "commercial_release_hold": COMMERCIAL_RELEASE_HOLD,
@@ -2134,12 +2189,21 @@ def withdraw_case(case: Mapping[str, object], *, withdrawn_at: str) -> dict[str,
 def summarize_learning_cases(cases: Sequence[Mapping[str, object]]) -> dict[str, object]:
     active = [_case_copy(case) for case in cases]
     synthetic_count = sum(item.get("synthetic") is True for item in active)
+    classification_counts = {
+        classification: sum(
+            _case_classification(case) == classification for case in active
+        )
+        for classification in sorted(_CASE_CLASSIFICATIONS)
+    }
     return _seal(
         {
             "record_type": "RealCaseLearningV2Summary",
             "schema_version": "real-case-learning-summary@2.0",
             "total_cases": len(active),
             "synthetic_contract_cases": synthetic_count,
+            "case_classification_counts": {
+                key: value for key, value in classification_counts.items() if value
+            },
             "real_cases_pending_independent_review": len(active) - synthetic_count,
             "accuracy_eligible_cases": 0,
             "accuracy_metrics": None,
@@ -2156,6 +2220,115 @@ def summarize_learning_cases(cases: Sequence[Mapping[str, object]]) -> dict[str,
     )
 
 
+def inspect_learning_case(case: Mapping[str, object]) -> dict[str, object]:
+    """Return the frozen output and version audit surface without mutating the case."""
+    payload = _case_copy(case)
+    prediction = cast(Mapping[str, object], payload["prediction_snapshot"])
+    chart = cast(Mapping[str, object], payload["chart_snapshot"])
+    return {
+        "case_id": payload["case_id"],
+        "case_classification": _case_classification(payload),
+        "lifecycle_status": payload["lifecycle_status"],
+        "original_output": prediction["prediction_content"],
+        "output_hash": prediction["canonical_hash"],
+        "prediction_frozen_at": prediction["freeze_timestamp"],
+        "versions": {
+            "chart_engine_version": chart.get("schema_version"),
+            "runtime_version": prediction.get("engine_version"),
+            "rule_version": prediction.get("rule_set_version"),
+            "knowledge_revision": prediction.get("knowledge_manifest_sha"),
+            "renderer_version": prediction.get("renderer_version"),
+        },
+        "feedback_count": len(cast(list[object], payload["future_outcomes"])),
+        "review_count": len(cast(list[object], payload["adjudications"])),
+        "verification_level": (
+            "human_review_pending"
+            if payload["adjudications"]
+            else "evidence_collected"
+            if payload["future_outcomes"]
+            else "not_yet_verifiable"
+        ),
+        "commercial_release_hold": COMMERCIAL_RELEASE_HOLD,
+        "prediction_validity": PREDICTION_VALIDITY,
+        "product_accuracy_claim": "prohibited",
+    }
+
+
+def export_anonymized_review_pack(
+    cases: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    """Export an append-only, de-identified package for human review only."""
+    entries: list[dict[str, object]] = []
+    for case in cases:
+        payload = _case_copy(case)
+        prediction = cast(Mapping[str, object], payload["prediction_snapshot"])
+        chart = cast(Mapping[str, object], payload["chart_snapshot"])
+        entries.append(
+            {
+                "case_ref_hash": digest({"case_id": payload["case_id"]}),
+                "case_classification": _case_classification(payload),
+                "lifecycle_status": payload["lifecycle_status"],
+                "consent": dict(cast(Mapping[str, object], payload["consent"])),
+                "birth_data_precision": cast(Mapping[str, object], payload["intake_snapshot"])
+                .get("birth_input", {})
+                .get("location_precision"),
+                "chart_snapshot": {
+                    "schema_version": chart.get("schema_version"),
+                    "canonical_hash": chart.get("canonical_hash"),
+                },
+                "original_question": cast(Mapping[str, object], payload["original_question_snapshot"]).get("text"),
+                "prediction": {
+                    key: prediction.get(key)
+                    for key in (
+                        "prediction_id",
+                        "prediction_content",
+                        "structured_claims",
+                        "confidence",
+                        "freeze_timestamp",
+                        "canonical_hash",
+                    )
+                },
+                "future_outcomes": [
+                    {
+                        "evidence_id": item.get("evidence_id"),
+                        "claim_id": item.get("claim_id"),
+                        "scope": item.get("scope"),
+                        "reality_resolution": item.get("reality_resolution"),
+                        "canonical_hash": item.get("canonical_hash"),
+                    }
+                    for item in cast(list[object], payload["future_outcomes"])
+                    if isinstance(item, Mapping)
+                ],
+                "adjudications": list(cast(list[object], payload["adjudications"])),
+                "error_classification": list(cast(list[object], payload["error_taxonomy"])),
+                "revisions": list(cast(list[object], payload["revisions"])),
+                "training_eligible": False,
+            }
+        )
+    entries.sort(key=lambda item: str(item["case_ref_hash"]))
+    return _seal(
+        {
+            "record_type": "RealCaseLearningV2AnonymizedReviewPack",
+            "schema_version": "real-case-learning-review-pack@2.0",
+            "case_count": len(entries),
+            "cases": entries,
+            "training_eligible_case_count": 0,
+            "commercial_release_hold": COMMERCIAL_RELEASE_HOLD,
+            "prediction_validity": PREDICTION_VALIDITY,
+            "product_accuracy_claim": "prohibited",
+        }
+    )
+
+
+def case_hold_status() -> dict[str, object]:
+    return {
+        "commercial_release_hold": COMMERCIAL_RELEASE_HOLD,
+        "commercial_validation_eligibility": False,
+        "prediction_validity": PREDICTION_VALIDITY,
+        "product_accuracy_claim": "prohibited",
+    }
+
+
 __all__ = [
     "COMMERCIAL_RELEASE_HOLD",
     "PARTITION_SCHEMA_VERSION",
@@ -2169,6 +2342,9 @@ __all__ = [
     "build_learning_case",
     "build_operator_review_queue",
     "build_temporal_partitions",
+    "case_hold_status",
+    "export_anonymized_review_pack",
+    "inspect_learning_case",
     "verify_temporal_partition_manifest",
     "record_future_outcome",
     "record_prior_event_validation",
