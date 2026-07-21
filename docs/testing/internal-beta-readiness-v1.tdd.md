@@ -2,7 +2,7 @@
 
 ## Scope
 
-The work reuses Case OS V2 and Phase 16. It adds controlled read-only case audit operations and hardens the existing evaluator cache; no real case data, accuracy metric, Release Hold override, external service, or new dependency is introduced.
+The work reuses Case OS V2 and Phase 16. It adds controlled read-only case audit operations and hardens the existing evaluator cache; the default evaluator bound is eight entries so a benchmark does not retain the entire unique-input matrix. No real case data, accuracy metric, Release Hold override, external service, or new dependency is introduced.
 
 ## RED
 

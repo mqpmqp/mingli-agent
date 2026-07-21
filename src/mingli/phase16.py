@@ -64,7 +64,7 @@ BLOCKED_OUTPUTS = {
     "partner_count_prediction",
     "natural_language_renderer",
 }
-_EVALUATION_CACHE_LIMIT = 128
+_EVALUATION_CACHE_LIMIT = 8
 _EVALUATION_CACHE: OrderedDict[
     tuple[str, str, str, tuple[str, ...]], BaziBaseDomainContractResult
 ] = OrderedDict()
