@@ -13,7 +13,7 @@ from jsonschema.validators import Draft202012Validator
 
 from .contracts.serialization import digest
 from .derived.static_engine import BRANCHES, STEMS
-from .phase8_engine import validate_import_origin
+from .phase8_engine import validate_import_origin as validate_import_origin
 from .phase15 import _build_phase15_fixture_cached, build_phase15_fixture, evaluate_bazi_tengod_domains
 from .phase15_contracts import record_digest as phase15_record_digest
 from .phase16_contracts import (
