@@ -11,7 +11,7 @@ from typing import Mapping, Sequence
 from .contracts.serialization import digest
 from .derived.static_engine import BRANCHES, STEMS
 from .phase8_engine import validate_import_origin
-from .phase13 import _build_phase13_fixture_cached, build_phase13_fixture, evaluate_luck_cycle_role_interactions
+from .phase13 import _build_phase13_fixture_cached, evaluate_luck_cycle_role_interactions
 from .phase13_contracts import record_digest as phase13_record_digest
 from .phase14_contracts import (
     BaziTemporalTrendEvidenceResult,
