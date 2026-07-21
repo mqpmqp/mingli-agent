@@ -240,6 +240,55 @@ def test_case_start_operator_can_privacy_scan_an_external_contract_fixture() -> 
         assert json.loads(stdout.getvalue()) == {"findings": [], "passed": True}
 
 
+def test_case_os_cli_exposes_read_only_internal_beta_audit_operations() -> None:
+    payload = _case_start_input()
+    payload["intake"]["case_metadata"]["case_classification"] = "test_fixture"  # type: ignore[index]
+    with TemporaryDirectory(dir=Path.cwd().parent) as directory:
+        controlled = Path(directory)
+        input_path = controlled / "start.json"
+        case_path = controlled / "case.json"
+        cases_path = controlled / "cases.json"
+        review_pack_path = controlled / "review-pack.json"
+        input_path.write_text(json.dumps(payload), encoding="utf-8")
+        assert validation_main(["case-start", "--input", str(input_path), "--output", str(case_path)]) == 0
+        case = json.loads(case_path.read_text(encoding="utf-8"))
+        cases_path.write_text(json.dumps([case]), encoding="utf-8")
+
+        inspect_stdout = io.StringIO()
+        with redirect_stdout(inspect_stdout):
+            assert validation_main(["case-inspect", "--case", str(case_path)]) == 0
+        inspection = json.loads(inspect_stdout.getvalue())
+        assert inspection["original_output"] == payload["prediction"]["prediction_content"]
+        assert inspection["output_hash"] == case["prediction_snapshot"]["canonical_hash"]
+        assert inspection["case_classification"] == "test_fixture"
+        assert inspection["commercial_release_hold"] == "ACTIVE"
+
+        summary_stdout = io.StringIO()
+        with redirect_stdout(summary_stdout):
+            assert validation_main(["case-summary", "--cases", str(cases_path)]) == 0
+        summary = json.loads(summary_stdout.getvalue())
+        assert summary["case_classification_counts"] == {"test_fixture": 1}
+        assert summary["accuracy_eligible_cases"] == 0
+
+        assert validation_main(
+            ["case-export-review-pack", "--cases", str(cases_path), "--output", str(review_pack_path)]
+        ) == 0
+        review_pack = json.loads(review_pack_path.read_text(encoding="utf-8"))
+        assert review_pack["case_count"] == 1
+        assert "person_case_id" not in review_pack["cases"][0]
+        assert "consent_record_ref" not in json.dumps(review_pack)
+
+        hold_stdout = io.StringIO()
+        with redirect_stdout(hold_stdout):
+            assert validation_main(["case-hold-status"]) == 0
+        assert json.loads(hold_stdout.getvalue()) == {
+            "commercial_release_hold": "ACTIVE",
+            "commercial_validation_eligibility": False,
+            "prediction_validity": "not_evaluated",
+            "product_accuracy_claim": "prohibited",
+        }
+
+
 def test_case_os_cli_keeps_external_snapshots_append_only_after_start() -> None:
     payload = _case_start_input()
     with TemporaryDirectory(dir=Path.cwd().parent) as directory:
