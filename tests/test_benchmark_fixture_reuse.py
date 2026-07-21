@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from mingli.derived.static_engine import BRANCHES, STEMS
+from mingli.phase16 import build_phase16_fixture, evaluate_base_domain_contracts
 from mingli.phase15 import build_phase15_fixture
 import mingli.phase15 as phase15
 
@@ -16,3 +17,13 @@ def test_phase15_fixture_cache_reuses_deterministic_input_without_shared_mutatio
     info = phase15.phase15_fixture_cache_info()
     assert info.hits >= 1
     assert info.currsize == 1
+
+
+def test_phase16_evaluator_cache_returns_isolated_deterministic_results() -> None:
+    source = build_phase16_fixture(STEMS[0], BRANCHES[0])
+    first = evaluate_base_domain_contracts(source)
+    first.domain_index["mutated"] = ()  # type: ignore[index]
+    second = evaluate_base_domain_contracts(source)
+
+    assert "mutated" not in second.domain_index
+    assert first.canonical_hash == second.canonical_hash
