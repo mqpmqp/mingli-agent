@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 from functools import lru_cache
 import json
 from importlib.resources import files
+from threading import RLock
 from typing import Mapping, Sequence
 
 from jsonschema.validators import Draft202012Validator
 
 from .contracts.serialization import digest
 from .derived.static_engine import BRANCHES, STEMS
-from .phase8_engine import validate_import_origin
+from .phase8_engine import validate_import_origin as validate_import_origin
 from .phase15 import _build_phase15_fixture_cached, build_phase15_fixture, evaluate_bazi_tengod_domains
 from .phase15_contracts import record_digest as phase15_record_digest
 from .phase16_contracts import (
@@ -62,8 +64,11 @@ BLOCKED_OUTPUTS = {
     "partner_count_prediction",
     "natural_language_renderer",
 }
-_EVALUATION_CACHE_LIMIT = 128
-_EVALUATION_CACHE: dict[tuple[str, str, tuple[str, ...]], BaziBaseDomainContractResult] = {}
+_EVALUATION_CACHE_LIMIT = 8
+_EVALUATION_CACHE: OrderedDict[
+    tuple[str, str, str, tuple[str, ...]], BaziBaseDomainContractResult
+] = OrderedDict()
+_EVALUATION_CACHE_LOCK = RLock()
 
 
 def _resource(name: str, label: str) -> dict[str, object]:
@@ -470,19 +475,40 @@ def evaluate_base_domain_contracts(
     if not isinstance(phase15_result, Mapping) or not phase15_result:
         raise Phase16InputError("Phase 15 Domain Judgement Result is required")
     phase15_hash = _verify_phase15(phase15_result)
-    key = (phase15_hash, profile_id, tuple(requested_outputs))
-    cached = _EVALUATION_CACHE.get(key)
-    if cached is not None:
-        return deepcopy(cached)
+    key = (
+        phase15_hash,
+        profile_id,
+        PHASE16_SCHEMA_VERSION,
+        tuple(requested_outputs),
+    )
+    with _EVALUATION_CACHE_LOCK:
+        cached = _EVALUATION_CACHE.get(key)
+        if cached is not None:
+            _EVALUATION_CACHE.move_to_end(key)
+            return deepcopy(cached)
     result = _evaluate_base_domain_contracts_uncached(
         phase15_result,
         profile_id=profile_id,
         requested_outputs=requested_outputs,
     )
-    if len(_EVALUATION_CACHE) >= _EVALUATION_CACHE_LIMIT:
-        _EVALUATION_CACHE.pop(next(iter(_EVALUATION_CACHE)))
-    _EVALUATION_CACHE[key] = result
+    with _EVALUATION_CACHE_LOCK:
+        _EVALUATION_CACHE[key] = result
+        _EVALUATION_CACHE.move_to_end(key)
+        while len(_EVALUATION_CACHE) > _EVALUATION_CACHE_LIMIT:
+            _EVALUATION_CACHE.popitem(last=False)
     return deepcopy(result)
+
+
+def clear_phase16_evaluation_cache() -> None:
+    """Clear the process-local evaluator cache for deterministic test isolation."""
+    with _EVALUATION_CACHE_LOCK:
+        _EVALUATION_CACHE.clear()
+
+
+def phase16_evaluation_cache_info() -> dict[str, int]:
+    """Return bounded-cache metadata without exposing cached contract data."""
+    with _EVALUATION_CACHE_LOCK:
+        return {"size": len(_EVALUATION_CACHE), "limit": _EVALUATION_CACHE_LIMIT}
 
 
 def _evaluate_base_domain_contracts_uncached(

@@ -18,7 +18,7 @@ from .derived.static_engine import (
 )
 from .phase8_engine import validate_import_origin
 from .phase13_contracts import record_digest as phase13_record_digest
-from .phase14 import _build_phase14_fixture_cached, build_phase14_fixture, evaluate_bazi_temporal_trends
+from .phase14 import _build_phase14_fixture_cached, evaluate_bazi_temporal_trends
 from .phase14_contracts import record_digest as phase14_record_digest
 from .phase15_contracts import (
     BaziTenGodDomainJudgementResult,

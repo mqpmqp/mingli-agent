@@ -70,6 +70,15 @@
       "additionalProperties": false
     },
     "synthetic": {"type": "boolean"},
+    "case_classification": {
+      "enum": [
+        "development_case",
+        "blind_evaluation_case",
+        "test_fixture",
+        "synthetic_case",
+        "imported_historical_case"
+      ]
+    },
     "accuracy_eligible": {"const": false},
     "product_claim_eligible": {"const": false},
     "commercial_release_hold": {"const": "ACTIVE"},

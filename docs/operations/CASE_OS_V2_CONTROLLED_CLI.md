@@ -31,6 +31,12 @@ python -m mingli.cli validation case-review-queue --cases D:\controlled\adjudica
 
 # 7. 收到撤回时生成独立 tombstone，后续分区必须纳入该 tombstone。
 python -m mingli.cli validation case-withdraw --case D:\controlled\case-0001-adjudicated.json --withdrawn-at 2026-01-03T00:00:00Z --output D:\controlled\case-0001-withdrawal.json
+
+# 8. 只读审计、匿名评审包、分类统计与 Hold 状态；均不会改写原快照或解除 Hold。
+python -m mingli.cli validation case-inspect --case D:\controlled\case-0001-frozen.json
+python -m mingli.cli validation case-summary --cases D:\controlled\cases.json
+python -m mingli.cli validation case-export-review-pack --cases D:\controlled\cases.json --output D:\controlled\review-pack.json
+python -m mingli.cli validation case-hold-status
 ```
 
 ## 人工边界

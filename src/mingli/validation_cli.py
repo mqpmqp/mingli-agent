@@ -13,8 +13,12 @@ from .real_case_learning_v2 import (
     build_learning_case,
     build_operator_review_queue,
     build_temporal_partitions,
+    case_hold_status,
+    export_anonymized_review_pack,
+    inspect_learning_case,
     record_future_outcome,
     record_prior_event_validation,
+    summarize_learning_cases,
     withdraw_case,
 )
 from .validation_astro_etl import transform_astro_record
@@ -125,6 +129,14 @@ def _parser() -> argparse.ArgumentParser:
     withdrawal.add_argument("--case", type=Path, required=True)
     withdrawal.add_argument("--withdrawn-at", required=True)
     withdrawal.add_argument("--output", type=Path, required=True)
+    inspect = commands.add_parser("case-inspect")
+    inspect.add_argument("--case", type=Path, required=True)
+    summary = commands.add_parser("case-summary")
+    summary.add_argument("--cases", type=Path, required=True)
+    review_pack = commands.add_parser("case-export-review-pack")
+    review_pack.add_argument("--cases", type=Path, required=True)
+    review_pack.add_argument("--output", type=Path, required=True)
+    commands.add_parser("case-hold-status")
     return parser
 
 
@@ -364,6 +376,41 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise ValueError("Case withdrawal input must contain a JSON object")
             result = withdraw_case(case, withdrawn_at=args.withdrawn_at)
             _write_new(output_path, result)
+        elif args.command == "case-inspect":
+            case_path = _controlled_external_path(
+                args.case, _checkout_root(), label="Case inspection input"
+            )
+            case = _read(case_path)
+            if not isinstance(case, Mapping):
+                raise ValueError("Case inspection input must contain a JSON object")
+            result = inspect_learning_case(case)
+        elif args.command == "case-summary":
+            cases_path = _controlled_external_path(
+                args.cases, _checkout_root(), label="Case summary input"
+            )
+            cases = _read(cases_path)
+            if not isinstance(cases, list) or any(
+                not isinstance(case, Mapping) for case in cases
+            ):
+                raise ValueError("Case summary input must contain a JSON array of case objects")
+            result = summarize_learning_cases(cases)
+        elif args.command == "case-export-review-pack":
+            repo_root = _checkout_root()
+            cases_path = _controlled_external_path(
+                args.cases, repo_root, label="Case review-pack input"
+            )
+            output_path = _controlled_external_path(
+                args.output, repo_root, label="Case review-pack output"
+            )
+            cases = _read(cases_path)
+            if not isinstance(cases, list) or any(
+                not isinstance(case, Mapping) for case in cases
+            ):
+                raise ValueError("Case review-pack input must contain a JSON array of case objects")
+            result = export_anonymized_review_pack(cases)
+            _write_new(output_path, result)
+        elif args.command == "case-hold-status":
+            result = case_hold_status()
         else:
             manifest = _read(args.manifest)
             authorization = _read(args.authorization)
