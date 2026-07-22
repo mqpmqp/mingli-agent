@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import lru_cache
 import json
@@ -629,13 +630,18 @@ def _fixture_graph(day_stem: str, month_branch: str) -> dict[str, object]:
     return graph
 
 
-def build_phase13_fixture(day_stem: str, month_branch: str) -> tuple[dict[str, object], dict[str, object]]:
+@lru_cache(maxsize=128)
+def _build_phase13_fixture_cached(day_stem: str, month_branch: str) -> tuple[dict[str, object], dict[str, object]]:
     graph = _fixture_graph(day_stem, month_branch)
     strength = calculate_day_master_strength(graph).to_dict()
     pattern = evaluate_bazi_pattern(graph, strength).to_dict()
     regulation = evaluate_bazi_regulation(graph, strength, pattern).to_dict()
     xiji = evaluate_bazi_xiji_roles(regulation).to_dict()
     return graph, xiji
+
+
+def build_phase13_fixture(day_stem: str, month_branch: str) -> tuple[dict[str, object], dict[str, object]]:
+    return deepcopy(_build_phase13_fixture_cached(day_stem, month_branch))
 
 
 def benchmark_phase13() -> Phase13BenchmarkResult:
@@ -653,7 +659,7 @@ def benchmark_phase13() -> Phase13BenchmarkResult:
 
     for day_stem in STEMS:
         for month_branch in BRANCHES:
-            graph, xiji = build_phase13_fixture(day_stem, month_branch)
+            graph, xiji = _build_phase13_fixture_cached(day_stem, month_branch)
             result = evaluate_luck_cycle_role_interactions(graph, xiji)
             reordered = evaluate_luck_cycle_role_interactions(
                 json.loads(json.dumps(graph, ensure_ascii=False, sort_keys=True)),

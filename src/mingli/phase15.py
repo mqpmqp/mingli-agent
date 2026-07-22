@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from copy import deepcopy
+from functools import lru_cache
 import json
 from importlib.resources import files
 from typing import Mapping, Sequence
@@ -15,9 +17,8 @@ from .derived.static_engine import (
     map_ten_god,
 )
 from .phase8_engine import validate_import_origin
-from .phase13 import build_phase13_fixture, evaluate_luck_cycle_role_interactions
 from .phase13_contracts import record_digest as phase13_record_digest
-from .phase14 import evaluate_bazi_temporal_trends
+from .phase14 import _build_phase14_fixture_cached, build_phase14_fixture, evaluate_bazi_temporal_trends
 from .phase14_contracts import record_digest as phase14_record_digest
 from .phase15_contracts import (
     BaziTenGodDomainJudgementResult,
@@ -96,16 +97,27 @@ def _resource(name: str, label: str) -> dict[str, object]:
     return value
 
 
-def load_phase15_domain_profiles() -> dict[str, object]:
+@lru_cache(maxsize=1)
+def _load_phase15_domain_profiles_cached() -> dict[str, object]:
     return _resource(PROFILE_RESOURCE, "Phase 15 profile manifest")
 
 
-def load_phase15_domain_assertions() -> dict[str, object]:
+def load_phase15_domain_profiles() -> dict[str, object]:
+    return deepcopy(_load_phase15_domain_profiles_cached())
+
+
+@lru_cache(maxsize=1)
+def _load_phase15_domain_assertions_cached() -> dict[str, object]:
     return _resource(ASSERTION_RESOURCE, "Phase 15 assertion manifest")
 
 
-def get_tengod_domain_profile(profile_id: str = DEFAULT_PHASE15_PROFILE_ID) -> dict[str, object]:
-    raw = load_phase15_domain_profiles().get("profiles")
+def load_phase15_domain_assertions() -> dict[str, object]:
+    return deepcopy(_load_phase15_domain_assertions_cached())
+
+
+@lru_cache(maxsize=8)
+def _get_tengod_domain_profile_cached(profile_id: str) -> dict[str, object]:
+    raw = _load_phase15_domain_profiles_cached().get("profiles")
     if not isinstance(raw, list):
         raise ValueError("profiles must be an array")
     for item in raw:
@@ -117,6 +129,10 @@ def get_tengod_domain_profile(profile_id: str = DEFAULT_PHASE15_PROFILE_ID) -> d
             })
             return result
     raise ValueError(f"unsupported Phase 15 profile: {profile_id}")
+
+
+def get_tengod_domain_profile(profile_id: str = DEFAULT_PHASE15_PROFILE_ID) -> dict[str, object]:
+    return deepcopy(_get_tengod_domain_profile_cached(profile_id))
 
 
 def validate_phase15_profiles() -> tuple[str, ...]:
@@ -1168,14 +1184,29 @@ def domain_result_to_phase8_evidence(
     return tuple(item.to_phase8_evidence() for item in sorted(records, key=lambda value: value.evidence_id))
 
 
+@lru_cache(maxsize=128)
+def _build_phase15_fixture_cached(
+    day_stem: str,
+    month_branch: str,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    graph, interaction = _build_phase14_fixture_cached(day_stem, month_branch)
+    trend = evaluate_bazi_temporal_trends(graph, interaction).to_dict()
+    return graph, interaction, trend
+
+
 def build_phase15_fixture(
     day_stem: str,
     month_branch: str,
 ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
-    graph, xiji = build_phase13_fixture(day_stem, month_branch)
-    interaction = evaluate_luck_cycle_role_interactions(graph, xiji).to_dict()
-    trend = evaluate_bazi_temporal_trends(graph, interaction).to_dict()
-    return graph, interaction, trend
+    return deepcopy(_build_phase15_fixture_cached(day_stem, month_branch))
+
+
+def clear_phase15_fixture_cache() -> None:
+    _build_phase15_fixture_cached.cache_clear()
+
+
+def phase15_fixture_cache_info():
+    return _build_phase15_fixture_cached.cache_info()
 
 
 def benchmark_phase15() -> Phase15BenchmarkResult:
@@ -1193,12 +1224,12 @@ def benchmark_phase15() -> Phase15BenchmarkResult:
 
     for day_stem in STEMS:
         for month_branch in BRANCHES:
-            graph, interaction, trend = build_phase15_fixture(day_stem, month_branch)
+            graph, interaction, trend = _build_phase15_fixture_cached(day_stem, month_branch)
             result = evaluate_bazi_tengod_domains(graph, interaction, trend)
             reordered = evaluate_bazi_tengod_domains(
-                json.loads(json.dumps(graph, ensure_ascii=False, sort_keys=True)),
-                json.loads(json.dumps(interaction, ensure_ascii=False, sort_keys=True)),
-                json.loads(json.dumps(trend, ensure_ascii=False, sort_keys=True)),
+                deepcopy(graph),
+                deepcopy(interaction),
+                deepcopy(trend),
             )
             payload = result.to_dict()
             target_ids = {str(item["target_id"]) for key in ("dayun_trends", "liunian_trends", "combined_trends") for item in trend[key]}
@@ -1348,7 +1379,7 @@ def benchmark_phase15() -> Phase15BenchmarkResult:
         check(False, "Phase 14 hash mismatch was not blocked")
     except Phase15InputError:
         check(True, "Phase 14 hash mismatch blocked")
-    tampered = json.loads(json.dumps(interaction, ensure_ascii=False))
+    tampered = deepcopy(interaction)
     tampered["liunian_interactions"][0]["role_hits"][0]["source_symbol"] = STEMS[1]
     body = {key: value for key, value in tampered.items() if key not in METADATA_FIELDS}
     tampered["canonical_hash"] = phase13_record_digest("BaziLuckCycleRoleInteractionResult", body)
@@ -1357,7 +1388,7 @@ def benchmark_phase15() -> Phase15BenchmarkResult:
         check(False, "nested Phase 13 hit tampering was not blocked")
     except Phase15InputError:
         check(True, "nested Phase 13 hit tampering blocked")
-    tampered_trend = json.loads(json.dumps(trend, ensure_ascii=False))
+    tampered_trend = deepcopy(trend)
     tampered_trend["liunian_trends"][0]["trend_label"] = "support_tendency"
     body = {key: value for key, value in tampered_trend.items() if key not in METADATA_FIELDS}
     tampered_trend["canonical_hash"] = phase14_record_digest("BaziTemporalTrendEvidenceResult", body)

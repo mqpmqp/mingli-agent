@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime
+from functools import lru_cache
 import json
 from importlib.resources import files
 from typing import Mapping, Sequence
@@ -10,7 +12,7 @@ from jsonschema.validators import Draft202012Validator
 from .contracts.serialization import digest
 from .derived.static_engine import BRANCHES, STEMS
 from .phase8_engine import validate_import_origin
-from .phase15 import build_phase15_fixture, evaluate_bazi_tengod_domains
+from .phase15 import _build_phase15_fixture_cached, build_phase15_fixture, evaluate_bazi_tengod_domains
 from .phase15_contracts import record_digest as phase15_record_digest
 from .phase16_contracts import (
     BASE_DOMAINS,
@@ -60,6 +62,8 @@ BLOCKED_OUTPUTS = {
     "partner_count_prediction",
     "natural_language_renderer",
 }
+_EVALUATION_CACHE_LIMIT = 128
+_EVALUATION_CACHE: dict[tuple[str, str, tuple[str, ...]], BaziBaseDomainContractResult] = {}
 
 
 def _resource(name: str, label: str) -> dict[str, object]:
@@ -69,11 +73,17 @@ def _resource(name: str, label: str) -> dict[str, object]:
     return value
 
 
-def load_phase16_base_rules() -> dict[str, object]:
+@lru_cache(maxsize=1)
+def _load_phase16_base_rules_cached() -> dict[str, object]:
     return _resource(RULE_RESOURCE, "Phase 16 base-domain rule manifest")
 
 
-def load_phase16_result_schema() -> dict[str, object]:
+def load_phase16_base_rules() -> dict[str, object]:
+    return deepcopy(_load_phase16_base_rules_cached())
+
+
+@lru_cache(maxsize=1)
+def _load_phase16_result_schema_cached() -> dict[str, object]:
     value = json.loads(files("mingli.contracts.schemas").joinpath(SCHEMA_RESOURCE).read_text(encoding="utf-8"))
     if not isinstance(value, dict) or value.get("type") != "object":
         raise ValueError("Phase 16 result schema must be an object schema")
@@ -81,12 +91,22 @@ def load_phase16_result_schema() -> dict[str, object]:
     return value
 
 
-def load_phase16_assertions() -> dict[str, object]:
+def load_phase16_result_schema() -> dict[str, object]:
+    return deepcopy(_load_phase16_result_schema_cached())
+
+
+@lru_cache(maxsize=1)
+def _load_phase16_assertions_cached() -> dict[str, object]:
     return _resource(ASSERTION_RESOURCE, "Phase 16 assertion manifest")
 
 
-def get_phase16_rule_profile(profile_id: str = DEFAULT_PHASE16_PROFILE_ID) -> dict[str, object]:
-    profile = load_phase16_base_rules()
+def load_phase16_assertions() -> dict[str, object]:
+    return deepcopy(_load_phase16_assertions_cached())
+
+
+@lru_cache(maxsize=8)
+def _get_phase16_rule_profile_cached(profile_id: str) -> dict[str, object]:
+    profile = _load_phase16_base_rules_cached()
     if profile.get("profile_id") != profile_id:
         raise ValueError(f"unsupported Phase 16 profile: {profile_id}")
     result = dict(profile)
@@ -95,6 +115,10 @@ def get_phase16_rule_profile(profile_id: str = DEFAULT_PHASE16_PROFILE_ID) -> di
         "payload": {key: value for key, value in result.items() if key != "canonical_hash"},
     })
     return result
+
+
+def get_phase16_rule_profile(profile_id: str = DEFAULT_PHASE16_PROFILE_ID) -> dict[str, object]:
+    return deepcopy(_get_phase16_rule_profile_cached(profile_id))
 
 
 def validate_phase16_rules() -> tuple[str, ...]:
@@ -445,6 +469,32 @@ def evaluate_base_domain_contracts(
         raise Phase16InputError("Phase 16 cannot return concrete events, guaranteed outcomes, investments, or renderer outputs")
     if not isinstance(phase15_result, Mapping) or not phase15_result:
         raise Phase16InputError("Phase 15 Domain Judgement Result is required")
+    phase15_hash = _verify_phase15(phase15_result)
+    key = (phase15_hash, profile_id, tuple(requested_outputs))
+    cached = _EVALUATION_CACHE.get(key)
+    if cached is not None:
+        return deepcopy(cached)
+    result = _evaluate_base_domain_contracts_uncached(
+        phase15_result,
+        profile_id=profile_id,
+        requested_outputs=requested_outputs,
+    )
+    if len(_EVALUATION_CACHE) >= _EVALUATION_CACHE_LIMIT:
+        _EVALUATION_CACHE.pop(next(iter(_EVALUATION_CACHE)))
+    _EVALUATION_CACHE[key] = result
+    return deepcopy(result)
+
+
+def _evaluate_base_domain_contracts_uncached(
+    phase15_result: Mapping[str, object],
+    *,
+    profile_id: str = DEFAULT_PHASE16_PROFILE_ID,
+    requested_outputs: Sequence[str] = (),
+) -> BaziBaseDomainContractResult:
+    if set(requested_outputs) & BLOCKED_OUTPUTS:
+        raise Phase16InputError("Phase 16 cannot return concrete events, guaranteed outcomes, investments, or renderer outputs")
+    if not isinstance(phase15_result, Mapping) or not phase15_result:
+        raise Phase16InputError("Phase 15 Domain Judgement Result is required")
     profile = get_phase16_rule_profile(profile_id)
     phase15_hash = _verify_phase15(phase15_result)
     raw_judgements = phase15_result["domain_judgements"]
@@ -584,9 +634,14 @@ def query_base_domain_contracts(
     )
 
 
-def build_phase16_fixture(day_stem: str, month_branch: str) -> dict[str, object]:
-    graph, interaction, trend = build_phase15_fixture(day_stem, month_branch)
+@lru_cache(maxsize=128)
+def _build_phase16_fixture_cached(day_stem: str, month_branch: str) -> dict[str, object]:
+    graph, interaction, trend = _build_phase15_fixture_cached(day_stem, month_branch)
     return evaluate_bazi_tengod_domains(graph, interaction, trend).to_dict()
+
+
+def build_phase16_fixture(day_stem: str, month_branch: str) -> dict[str, object]:
+    return deepcopy(_build_phase16_fixture_cached(day_stem, month_branch))
 
 
 def benchmark_phase16() -> Phase16BenchmarkResult:
@@ -606,9 +661,9 @@ def benchmark_phase16() -> Phase16BenchmarkResult:
     assert isinstance(required, Mapping)
     for day_stem in STEMS:
         for month_branch in BRANCHES:
-            source = build_phase16_fixture(day_stem, month_branch)
+            source = _build_phase16_fixture_cached(day_stem, month_branch)
             result = evaluate_base_domain_contracts(source)
-            reordered = evaluate_base_domain_contracts(json.loads(json.dumps(source, ensure_ascii=False, sort_keys=True)))
+            reordered = evaluate_base_domain_contracts(deepcopy(source))
             target_ids = {str(item["target_id"]) for item in source["domain_judgements"] if item["domain"] in BASE_DOMAINS}
             contract_ids = {item.contract_id for item in result.domain_contracts}
             checks = [

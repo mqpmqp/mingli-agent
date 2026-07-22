@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime
+from functools import lru_cache
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import json
 from importlib.resources import files
@@ -9,7 +11,7 @@ from typing import Mapping, Sequence
 from .contracts.serialization import digest
 from .derived.static_engine import BRANCHES, STEMS
 from .phase8_engine import validate_import_origin
-from .phase13 import build_phase13_fixture, evaluate_luck_cycle_role_interactions
+from .phase13 import _build_phase13_fixture_cached, build_phase13_fixture, evaluate_luck_cycle_role_interactions
 from .phase13_contracts import record_digest as phase13_record_digest
 from .phase14_contracts import (
     BaziTemporalTrendEvidenceResult,
@@ -723,9 +725,14 @@ def temporal_trend_result_to_phase8_evidence(result: BaziTemporalTrendEvidenceRe
     return tuple(item.to_phase8_evidence() for item in sorted(records, key=lambda value: value.evidence_id))
 
 
-def build_phase14_fixture(day_stem: str, month_branch: str) -> tuple[dict[str, object], dict[str, object]]:
-    graph, xiji = build_phase13_fixture(day_stem, month_branch)
+@lru_cache(maxsize=128)
+def _build_phase14_fixture_cached(day_stem: str, month_branch: str) -> tuple[dict[str, object], dict[str, object]]:
+    graph, xiji = _build_phase13_fixture_cached(day_stem, month_branch)
     return graph, evaluate_luck_cycle_role_interactions(graph, xiji).to_dict()
+
+
+def build_phase14_fixture(day_stem: str, month_branch: str) -> tuple[dict[str, object], dict[str, object]]:
+    return deepcopy(_build_phase14_fixture_cached(day_stem, month_branch))
 
 
 def benchmark_phase14() -> Phase14BenchmarkResult:
@@ -743,7 +750,7 @@ def benchmark_phase14() -> Phase14BenchmarkResult:
 
     for day_stem in STEMS:
         for month_branch in BRANCHES:
-            graph, interaction = build_phase14_fixture(day_stem, month_branch)
+            graph, interaction = _build_phase14_fixture_cached(day_stem, month_branch)
             result = evaluate_bazi_temporal_trends(graph, interaction)
             reordered = evaluate_bazi_temporal_trends(
                 json.loads(json.dumps(graph, ensure_ascii=False, sort_keys=True)),
