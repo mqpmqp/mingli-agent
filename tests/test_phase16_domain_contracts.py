@@ -10,6 +10,7 @@ import unittest
 
 from jsonschema.validators import Draft202012Validator
 
+import mingli.phase15 as phase15_module
 from mingli.derived.static_engine import BRANCHES, STEMS
 from mingli.phase15 import build_phase15_fixture, evaluate_bazi_tengod_domains
 from mingli.phase16 import (
@@ -30,6 +31,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Phase16EvaluationTests(unittest.TestCase):
+    def test_phase15_fixture_cache_reuses_build_without_shared_mutable_state(self) -> None:
+        cached_builder = getattr(phase15_module, "_build_phase15_fixture_cached", None)
+        self.assertIsNotNone(cached_builder)
+        cached_builder.cache_clear()
+        first = build_phase15_fixture(STEMS[0], BRANCHES[2])
+        first[0]["__test_mutation__"] = True
+        second = build_phase15_fixture(STEMS[0], BRANCHES[2])
+        self.assertNotIn("__test_mutation__", second[0])
+        self.assertEqual(first[1:], second[1:])
+        self.assertEqual(1, cached_builder.cache_info().misses)
+        self.assertEqual(1, cached_builder.cache_info().hits)
+
     def test_formal_result_schema_accepts_runtime_output(self) -> None:
         schema = load_phase16_result_schema()
         self.assertEqual("object", schema["type"])

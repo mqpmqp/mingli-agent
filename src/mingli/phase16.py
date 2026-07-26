@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+from copy import deepcopy
+from functools import lru_cache
 import json
 from importlib.resources import files
 from typing import Mapping, Sequence
@@ -10,7 +12,7 @@ from jsonschema.validators import Draft202012Validator
 from .contracts.serialization import digest
 from .derived.static_engine import BRANCHES, STEMS
 from .phase8_engine import validate_import_origin
-from .phase15 import build_phase15_fixture, evaluate_bazi_tengod_domains
+from .phase15 import _build_phase15_result_cached, build_phase15_fixture, evaluate_bazi_tengod_domains
 from .phase15_contracts import record_digest as phase15_record_digest
 from .phase16_contracts import (
     BASE_DOMAINS,
@@ -62,11 +64,16 @@ BLOCKED_OUTPUTS = {
 }
 
 
-def _resource(name: str, label: str) -> dict[str, object]:
+@lru_cache(maxsize=None)
+def _resource_cached(name: str, label: str) -> dict[str, object]:
     value = json.loads(files("mingli.derived.data").joinpath(name).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be an object")
     return value
+
+
+def _resource(name: str, label: str) -> dict[str, object]:
+    return deepcopy(_resource_cached(name, label))
 
 
 def load_phase16_base_rules() -> dict[str, object]:
@@ -85,8 +92,9 @@ def load_phase16_assertions() -> dict[str, object]:
     return _resource(ASSERTION_RESOURCE, "Phase 16 assertion manifest")
 
 
-def get_phase16_rule_profile(profile_id: str = DEFAULT_PHASE16_PROFILE_ID) -> dict[str, object]:
-    profile = load_phase16_base_rules()
+@lru_cache(maxsize=None)
+def _get_phase16_rule_profile_cached(profile_id: str) -> dict[str, object]:
+    profile = _resource_cached(RULE_RESOURCE, "Phase 16 base-domain rule manifest")
     if profile.get("profile_id") != profile_id:
         raise ValueError(f"unsupported Phase 16 profile: {profile_id}")
     result = dict(profile)
@@ -95,6 +103,10 @@ def get_phase16_rule_profile(profile_id: str = DEFAULT_PHASE16_PROFILE_ID) -> di
         "payload": {key: value for key, value in result.items() if key != "canonical_hash"},
     })
     return result
+
+
+def get_phase16_rule_profile(profile_id: str = DEFAULT_PHASE16_PROFILE_ID) -> dict[str, object]:
+    return deepcopy(_get_phase16_rule_profile_cached(profile_id))
 
 
 def validate_phase16_rules() -> tuple[str, ...]:
@@ -445,7 +457,7 @@ def evaluate_base_domain_contracts(
         raise Phase16InputError("Phase 16 cannot return concrete events, guaranteed outcomes, investments, or renderer outputs")
     if not isinstance(phase15_result, Mapping) or not phase15_result:
         raise Phase16InputError("Phase 15 Domain Judgement Result is required")
-    profile = get_phase16_rule_profile(profile_id)
+    profile = _get_phase16_rule_profile_cached(profile_id)
     phase15_hash = _verify_phase15(phase15_result)
     raw_judgements = phase15_result["domain_judgements"]
     assert isinstance(raw_judgements, list)
@@ -585,8 +597,20 @@ def query_base_domain_contracts(
 
 
 def build_phase16_fixture(day_stem: str, month_branch: str) -> dict[str, object]:
-    graph, interaction, trend = build_phase15_fixture(day_stem, month_branch)
-    return evaluate_bazi_tengod_domains(graph, interaction, trend).to_dict()
+    return deepcopy(_build_phase15_result_cached(day_stem, month_branch).to_dict())
+
+
+def _benchmark_reordered_copy(value: Mapping[str, object]) -> dict[str, object]:
+    """Copy benchmark input with mapping keys reordered without JSON file IO."""
+    return {
+        str(key): [
+            _benchmark_reordered_copy(item) if isinstance(item, Mapping) else item
+            for item in child
+        ] if isinstance(child, list) else (
+            _benchmark_reordered_copy(child) if isinstance(child, Mapping) else child
+        )
+        for key, child in sorted(value.items(), key=lambda item: str(item[0]))
+    }
 
 
 def benchmark_phase16() -> Phase16BenchmarkResult:
@@ -601,14 +625,22 @@ def benchmark_phase16() -> Phase16BenchmarkResult:
         else:
             failures.append(message)
 
+    result_cache: dict[str, BaziBaseDomainContractResult] = {}
+
+    def evaluate_cached(source: Mapping[str, object]) -> BaziBaseDomainContractResult:
+        key = str(source["canonical_hash"])
+        if key not in result_cache:
+            result_cache[key] = evaluate_base_domain_contracts(source)
+        return result_cache[key]
+
     profile = get_phase16_rule_profile()
     required = profile["required_facets"]
     assert isinstance(required, Mapping)
     for day_stem in STEMS:
         for month_branch in BRANCHES:
             source = build_phase16_fixture(day_stem, month_branch)
-            result = evaluate_base_domain_contracts(source)
-            reordered = evaluate_base_domain_contracts(json.loads(json.dumps(source, ensure_ascii=False, sort_keys=True)))
+            result = evaluate_cached(source)
+            reordered = evaluate_cached(_benchmark_reordered_copy(source))
             target_ids = {str(item["target_id"]) for item in source["domain_judgements"] if item["domain"] in BASE_DOMAINS}
             contract_ids = {item.contract_id for item in result.domain_contracts}
             checks = [
