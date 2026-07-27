@@ -5,15 +5,123 @@ import inspect
 import pytest
 
 from mingli.intake.image_chart import (
+    HEAVENLY_STEMS,
+    VALID_GANZHI,
     ImageChartIntakeRequest,
     confirm_image_chart_candidate,
     intake_image_chart,
 )
 from mingli.confirmed_pillar_runtime import run_confirmed_pillar_agent
+from mingli.derived.static_engine import SEXAGENARY
 from mingli.phase23 import run_mingli_agent
 
 
 VALID_TEXT = "性别：女 年柱：甲子 月柱：丙寅 日柱：乙亥 时柱：庚辰 日主：乙木"
+
+
+def provider_field(
+    value: str,
+    *,
+    confidence: str = "high",
+    source: str = "visible",
+    warning: str = "",
+) -> dict[str, str]:
+    return {
+        "value": value,
+        "confidence": confidence,
+        "source": source,
+        "warning": warning,
+    }
+
+
+def provider_result() -> dict[str, object]:
+    return {
+        "success": True,
+        "candidates": {
+            "year_pillar": provider_field("甲子"),
+            "month_pillar": provider_field("乙丑"),
+            "day_pillar": provider_field("丙寅"),
+            "hour_pillar": provider_field("丁卯"),
+            "day_master": provider_field("丙"),
+        },
+    }
+
+
+def test_telegram_compatibility_exports_match_static_contract() -> None:
+    assert HEAVENLY_STEMS == frozenset("甲乙丙丁戊己庚辛壬癸")
+    assert VALID_GANZHI == frozenset(SEXAGENARY)
+
+
+def test_provider_result_is_accepted_only_after_strict_candidate_validation() -> None:
+    result = intake_image_chart(
+        ImageChartIntakeRequest(source="telegram", provider_result=provider_result())
+    )
+
+    assert result.accepted is True
+    assert result.candidate is not None
+    assert result.candidate.pillars == {
+        "year_pillar": "甲子",
+        "month_pillar": "乙丑",
+        "day_pillar": "丙寅",
+        "hour_pillar": "丁卯",
+    }
+    assert result.candidate.display_lines() == (
+        "年柱：甲子",
+        "月柱：乙丑",
+        "日柱：丙寅",
+        "时柱：丁卯",
+        "日主：丙",
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "attribute", "value"),
+    [
+        ("hour_pillar", "missing", None),
+        ("year_pillar", "confidence", "low"),
+        ("year_pillar", "source", "inferred"),
+        ("year_pillar", "warning", "blurred"),
+        ("year_pillar", "value", "甲丑"),
+        ("day_master", "value", "丁"),
+    ],
+)
+def test_untrusted_provider_candidates_are_rejected(
+    field: str,
+    attribute: str,
+    value: str | None,
+) -> None:
+    payload = provider_result()
+    candidates = payload["candidates"]
+    assert isinstance(candidates, dict)
+    if attribute == "missing":
+        candidates.pop(field)
+    else:
+        candidate_field = candidates[field]
+        assert isinstance(candidate_field, dict)
+        candidate_field[attribute] = value
+
+    result = intake_image_chart(
+        ImageChartIntakeRequest(source="telegram", provider_result=payload)
+    )
+
+    assert result.accepted is False
+    assert result.candidate is None
+    assert result.runtime_request is None
+
+
+def test_one_analysis_wrapper_is_supported_but_nested_wrapper_is_rejected() -> None:
+    once = {"success": True, "analysis": provider_result()}
+    twice = {"success": True, "analysis": once}
+
+    accepted = intake_image_chart(
+        ImageChartIntakeRequest(source="telegram", provider_result=once)
+    )
+    rejected = intake_image_chart(
+        ImageChartIntakeRequest(source="telegram", provider_result=twice)
+    )
+
+    assert accepted.accepted is True
+    assert rejected.accepted is False
 
 
 def test_public_intake_and_runtime_signatures_remain_compatible() -> None:
