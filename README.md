@@ -212,6 +212,11 @@ python -m mingli.phase24_cli assess
 python -m mingli.phase24_cli benchmark
 ```
 
+图片命盘确认链路支持在用户明确确认四柱、日主和性别后进入
+confirmed-pillar Runtime；它不会伪造出生日期、地点、时区、真太阳时或
+大运起运资料。当前 V14 Git 基线属于显式重建产物，来源、哈希、限制和
+验证门禁见 `RECONSTRUCTED_IMAGE_V14_BASELINE.md`。
+
 真实案例验证 OS 使用 Git 外受控 store 完成 intake、隐私处理、预测冻结、现实证据、盲评、dataset freeze 和独立产品授权。公开仓库只包含协议、schema、空模板、聚合结果与不可逆 hash。当前没有授权真实案例，因而 `PRODUCT_RELEASE_HOLD` 与 `prediction_validity=not_evaluated` 保持不变。
 
 ```bash
