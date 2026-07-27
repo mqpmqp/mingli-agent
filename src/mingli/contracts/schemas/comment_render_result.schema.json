@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "comment-render-result@1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "method_id", "calculation_version", "output_mode", "status", "max_characters", "rendered_text", "character_count", "selected_claim_ids", "warnings", "canonical_hash", "prediction_validity"],
+  "properties": {
+    "schema_version": {"const": "comment-render-result@1.0"},
+    "method_id": {"const": "bounded-high-confidence-comment-renderer@1.0.0"},
+    "calculation_version": {"const": "1.0.0"},
+    "output_mode": {"const": "comment"},
+    "status": {"enum": ["ready", "needs_chart_confirmation", "insufficient_high_confidence"]},
+    "max_characters": {"enum": [80, 120]},
+    "rendered_text": {"type": "string"},
+    "character_count": {"type": "integer", "minimum": 0},
+    "selected_claim_ids": {"type": "array", "items": {"type": "string"}, "maxItems": 2},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "prediction_validity": {"const": "not_evaluated"}
+  }
+}

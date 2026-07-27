@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "comment-render-request@1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "output_mode", "max_characters", "require_chart_confirmation", "confidence_filter", "include_disclaimer", "chart_confirmation", "claim_candidates"],
+  "properties": {
+    "schema_version": {"const": "comment-render-request@1.0"},
+    "output_mode": {"const": "comment"},
+    "max_characters": {"enum": [80, 120]},
+    "require_chart_confirmation": {"const": true},
+    "confidence_filter": {"const": "high_only"},
+    "include_disclaimer": {"const": "compact"},
+    "chart_confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary"],
+      "properties": {
+        "status": {"enum": ["confirmed", "unconfirmed"]},
+        "summary": {"type": "string", "minLength": 1}
+      }
+    },
+    "claim_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "topic", "text", "confidence", "priority", "source_hash"],
+        "properties": {
+          "claim_id": {"type": "string", "minLength": 1},
+          "topic": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1},
+          "confidence": {"enum": ["high", "medium", "low"]},
+          "priority": {"type": "integer"},
+          "source_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

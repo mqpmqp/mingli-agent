@@ -281,7 +281,14 @@ class SourceAndPackagingTests(unittest.TestCase):
                     for name in archive.namelist()
                     if "/schemas/" in name and name.endswith(".json")
                 }
-            self.assertEqual(43, len(packaged))
+            self.assertEqual(45, len(packaged))
+            packaged_names = {Path(name).name for name in packaged}
+            self.assertTrue(
+                {
+                    "comment_render_request.schema.json",
+                    "comment_render_result.schema.json",
+                }.issubset(packaged_names)
+            )
             ziwei_schemas = {
                 f"ziwei_{name}.schema.json"
                 for name in (
@@ -304,9 +311,7 @@ class SourceAndPackagingTests(unittest.TestCase):
             self.assertEqual(
                 ziwei_schemas,
                 {
-                    Path(name).name
-                    for name in packaged
-                    if Path(name).name.startswith("ziwei_")
+                    name for name in packaged_names if name.startswith("ziwei_")
                 },
             )
             packaged_names = {Path(name).name for name in packaged}

@@ -33,6 +33,7 @@ from .schema_loader import validate_spec
 from .knowledge import import_pilot, inventory, rollback, validate_knowledge
 from .validation_cli import main as validation_main
 from .training_cli import main as training_main
+from .comment_renderer import render_comment
 from .ziwei import build_ziwei_chart
 from .ziwei_benchmark import run_ziwei_engine_benchmarks
 from .ziwei_rules import (
@@ -113,6 +114,8 @@ def _parser() -> argparse.ArgumentParser:
     validation.add_argument("validation_args", nargs=argparse.REMAINDER)
     training = subcommands.add_parser("training", help="日常测算训练闭环工具")
     training.add_argument("training_args", nargs=argparse.REMAINDER)
+    comment_render = subcommands.add_parser("comment-render", help="渲染受限的高置信评论版输出")
+    comment_render.add_argument("--input", default="-", help="JSON 文件路径；默认从 stdin 读取")
     ziwei = subcommands.add_parser("ziwei", help="紫微确定性排盘与规则门禁工具")
     ziwei_subcommands = ziwei.add_subparsers(dest="ziwei_command", required=True)
     ziwei_chart = ziwei_subcommands.add_parser("chart", help="生成紫微确定性结构化命盘")
@@ -140,6 +143,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return validation_main(args.validation_args)
         if args.command == "training":
             return training_main(args.training_args)
+        if args.command == "comment-render":
+            value = _read_json_argument(args.input)
+            if not isinstance(value, dict):
+                raise ValueError("Comment render input must be a JSON object")
+            print(json.dumps(render_comment(value).to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            return 0
         if args.command == "ziwei":
             if args.ziwei_command == "chart":
                 value = _read_json_argument(args.input)
