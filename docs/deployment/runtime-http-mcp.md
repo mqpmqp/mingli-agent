@@ -22,7 +22,7 @@ Invoke-RestMethod http://127.0.0.1:8000/healthz
 Invoke-RestMethod http://127.0.0.1:8000/v1/capabilities
 ```
 
-MCP 入口是 `http://127.0.0.1:8000/mcp`。它要求 `Content-Type: application/json`，并使用 `Accept: application/json, text/event-stream`。建议再用 MCP Inspector 执行 `initialize`、`tools/list` 和四个工具的代表调用。
+MCP 入口是 `http://127.0.0.1:8000/mcp`。它要求 `Content-Type: application/json`，并使用 `Accept: application/json, text/event-stream`。建议再用 MCP Inspector 执行 `initialize`、`tools/list` 和四个工具的代表调用。隔离的 `mingli-knowledge-service` 使用独立入口，不能作为 Runtime 输入。
 
 ## 容器运行
 
