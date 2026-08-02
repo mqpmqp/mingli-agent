@@ -11,6 +11,12 @@ mingli-service
 
 健康检查为 `GET /healthz`，MCP 入口为 `POST /mcp`；另提供 `/v1/capabilities`、`/v1/mingli/analyze`、`/v1/ziwei/chart`、`/v1/ziwei/rules/evaluate` 与 `/v1/ziwei/coverage`。服务为无 widget 的 `tool-only` ChatGPT 应用，不保存请求且不调用外部服务。容器、公网 Host 防护、隧道和 ChatGPT Developer Mode 步骤见 `docs/deployment/runtime-http-mcp.md`。
 
+## 隔离知识参考服务
+
+`mingli-knowledge-service` 是与冻结 Runtime 分离的本地只读服务，提供 `/v1/knowledge/search` 和 MCP `search_knowledge`。它只返回参考卡，不会成为命盘规则、预测结论或 Runtime 输入。默认仅返回来源状态为 `reviewed` 的 `reviewed`/`verified` 卡。审查人员可显式设置 `review_mode=true` 查看待审卡，但 HTTP 与 MCP 均必须提供 `Authorization: Bearer <MINGLI_KNOWLEDGE_REVIEW_TOKEN>`；未配置、缺失或错误令牌统一返回 `403 review_mode_forbidden`。
+
+GitHub 资料只可由 `mingli.knowledge_staging.import_github_reference(...)` 从允许的完整 commit 的 tree/blob 导入。导入器从 Git object database 读取原始字节、保存 SHA-256 快照并拒绝覆盖不匹配快照；仅允许非可执行的 Markdown 或纯文本参考资料，导入结果固定是 `draft`/`pending` 的 reference-only 卡。完整边界与人工审查步骤见 `MINGLI_KNOWLEDGE_STAGING_V1.md`。
+
 ## 紫微确定性排盘与传统规则内容 v1
 
 `mingli ziwei chart` 已从空结构壳升级为版本化确定性排盘。已知出生时辰时，`ziwei-traditional-natal@1.0.0` 会输出命宫、身宫、十二宫干支、五行局、十四主星、十四辅煞、年干四化及版本化亮度状态；未知时辰仍返回 `degraded`，不会默认子时。公历/农历、闰月、IANA 时区、地方平太阳时、真太阳时和晚子时政策继续由既有输入归一化层处理。
