@@ -206,6 +206,8 @@ python -m mingli.phase22_cli benchmark
 
 Phase 23 提供单进程、无网络、无外部模型的端到端 Runtime，按固定顺序执行八字排盘、P19 称骨、P18 现实证据融合、P21 五年趋势与 P20 八段渲染。领域基础状态与总论均由已批准上游派生，调用方不能注入 `baseline_domains` 或 `overall_status`；状态与置信度共同通过 `confidence_gate` 进入 Renderer。Runtime 只允许已核验现实证据在 `runtime:baseline` 范围内覆盖对应领域。
 
+`mingli.render_intent` 为已完成 Runtime artifact 提供受控的展示选择：`full_reading` 保持既有完整阅读，`focused_question`、`follow_up` 和 `comment` 只从已有 artifact 中选择受支持内容，不重算命盘、规则或阈值。已确认四柱同时区分 `image_confirmed` 与 `text_confirmed` 来源；两者共用已确认四柱引擎，但来源专属的 provenance 字段不得混用。实现与门禁记录见 `docs/testing/mingli-render-intent-v1.tdd.md`。
+
 ```bash
 python -m mingli.phase23_cli run --input runtime.json
 python -m mingli.phase23_cli benchmark
