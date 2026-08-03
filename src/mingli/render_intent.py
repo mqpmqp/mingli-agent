@@ -51,6 +51,28 @@ _STATUS_LABELS = {
     "unresolved": "暂不确定",
 }
 _CONFIDENCE_LABELS = {"high": "高", "medium": "中", "low": "低"}
+_SCENARIO_LAYER_LABELS = {
+    "career_exam": {
+        "system_fit": "体制适配度",
+        "admission_outlook": "报考条件",
+        "exam_outlook": "考试走势",
+        "position_direction": "岗位方向",
+        "preparation_strategy": "备考策略",
+    },
+    "relationship_reunion": {
+        "attraction": "缘分牵引",
+        "recontact": "复联可能",
+        "reunion": "复合可能",
+        "stability": "稳定可能",
+    },
+}
+_SCENARIO_STATUS_LABELS = {
+    "support": "相对有利",
+    "conflict": "现实条件受限",
+    "conditional": "需要结合现实条件",
+    "unresolved": "暂不确定",
+    "not_applicable": "不适用",
+}
 
 
 def classify_render_intent(
@@ -107,11 +129,18 @@ def _domain_answer(
         layers = scenario.get("layers")
         if not isinstance(layers, list):
             return _unsupported_answer(_DOMAIN_LABELS[topic])
-        entries = [
-            f"{item.get('layer')}：{item.get('label')}"
-            for item in layers
-            if isinstance(item, dict)
-        ]
+        layer_labels = _SCENARIO_LAYER_LABELS[topic]
+        entries: list[str] = []
+        for item in layers:
+            if not isinstance(item, dict):
+                return _unsupported_answer(_DOMAIN_LABELS[topic])
+            layer = item.get("layer")
+            status = item.get("label")
+            if layer not in layer_labels or status not in _SCENARIO_STATUS_LABELS:
+                return _unsupported_answer(_DOMAIN_LABELS[topic])
+            entries.append(
+                f"{layer_labels[layer]}：{_SCENARIO_STATUS_LABELS[status]}"
+            )
         if not entries:
             return _unsupported_answer(_DOMAIN_LABELS[topic])
         heading = "继续看" if intent is RenderIntent.FOLLOW_UP else ""
