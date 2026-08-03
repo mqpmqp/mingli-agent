@@ -7,9 +7,10 @@ and XiJi classification, while leaving timeline-dependent outputs unsupported.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import json
-from typing import Literal, Mapping
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
+from typing import Literal
 
 from .contracts.serialization import canonical_json, digest
 from .derived.static_engine import SEXAGENARY, map_hidden_stems, map_ten_god
@@ -17,7 +18,6 @@ from .phase9_engine import calculate_day_master_strength
 from .phase10_engine import evaluate_bazi_pattern
 from .phase11_engine import evaluate_bazi_regulation
 from .phase12 import evaluate_bazi_xiji_roles
-
 
 CONFIRMED_PILLAR_SCHEMA_VERSION = "confirmed-pillar-runtime-result@1.0"
 CONFIRMED_PILLAR_METHOD_ID = "confirmed-pillar-static-runtime@1.0.0"

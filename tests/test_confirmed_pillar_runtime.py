@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import inspect
+from copy import deepcopy
 
 import pytest
 
