@@ -92,6 +92,23 @@ def test_focused_and_follow_up_use_only_the_requested_topic() -> None:
     assert follow_up.answer.count("仅供文化研究与娱乐参考。") == 1
 
 
+def test_special_scenario_uses_user_facing_labels_only() -> None:
+    request = phase23_request()
+    request["scenario"] = "career_exam"
+    runtime = run_mingli_agent(request)
+
+    rendered = render_phase23_intent(
+        runtime,
+        RenderIntent.FOCUSED_QUESTION,
+        question="只看考公",
+    )
+
+    assert rendered.supported is True
+    assert "体制适配度" in rendered.answer
+    assert "system_fit" not in rendered.answer
+    assert "admission_outlook" not in rendered.answer
+
+
 def test_unsupported_topic_fails_closed_without_generic_conclusion() -> None:
     runtime = run_mingli_agent(phase23_request())
 
