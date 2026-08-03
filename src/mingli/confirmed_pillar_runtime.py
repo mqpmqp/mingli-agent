@@ -23,6 +23,7 @@ CONFIRMED_PILLAR_SCHEMA_VERSION = "confirmed-pillar-runtime-result@1.0"
 CONFIRMED_PILLAR_METHOD_ID = "confirmed-pillar-static-runtime@1.0.0"
 CONFIRMED_PILLAR_CALCULATION_VERSION = "1.0.0"
 PILLAR_ORDER = ("year", "month", "day", "hour")
+CONFIRMED_SOURCES = frozenset({"image_confirmed", "text_confirmed"})
 UNSUPPORTED_OUTPUTS = (
     "birth_date",
     "birth_time",
@@ -96,13 +97,38 @@ class ConfirmedPillarRuntimeResult:
 
 def _validated_input(
     raw: Mapping[str, object],
-) -> tuple[dict[str, str], str, str]:
+) -> tuple[dict[str, str], str, str, str]:
     if not isinstance(raw, Mapping):
         raise ConfirmedPillarInputError("confirmed pillar input must be an object")
     if raw.get("confirmation_status") != "confirmed":
         raise ConfirmedPillarInputError("confirmed status is required")
-    if raw.get("source") != "image_confirmed":
-        raise ConfirmedPillarInputError("source must be image_confirmed")
+    source = raw.get("source")
+    if source not in CONFIRMED_SOURCES:
+        raise ConfirmedPillarInputError(
+            "source must be image_confirmed or text_confirmed"
+        )
+    if source == "text_confirmed":
+        confirmation_id = raw.get("text_confirmation_id")
+        if not isinstance(confirmation_id, str) or not confirmation_id.strip():
+            raise ConfirmedPillarInputError(
+                "text_confirmed requires text_confirmation_id"
+            )
+        if any(
+            key in raw
+            for key in (
+                "image_hash",
+                "vision_provider",
+                "vision_request_id",
+                "image_chart_confirmation",
+            )
+        ):
+            raise ConfirmedPillarInputError(
+                "text_confirmed must not contain image provenance"
+            )
+    elif "text_confirmation_id" in raw:
+        raise ConfirmedPillarInputError(
+            "image_confirmed must not contain text provenance"
+        )
     trace_id = raw.get("trace_id")
     if not isinstance(trace_id, str) or not trace_id.strip():
         raise ConfirmedPillarInputError("trace_id is required")
@@ -127,7 +153,7 @@ def _validated_input(
         raise ConfirmedPillarInputError(
             "day master must match the day pillar stem"
         )
-    return normalized, str(day_master), str(gender)
+    return normalized, str(day_master), str(gender), str(source)
 
 
 def _graph_item(record_type: str, payload: dict[str, object]) -> dict[str, object]:
@@ -142,6 +168,7 @@ def _build_static_fact_graph(
     pillars: Mapping[str, str],
     day_master: str,
     gender: str,
+    source: str,
 ) -> dict[str, object]:
     nodes: list[dict[str, object]] = []
     edges: list[dict[str, object]] = []
@@ -263,7 +290,7 @@ def _build_static_fact_graph(
             )
     payload: dict[str, object] = {
         "base_chart_ref": {
-            "source": "image_confirmed",
+            "source": source,
             "pillar_fingerprint": digest(dict(pillars)),
         },
         "derived_structure_ref": {
@@ -280,7 +307,7 @@ def _build_static_fact_graph(
         "relations": [],
         "growth_stages": [],
         "provenance_index": {
-            "input_source": "image_confirmed",
+            "input_source": source,
             "gender": gender,
         },
         "warnings": ["birth_metadata_not_inferred"],
@@ -364,9 +391,9 @@ def _render(
 def run_confirmed_pillar_agent(
     raw: Mapping[str, object],
 ) -> ConfirmedPillarRuntimeResult:
-    """Run the public static runtime for a user-confirmed image chart."""
-    pillars, day_master, gender = _validated_input(raw)
-    graph = _build_static_fact_graph(pillars, day_master, gender)
+    """Run the public static runtime for a user-confirmed chart provenance."""
+    pillars, day_master, gender, source = _validated_input(raw)
+    graph = _build_static_fact_graph(pillars, day_master, gender, source)
     strength = calculate_day_master_strength(graph).to_dict()
     pattern = evaluate_bazi_pattern(graph, strength).to_dict()
     regulation = evaluate_bazi_regulation(graph, strength, pattern).to_dict()
@@ -375,7 +402,7 @@ def run_confirmed_pillar_agent(
         "pillars": pillars,
         "day_master": day_master,
         "gender": gender,
-        "source": "image_confirmed",
+        "source": source,
     }
     artifacts: dict[str, Mapping[str, object]] = {
         "fact_graph": graph,
