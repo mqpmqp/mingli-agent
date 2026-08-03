@@ -73,6 +73,24 @@ def test_runtime_is_deterministic_and_does_not_mutate_input() -> None:
     assert raw == original
 
 
+def test_text_confirmed_source_is_explicit_and_isolated_from_image_provenance() -> None:
+    text = request()
+    text["source"] = "text_confirmed"
+    text["text_confirmation_id"] = "manual-pillars-42"
+
+    result = run_confirmed_pillar_agent(text).to_dict()
+
+    assert result["chart"]["source"] == "text_confirmed"
+    assert result["artifacts"]["fact_graph"]["base_chart_ref"]["source"] == "text_confirmed"
+
+    image = run_confirmed_pillar_agent(request()).to_dict()
+    assert image["chart"]["source"] == "image_confirmed"
+
+    text["image_hash"] = "sha256:must-not-cross-provenance"
+    with pytest.raises(ConfirmedPillarInputError, match="text_confirmed"):
+        run_confirmed_pillar_agent(text)
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
