@@ -167,7 +167,7 @@ def test_chart_gender_labels_are_normalized(label: str, expected: str) -> None:
     assert result.candidate is not None
     assert result.candidate.gender == expected
     expected_label = "女" if expected == "female" else "男"
-    assert f"性别：{expected_label}" in result.user_message
+    assert "\u6027\u522b" + expected_label + "\u3002" in result.user_message
 
 
 @pytest.mark.parametrize(

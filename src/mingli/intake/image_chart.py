@@ -7,7 +7,9 @@ until an explicit confirmation or correction has been processed here.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+import inspect
 import json
 import re
 from typing import Literal, Mapping
@@ -42,6 +44,19 @@ _GENDERS = {
     "坤造": "female",
     "female": "female",
 }
+_STEM_ELEMENTS = {
+    "\u7532": "\u6728",
+    "\u4e59": "\u6728",
+    "\u4e19": "\u706b",
+    "\u4e01": "\u706b",
+    "\u620a": "\u571f",
+    "\u5df1": "\u571f",
+    "\u5e9a": "\u91d1",
+    "\u8f9b": "\u91d1",
+    "\u58ec": "\u6c34",
+    "\u7678": "\u6c34",
+}
+
 
 
 @dataclass(frozen=True)
@@ -52,6 +67,8 @@ class ImageChartIntakeRequest:
     theme: str | None = None
     reality_context: Mapping[str, object] | None = None
     provider_result: object | None = None
+    trace_id: str | None = None
+    trace_writer: Callable[..., bool] | None = None
 
 
 @dataclass(frozen=True)
@@ -363,7 +380,9 @@ def _candidate_from_provider(provider_result: object) -> ImageChartCandidate | N
     )
 
 
-def intake_image_chart(request: ImageChartIntakeRequest) -> ImageChartIntakeResult:
+def _intake_image_chart_legacy(
+    request: ImageChartIntakeRequest,
+) -> ImageChartIntakeResult:
     """Create an untrusted candidate from extracted text without calling Runtime."""
     if isinstance(request.ocr_text, str) and request.ocr_text.strip():
         candidate = _candidate_from_text(request.ocr_text)
@@ -385,6 +404,242 @@ def intake_image_chart(request: ImageChartIntakeRequest) -> ImageChartIntakeResu
     if candidate.confidence == "low":
         return ImageChartIntakeResult("low_confidence", candidate, "图片命盘信息不完整或存在冲突，请更正后再确认。")
     return ImageChartIntakeResult("candidate_requires_confirmation", candidate, _confirmation_message(candidate))
+def _hermes_confirmation_message(candidate: ImageChartCandidate) -> str:
+    pillars = [
+        candidate.pillars.get(name, candidate.pillars.get(short, ""))
+        for short, name in (
+            ("year", "year_pillar"),
+            ("month", "month_pillar"),
+            ("day", "day_pillar"),
+            ("hour", "hour_pillar"),
+        )
+    ]
+    pillar_separator = "\u3001"
+    day_master = candidate.day_master or ""
+    day_master_label = day_master + _STEM_ELEMENTS.get(day_master, "")
+    if not candidate.gender:
+        return (
+            f"\u56db\u67f1\u5df2\u8bc6\u522b\u4e3a{pillar_separator.join(pillars)}\uff0c"
+            f"\u65e5\u4e3b{day_master_label}\u3002"
+            "\u56fe\u7247\u4e2d\u672a\u53ef\u9760\u8bc6\u522b\u6027\u522b\uff0c"
+            "\u8bf7\u56de\u590d\u7537\u6216\u5973\u3002"
+        )
+    gender = "\u5973" if candidate.gender == "female" else "\u7537"
+    return (
+        "\u8bc6\u522b\u7ed3\u679c\uff1a"
+        f"\u5e74\u67f1{pillars[0]}\u3001\u6708\u67f1{pillars[1]}\u3001"
+        f"\u65e5\u67f1{pillars[2]}\u3001\u65f6\u67f1{pillars[3]}\uff0c"
+        f"\u65e5\u4e3b{day_master_label}\uff0c\u6027\u522b{gender}\u3002"
+        "\u8bf7\u786e\u8ba4\u6211\u8bfb\u7684\u56db\u67f1\u548c\u65e5\u4e3b"
+        "\u662f\u5426\u6b63\u786e\uff1f"
+    )
+
+
+def _emit_intake_trace(
+    request: ImageChartIntakeRequest,
+    event: str,
+    details: Mapping[str, object],
+) -> bool:
+    """Emit diagnostics without making tracing part of intake correctness."""
+
+    writer: Callable[..., bool] | None = request.trace_writer
+    if writer is None:
+        try:
+            from image_runtime_trace import write_trace  # type: ignore[import-not-found]
+        except Exception:
+            return False
+        writer = write_trace
+    if writer is None:
+        return False
+    frame = inspect.currentframe()
+    caller = frame.f_back if frame is not None else None
+    try:
+        return bool(
+            writer(
+                request.trace_id,
+                event,
+                dict(details),
+                source_file=__file__,
+                source_function=caller.f_code.co_name if caller is not None else "",
+                source_line=caller.f_lineno if caller is not None else None,
+            )
+        )
+    except Exception:
+        return False
+    finally:
+        del frame
+        del caller
+
+
+def _parser_validator_details(
+    request: ImageChartIntakeRequest,
+    candidate: ImageChartCandidate | None,
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Describe existing parser and validator outcomes without changing them."""
+
+    values: dict[str, str | None] = {
+        "year_pillar": None,
+        "month_pillar": None,
+        "day_pillar": None,
+        "hour_pillar": None,
+        "day_master": None,
+        "gender": None,
+    }
+    candidate_count = 0
+    if candidate is not None:
+        candidate_count = 1
+        for short, provider in (
+            ("year", "year_pillar"),
+            ("month", "month_pillar"),
+            ("day", "day_pillar"),
+            ("hour", "hour_pillar"),
+        ):
+            values[provider] = candidate.pillars.get(
+                provider, candidate.pillars.get(short)
+            )
+        values["day_master"] = candidate.day_master
+        values["gender"] = candidate.gender
+    elif request.provider_result is not None:
+        normalized = _provider_candidates(request.provider_result)
+        if normalized is not None:
+            raw_candidates, strict_metadata = normalized
+            candidate_count = 1
+            for field in (*_PROVIDER_REQUIRED_FIELDS, "gender"):
+                values[field] = _provider_field(
+                    raw_candidates,
+                    field,
+                    strict_metadata=strict_metadata,
+                )
+
+    parser_details: dict[str, object] = {
+        **values,
+        "confidence": candidate.confidence if candidate is not None else None,
+        "candidate_count": candidate_count,
+        "parser_error": None if candidate is not None else "candidate_not_created",
+    }
+    missing_fields = [
+        field
+        for field in _PROVIDER_REQUIRED_FIELDS
+        if values.get(field) in (None, "")
+    ]
+    illegal_pillars = [
+        field
+        for field in (
+            "year_pillar",
+            "month_pillar",
+            "day_pillar",
+            "hour_pillar",
+        )
+        if values.get(field) not in (None, "")
+        and values[field] not in VALID_GANZHI
+    ]
+    day_pillar = values.get("day_pillar")
+    day_master = values.get("day_master")
+    day_master_matches_day_stem = (
+        day_master == day_pillar[0]
+        if isinstance(day_master, str)
+        and isinstance(day_pillar, str)
+        and bool(day_pillar)
+        else None
+    )
+    conflicts = (
+        ["day_master_conflicts_with_day_pillar"]
+        if day_master_matches_day_stem is False
+        else []
+    )
+    failure_codes: list[str] = []
+    if missing_fields:
+        failure_codes.append("missing_required_fields")
+    if illegal_pillars:
+        failure_codes.append("illegal_pillars")
+    failure_codes.extend(conflicts)
+    if (
+        candidate is not None
+        and candidate.confidence != "high"
+        and "low_confidence" not in failure_codes
+    ):
+        failure_codes.append("low_confidence")
+    if candidate is None and not failure_codes:
+        failure_codes.append("candidate_not_created")
+    validator_details: dict[str, object] = {
+        "valid": candidate is not None and candidate.confidence == "high",
+        "required_fields": list(_PROVIDER_REQUIRED_FIELDS),
+        "missing_fields": missing_fields,
+        "illegal_pillars": illegal_pillars,
+        "day_master_matches_day_stem": day_master_matches_day_stem,
+        "conflicts": conflicts,
+        "confidence_failure": candidate is None or candidate.confidence != "high",
+        "failure_codes": failure_codes,
+    }
+    return parser_details, validator_details
+
+
+def _emit_parser_validator_trace(
+    request: ImageChartIntakeRequest,
+    candidate: ImageChartCandidate | None,
+) -> dict[str, object]:
+    parser_details, validator_details = _parser_validator_details(request, candidate)
+    _emit_intake_trace(request, "parser_result", parser_details)
+    _emit_intake_trace(request, "validator_result", validator_details)
+    return validator_details
+
+
+def intake_image_chart(request: ImageChartIntakeRequest) -> ImageChartIntakeResult:
+    """Create an untrusted candidate from extracted text without calling Runtime."""
+
+    result = _intake_image_chart_legacy(request)
+    validator_details = _emit_parser_validator_trace(request, result.candidate)
+    if result.status in {
+        "provider_missing",
+        "low_confidence",
+        "not_a_chart",
+    }:
+        rejection_code = (
+            "provider_missing"
+            if result.status == "provider_missing"
+            else "not_a_chart"
+            if result.status == "not_a_chart"
+            else "low_confidence"
+        )
+        rejection_reason: object = (
+            "provider_result_absent"
+            if result.status == "provider_missing"
+            else validator_details["failure_codes"]
+        )
+        _emit_intake_trace(
+            request,
+            "final_rejection",
+            {
+                "rejection_code": rejection_code,
+                "rejection_reason": rejection_reason,
+                "previous_event": "validator_result",
+                "actual_file": __file__,
+                "actual_function": "intake_image_chart",
+            },
+        )
+        user_message = result.user_message
+        if (
+            request.provider_result is not None
+            and result.status == "low_confidence"
+            and result.candidate is None
+        ):
+            user_message += "\u3010IMGTRACE2\u3011"
+        return ImageChartIntakeResult(
+            result.status,
+            result.candidate,
+            user_message,
+            result.runtime_request,
+        )
+    if result.candidate is None:
+        return result
+    return ImageChartIntakeResult(
+        result.status,
+        result.candidate,
+        _hermes_confirmation_message(result.candidate),
+        result.runtime_request,
+    )
+
+
 
 
 def _runtime_handoff(candidate: ImageChartCandidate, reality_context: Mapping[str, object] | None) -> dict[str, object]:

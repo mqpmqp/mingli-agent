@@ -22,6 +22,8 @@ from .phase12 import evaluate_bazi_xiji_roles
 CONFIRMED_PILLAR_SCHEMA_VERSION = "confirmed-pillar-runtime-result@1.0"
 CONFIRMED_PILLAR_METHOD_ID = "confirmed-pillar-static-runtime@1.0.0"
 CONFIRMED_PILLAR_CALCULATION_VERSION = "1.0.0"
+CONFIRMED_PILLAR_FOLLOW_UP_SCHEMA_VERSION = "confirmed-pillar-follow-up-result@1.0"
+CONFIRMED_PILLAR_FOLLOW_UP_METHOD_ID = "confirmed-pillar-render-intent-follow-up@1.0.0"
 PILLAR_ORDER = ("year", "month", "day", "hour")
 CONFIRMED_SOURCES = frozenset({"image_confirmed", "text_confirmed"})
 UNSUPPORTED_OUTPUTS = (
@@ -84,6 +86,33 @@ class ConfirmedPillarRuntimeResult:
     method_id: str = field(default=CONFIRMED_PILLAR_METHOD_ID, init=False)
     calculation_version: str = field(
         default=CONFIRMED_PILLAR_CALCULATION_VERSION,
+        init=False,
+    )
+    prediction_validity: Literal["not_evaluated"] = field(
+        default="not_evaluated",
+        init=False,
+    )
+
+    def to_dict(self) -> dict[str, object]:
+        return json.loads(canonical_json(asdict(self)))
+
+
+@dataclass(frozen=True)
+class ConfirmedPillarFollowUpResult:
+    """A focused rendering over an already-computed confirmed-pillar result."""
+
+    chart: Mapping[str, object]
+    topic: str
+    source: Literal["image_confirmed_follow_up"]
+    warnings: tuple[str, ...]
+    final_answer: str
+    canonical_hash: str
+    schema_version: str = field(
+        default=CONFIRMED_PILLAR_FOLLOW_UP_SCHEMA_VERSION,
+        init=False,
+    )
+    method_id: str = field(
+        default=CONFIRMED_PILLAR_FOLLOW_UP_METHOD_ID,
         init=False,
     )
     prediction_validity: Literal["not_evaluated"] = field(
@@ -385,6 +414,128 @@ def _render(
         "当前大运定位、称骨和真太阳时需要出生元数据，本次未计算，"
         "也未使用任何推测值。\n\n"
         "仅供文化研究与娱乐参考。"
+    )
+
+
+def _validated_completed_static_result(
+    raw: Mapping[str, object],
+) -> ConfirmedPillarRuntimeResult:
+    """Validate and rehydrate a persisted image-confirmed static result."""
+
+    if not isinstance(raw, Mapping):
+        raise ConfirmedPillarInputError("completed static result must be an object")
+    chart = raw.get("chart")
+    artifacts = raw.get("artifacts")
+    if not isinstance(chart, Mapping) or not isinstance(artifacts, Mapping):
+        raise ConfirmedPillarInputError("completed static result is incomplete")
+    pillars = chart.get("pillars")
+    if not isinstance(pillars, Mapping) or set(pillars) != set(PILLAR_ORDER):
+        raise ConfirmedPillarInputError("completed static result pillar order invalid")
+    normalized_pillars = {
+        position: str(pillars[position]) for position in PILLAR_ORDER
+    }
+    if any(value not in SEXAGENARY for value in normalized_pillars.values()):
+        raise ConfirmedPillarInputError(
+            "completed static result contains invalid pillars"
+        )
+    day_master = chart.get("day_master")
+    gender = chart.get("gender")
+    if day_master != normalized_pillars["day"][0] or gender not in {
+        "male",
+        "female",
+    }:
+        raise ConfirmedPillarInputError("completed static result metadata invalid")
+    if chart.get("source") != "image_confirmed":
+        raise ConfirmedPillarInputError("completed static result source invalid")
+    if any(
+        chart.get(field) not in (None, "")
+        for field in ("birth_date", "birth_time", "birth_location", "timezone")
+    ):
+        raise ConfirmedPillarInputError(
+            "completed static result contains inferred birth metadata"
+        )
+
+    normalized_artifacts: dict[str, Mapping[str, object]] = {}
+    for key, value in artifacts.items():
+        if not isinstance(key, str) or not isinstance(value, Mapping):
+            raise ConfirmedPillarInputError("completed static result artifacts invalid")
+        normalized_artifacts[key] = value
+    if not {"strength", "pattern", "xiji"} <= set(normalized_artifacts):
+        raise ConfirmedPillarInputError("completed static result artifacts invalid")
+
+    unsupported = raw.get("unsupported")
+    warnings = raw.get("warnings")
+    final_answer = raw.get("final_answer")
+    canonical_hash = raw.get("canonical_hash")
+    if (
+        not isinstance(unsupported, (list, tuple))
+        or not all(isinstance(item, str) for item in unsupported)
+        or not isinstance(warnings, (list, tuple))
+        or not all(isinstance(item, str) for item in warnings)
+        or not isinstance(final_answer, str)
+        or not final_answer.strip()
+        or not isinstance(canonical_hash, str)
+        or not canonical_hash.strip()
+    ):
+        raise ConfirmedPillarInputError("completed static result payload invalid")
+
+    return ConfirmedPillarRuntimeResult(
+        chart={
+            "pillars": normalized_pillars,
+            "day_master": day_master,
+            "gender": gender,
+            "source": "image_confirmed",
+        },
+        artifacts=normalized_artifacts,
+        unsupported=tuple(unsupported),
+        warnings=tuple(warnings),
+        final_answer=final_answer,
+        canonical_hash=canonical_hash,
+    )
+
+
+def render_confirmed_pillar_follow_up(
+    completed_result: Mapping[str, object],
+    question: str,
+) -> ConfirmedPillarFollowUpResult:
+    """Render a Hermes-compatible focused follow-up from a persisted result."""
+
+    if not isinstance(question, str) or not question.strip():
+        raise ConfirmedPillarInputError("confirmed pillar follow-up question is required")
+    runtime = _validated_completed_static_result(completed_result)
+    from .render_intent import (
+        render_confirmed_pillar_follow_up as render_focused_follow_up,
+    )
+
+    rendered = render_focused_follow_up(runtime, question.strip())
+    warnings: tuple[str, ...] = (
+        "confirmed_pillar_follow_up",
+        "initial_runtime_result_reused",
+        "focused_render_intent",
+        "birth_metadata_not_inferred",
+        "prediction_validity_not_evaluated",
+    )
+    if not rendered.supported:
+        warnings += ("focused_follow_up_topic_unresolved",)
+    body = {
+        "chart": runtime.chart,
+        "topic": rendered.topic or "unresolved",
+        "source": "image_confirmed_follow_up",
+        "warnings": list(warnings),
+        "final_answer": rendered.answer,
+    }
+    return ConfirmedPillarFollowUpResult(
+        chart=runtime.chart,
+        topic=rendered.topic or "unresolved",
+        source="image_confirmed_follow_up",
+        warnings=warnings,
+        final_answer=rendered.answer,
+        canonical_hash=digest(
+            {
+                "record_type": "ConfirmedPillarFollowUpResult",
+                "payload": body,
+            }
+        ),
     )
 
 
