@@ -76,7 +76,7 @@ class ProductRuntimeTests(unittest.TestCase):
             "limitations", "reality_evidence_used", "sections", "trace",
         ):
             self.assertIn(field, result)
-        self.assertEqual(8, len(result["sections"]))
+        self.assertEqual([], result["sections"])
         self.assertEqual("challenging", result["domain_results"]["wealth"])
         self.assertEqual("resolved_by_reality_override", result["reality_evidence_used"][0]["resolution"])
         self.assertEqual("validated", result["trace"]["knowledge_os"]["status"])

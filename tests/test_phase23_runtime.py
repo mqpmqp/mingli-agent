@@ -1,5 +1,8 @@
 from __future__ import annotations
 import unittest
+from unittest.mock import patch
+
+import mingli.phase23 as phase23
 from mingli.phase23 import RUNTIME_STAGES, benchmark_phase23, run_mingli_agent
 
 def fixture():
@@ -15,6 +18,7 @@ def fixture():
         },
         "anchor_year": 2026,
         "reality": {"cash_runway_months": 2},
+        "render_intent": "full_reading",
         "fusion_evidence": [{
             "evidence_id": "verified-wealth",
             "claim_id": "wealth",
@@ -45,6 +49,19 @@ class Phase23Tests(unittest.TestCase):
         ))
         self.assertEqual("resolved_by_reality_override", result.evidence_fusion["claims"][0]["status"])
         self.assertEqual("not_evaluated", result.prediction_validity)
+
+    def test_default_runtime_does_not_invoke_yuan_renderer(self):
+        payload = fixture()
+        payload.pop("render_intent")
+        with patch.object(
+            phase23,
+            "render_yuan_eight_sections",
+            wraps=phase23.render_yuan_eight_sections,
+        ) as yuan:
+            result = run_mingli_agent(payload)
+        self.assertEqual([], result.renderer["sections"])
+        self.assertEqual("", result.final_answer)
+        self.assertEqual(0, yuan.call_count)
 
     def test_runtime_uses_real_phase7_to_phase16_artifacts(self):
         result = run_mingli_agent(fixture())

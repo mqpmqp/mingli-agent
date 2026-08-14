@@ -42,6 +42,7 @@ def mingli_payload() -> dict[str, object]:
         "anchor_year": 2028,
         "reality": {"cash_runway_months": 2},
         "fusion_evidence": [],
+        "question": "\u5979\u7684\u4e8b\u4e1a\u600e\u4e48\u6837",
     }
 
 
@@ -79,6 +80,10 @@ def test_http_api_runs_mingli_and_chains_ziwei_chart_into_rules(client) -> None:
     assert runtime.status_code == 200
     assert runtime.json()["prediction_validity"] == "not_evaluated"
     assert runtime.json()["final_answer"]
+    assert runtime.json()["render_intent"] == "focused_question"
+    assert runtime.json()["topic"] == "career"
+    assert runtime.json()["sections"] == []
+    assert runtime.json()["full_report_generated"] is False
     assert chart.status_code == 200
     assert chart.json()["calculation_status"] == "complete"
     assert evaluation.status_code == 200
@@ -87,6 +92,32 @@ def test_http_api_runs_mingli_and_chains_ziwei_chart_into_rules(client) -> None:
     assert coverage.status_code == 200
     assert coverage.json()["release_gate"] == "REVIEW_REQUIRED"
 
+
+
+def test_http_api_accepts_hermes_confirmed_pillars_without_external_adapters(client) -> None:
+    response = client.post(
+        "/v1/mingli/analyze",
+        json={
+            "question": "\u5979\u7684\u4e8b\u4e1a\u600e\u4e48\u6837",
+            "gender": "female",
+            "pillars": {
+                "year": "\u5e9a\u5bc5",
+                "month": "\u4e19\u620c",
+                "day": "\u620a\u5348",
+                "hour": "\u4e19\u8fb0",
+            },
+            "context": {},
+        },
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["render_intent"] == "focused_question"
+    assert body["topic"] == "career"
+    assert body["chart"]["day_master"] == "\u620a"
+    assert body["sections"] == []
+    assert body["full_report_generated"] is False
+    assert body["final_answer"]
 
 def test_http_api_maps_invalid_json_domain_errors_and_large_requests(client) -> None:
     invalid_json = client.post(
@@ -193,6 +224,9 @@ def test_mcp_analyze_tool_has_explicit_machine_friendly_input_schema(client) -> 
         "latitude",
         "anchor_year",
     }
+    assert "question" not in analyze["inputSchema"]["required"]
+    assert "context" not in analyze["inputSchema"]["required"]
+    assert analyze["inputSchema"]["properties"]["question"]["type"] == "string"
     assert analyze["inputSchema"]["properties"]["calendar"]["enum"] == [
         "solar",
         "lunar",

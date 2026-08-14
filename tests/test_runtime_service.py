@@ -29,6 +29,7 @@ def mingli_payload() -> dict[str, object]:
         "anchor_year": 2028,
         "reality": {"cash_runway_months": 2},
         "fusion_evidence": [],
+        "question": "\u5b8c\u6574\u5206\u6790\u8fd9\u4e2a\u547d\u76d8",
     }
 
 
@@ -56,6 +57,13 @@ def test_service_capabilities_are_tool_only_read_only_and_hold_aware() -> None:
     assert value["external_network_calls"] is False
     assert value["prediction_validity"] == "not_evaluated"
     assert value["commercial_release_hold"] == "ACTIVE"
+    assert value["rendering"] == {
+        "default_render_intent": "focused_question",
+        "full_reading_explicit_only": True,
+        "yuan_eight_sections_default": False,
+        "telegram_dependency": False,
+        "vision_dependency": False,
+    }
     assert {item["name"] for item in value["tools"]} == {
         "analyze_mingli",
         "create_ziwei_chart",

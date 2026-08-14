@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from .phase23 import run_mingli_agent
+from .question_service import (
+    DEFAULT_RENDER_INTENT,
+    FULL_READING_EXPLICIT_ONLY,
+    YUAN_EIGHT_SECTIONS_DEFAULT,
+    analyze_question_payload,
+)
 from .ziwei import build_ziwei_chart
 from .ziwei_rules import (
     ZIWEI_RULE_CONTENT_VERSION,
@@ -49,6 +54,13 @@ def get_service_capabilities() -> dict[str, object]:
         "external_network_calls": False,
         "prediction_validity": "not_evaluated",
         "commercial_release_hold": "ACTIVE",
+        "rendering": {
+            "default_render_intent": DEFAULT_RENDER_INTENT.value,
+            "full_reading_explicit_only": FULL_READING_EXPLICIT_ONLY,
+            "yuan_eight_sections_default": YUAN_EIGHT_SECTIONS_DEFAULT,
+            "telegram_dependency": False,
+            "vision_dependency": False,
+        },
         "tools": [
             {
                 "name": name,
@@ -65,7 +77,7 @@ def get_service_capabilities() -> dict[str, object]:
 
 def analyze_mingli_payload(payload: object) -> dict[str, object]:
     value = _object_payload(payload, "runtime input")
-    return run_mingli_agent(value).to_dict()
+    return analyze_question_payload(value)
 
 
 def build_ziwei_chart_payload(payload: object) -> dict[str, object]:

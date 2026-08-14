@@ -40,9 +40,10 @@ MCP_INSTRUCTIONS = (
 )
 
 _ANALYZE_DESCRIPTION = (
-    "Use this when the user explicitly asks for a structured MingLi analysis from "
-    "birth data and optional present-day reality constraints. Returns deterministic "
-    "low-confidence output with prediction validity and safety warnings."
+    "Use this when a MingLi Core question includes structured birth data. The optional "
+    "question controls render_intent: focused_question is the default and full_reading "
+    "requires an explicit whole-chart or eight-section request. This Core endpoint has "
+    "no Telegram, Vision, OCR, token, or session dependency."
 )
 _CREATE_ZIWEI_DESCRIPTION = (
     "Use this when the user provides structured birth data and asks for the versioned "
@@ -100,6 +101,8 @@ def analyze_mingli(
     is_leap_month: bool = False,
     scenario: Literal["career_exam", "relationship_reunion"] | None = None,
     reality: dict[str, object] | None = None,
+    question: str = "",
+    context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "chart_input": {
@@ -115,6 +118,8 @@ def analyze_mingli(
         "anchor_year": anchor_year,
         "reality": reality or {},
         "fusion_evidence": [],
+        "question": question,
+        "context": context or {},
     }
     if scenario is not None:
         payload["scenario"] = scenario
@@ -128,6 +133,12 @@ def analyze_mingli(
         "scenario_assessment": result["scenario_assessment"],
         "chenggu": result["chenggu"],
         "final_answer": result["final_answer"],
+        "render_intent": result["render_intent"],
+        "topic": result["topic"],
+        "sections": result["sections"],
+        "full_report_generated": result["full_report_generated"],
+        "confidence": result["confidence"],
+        "conversation_reset": result["conversation_reset"],
         "effective_domain_statuses": result["effective_domain_statuses"],
         "effective_domain_confidence": result["effective_domain_confidence"],
         "warnings": result["warnings"],

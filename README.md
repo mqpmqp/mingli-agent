@@ -11,6 +11,23 @@ mingli-service
 
 健康检查为 `GET /healthz`，MCP 入口为 `POST /mcp`；另提供 `/v1/capabilities`、`/v1/mingli/analyze`、`/v1/ziwei/chart`、`/v1/ziwei/rules/evaluate` 与 `/v1/ziwei/coverage`。服务为无 widget 的 `tool-only` ChatGPT 应用，不保存请求且不调用外部服务。容器、公网 Host 防护、隧道和 ChatGPT Developer Mode 步骤见 `docs/deployment/runtime-http-mcp.md`。
 
+## Formal rendering contract
+
+```text
+DEFAULT_RENDER_INTENT=focused_question
+FULL_READING_EXPLICIT_ONLY=true
+YUAN_EIGHT_SECTIONS_DEFAULT=false
+```
+
+The stable MingLi Core entry is `mingli.service.analyze_mingli_payload(...)` or
+`POST /v1/mingli/analyze`. `question` chooses the answer shape. Birth data or a
+four-pillar chart never implies a full report. Yuan eight sections run only when
+`render_intent == "full_reading"`, which requires an explicit whole-chart,
+complete-report, or eight-section request. `/new` only returns a context-reset
+instruction and never renders a report. The Core has no Telegram, Vision, OCR,
+image-session, token, or Bot dependency. See `HERMES_HANDOFF.md` for the direct
+integration contract.
+
 ## 隔离知识参考服务
 
 `mingli-knowledge-service` 是与冻结 Runtime 分离的本地只读服务，提供 `/v1/knowledge/search` 和 MCP `search_knowledge`。它只返回参考卡，不会成为命盘规则、预测结论或 Runtime 输入。默认仅返回来源状态为 `reviewed` 的 `reviewed`/`verified` 卡。审查人员可显式设置 `review_mode=true` 查看待审卡，但 HTTP 与 MCP 均必须提供 `Authorization: Bearer <MINGLI_KNOWLEDGE_REVIEW_TOKEN>`；未配置、缺失或错误令牌统一返回 `403 review_mode_forbidden`。
@@ -204,14 +221,21 @@ python -m mingli.phase22_cli run --registry cases.json
 python -m mingli.phase22_cli benchmark
 ```
 
-Phase 23 提供单进程、无网络、无外部模型的端到端 Runtime，按固定顺序执行八字排盘、P19 称骨、P18 现实证据融合、P21 五年趋势与 P20 八段渲染。领域基础状态与总论均由已批准上游派生，调用方不能注入 `baseline_domains` 或 `overall_status`；状态与置信度共同通过 `confidence_gate` 进入 Renderer。Runtime 只允许已核验现实证据在 `runtime:baseline` 范围内覆盖对应领域。
+Phase 23 remains the deterministic runtime for chart calculation, P19,
+reality evidence fusion, temporal facts, and the Yuan eight-section renderer.
+Render selection is now explicit: the runtime calls P20 only for
+`render_intent == "full_reading"`; all other formal intents receive a targeted
+answer through the same `RenderIntent` contract. This does not change the
+calendar, pillars, true-solar-time, strength, ten-god, pattern, favorable-role,
+luck-cycle, annual, Ziwei, Fact Graph, or input-validation algorithms.
 
-`mingli.render_intent` 为已完成 Runtime artifact 提供受控的展示选择：`full_reading` 保持既有完整阅读，`focused_question`、`follow_up` 和 `comment` 只从已有 artifact 中选择受支持内容，不重算命盘、规则或阈值。已确认四柱同时区分 `image_confirmed` 与 `text_confirmed` 来源；两者共用已确认四柱引擎，但来源专属的 provenance 字段不得混用。实现与门禁记录见 `docs/testing/mingli-render-intent-v1.tdd.md`。
-
-```bash
-python -m mingli.phase23_cli run --input runtime.json
-python -m mingli.phase23_cli benchmark
-```
+`mingli.render_intent` supports `full_reading`, `focused_question`, `follow_up`,
+`timing`, `comparison`, `decision`, and `comment`. The public service retains
+`final_answer` and adds `render_intent`, `topic`, `sections`,
+`full_report_generated`, and `confidence`. Focused answers have empty sections;
+only explicit full reports expose all eight sections. Confirmed four-pillar input
+continues to use its reviewed static runtime and never fabricates missing birth
+metadata.
 
 Phase 24 汇总 P16—P23 基准并严格分离 validation closure、Gold-only 产品准确率声明门禁和产品发布授权。Validation closure 只会移除 `P22_VALIDATION_CLOSURE` blocker；即使准确率门禁通过，也不会自动移除 `PRODUCT_RELEASE_AUTHORIZATION`。P19 歌诀不是 V2.0 blocker，产品发布继续保持 hold。
 

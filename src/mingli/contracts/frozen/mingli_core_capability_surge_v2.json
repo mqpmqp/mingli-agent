@@ -294,7 +294,7 @@
       },
       {
         "path": "src/mingli/phase23.py",
-        "sha256": "9bd45a7dcfe61c85920ab36ba3b5f01f3e7aa96dbcf36ba28ed73908c286406f"
+        "sha256": "f7b4fcc5d7eead69b041b549542841beb9e4e28f849a0b7c865f8b7fa7ad8ef9"
       },
       {
         "path": "src/mingli/product_runtime.py",
@@ -306,11 +306,11 @@
       },
       {
         "path": "src/mingli/service.py",
-        "sha256": "fa931f1275e7e8dbee6bb4801b81574c1c2ec254c530f88e126b7b67650b761b"
+        "sha256": "8432b0a5bd10d978224ab5c08012474c8b3ccb8ceeb268b0a478c624e759622e"
       },
       {
         "path": "src/mingli/service_app.py",
-        "sha256": "218fede3ca7b57f997a1463449152c2cc55190af2b44fe0cde0d77d33b1ffb94"
+        "sha256": "2d707c8182feb22a87bef35a1a3fb4f14b12ef05e69956cdf7c9324cc6ef8a8c"
       }
     ],
     "renderer": [

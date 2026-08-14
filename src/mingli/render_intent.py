@@ -1,8 +1,4 @@
-"""Select compact user-facing views from already computed MingLi artifacts.
-
-This module deliberately does not calculate, classify, or alter any chart
-artifact.  It only selects a bounded rendering based on an explicit intent.
-"""
+"""Formal render-intent adapter for MingLi Core answer selection."""
 
 from __future__ import annotations
 
@@ -11,13 +7,15 @@ from enum import Enum
 
 from .confirmed_pillar_runtime import ConfirmedPillarRuntimeResult
 from .phase23 import MingLiRuntimeResult
-from .renderer import DISCLAIMER, ensure_safe_text
 
 
 class RenderIntent(str, Enum):
     FULL_READING = "full_reading"
     FOCUSED_QUESTION = "focused_question"
     FOLLOW_UP = "follow_up"
+    TIMING = "timing"
+    COMPARISON = "comparison"
+    DECISION = "decision"
     COMMENT = "comment"
 
 
@@ -30,136 +28,21 @@ class RenderIntentResult:
     runtime_result_hash: str
 
 
-_DOMAIN_TOPICS = (
-    ("career_exam", "考公", "考编", "上岸"),
-    ("relationship_reunion", "复合", "复联"),
-    ("career", "事业", "工作", "职业", "岗位"),
-    ("wealth", "财运", "财富", "收入", "钱"),
-    ("relationship", "感情", "恋爱", "婚姻", "桃花"),
-)
-_DOMAIN_LABELS = {
-    "career": "事业",
-    "wealth": "财运",
-    "relationship": "感情",
-    "career_exam": "考公考编",
-    "relationship_reunion": "复合",
-}
-_STATUS_LABELS = {
-    "supportive": "相对顺畅",
-    "challenging": "需要审慎应对",
-    "mixed": "有起伏",
-    "unresolved": "暂不确定",
-}
-_CONFIDENCE_LABELS = {"high": "高", "medium": "中", "low": "低"}
-_SCENARIO_LAYER_LABELS = {
-    "career_exam": {
-        "system_fit": "体制适配度",
-        "admission_outlook": "报考条件",
-        "exam_outlook": "考试走势",
-        "position_direction": "岗位方向",
-        "preparation_strategy": "备考策略",
-    },
-    "relationship_reunion": {
-        "attraction": "缘分牵引",
-        "recontact": "复联可能",
-        "reunion": "复合可能",
-        "stability": "稳定可能",
-    },
-}
-_SCENARIO_STATUS_LABELS = {
-    "support": "相对有利",
-    "conflict": "现实条件受限",
-    "conditional": "需要结合现实条件",
-    "unresolved": "暂不确定",
-    "not_applicable": "不适用",
-}
-
-
 def classify_render_intent(
-    text: str,
+    text: object,
     *,
     has_active_case: bool,
     comment: bool = False,
 ) -> RenderIntent:
-    """Classify only the user-facing view; chart calculations stay unchanged."""
+    """Select an answer shape without changing deterministic calculation."""
+    normalized = text.strip() if isinstance(text, str) else ""
+    from .focused_renderer import classify_question_intent
 
-    normalized = text.strip()
-    if normalized == "/new" or any(token in normalized for token in ("完整", "全盘", "完整报告")):
-        return RenderIntent.FULL_READING
-    if comment or "评论区" in normalized:
-        return RenderIntent.COMMENT
-    if has_active_case and any(token in normalized for token in ("继续", "再看", "那", "还有")):
-        return RenderIntent.FOLLOW_UP
-    return RenderIntent.FOCUSED_QUESTION
-
-
-def _topic_for(question: str) -> str | None:
-    normalized = question.strip()
-    for topic, *tokens in _DOMAIN_TOPICS:
-        if any(token in normalized for token in tokens):
-            return topic
-    return None
-
-
-def _with_disclaimer(body: str) -> str:
-    answer = body.replace(DISCLAIMER, "").strip() + "\n\n" + DISCLAIMER
-    ensure_safe_text(answer)
-    return answer
-
-
-def _unsupported_answer(question: str) -> str:
-    label = question.strip() or "这个问题"
-    return _with_disclaimer(
-        f"“{label}”目前不在已确认命盘的正式支持范围。"
-        "当前可支持事业、财运、感情、考公考编和复合的定向阅读；"
-        "其余主题不会由通用回复补写。"
+    return classify_question_intent(
+        normalized,
+        has_active_case=has_active_case,
+        comment=comment,
     )
-
-
-def _domain_answer(
-    runtime: MingLiRuntimeResult,
-    topic: str,
-    intent: RenderIntent,
-) -> str:
-    domain = topic
-    if topic in {"career_exam", "relationship_reunion"}:
-        scenario = runtime.scenario_assessment
-        if not scenario:
-            return _unsupported_answer(_DOMAIN_LABELS[topic])
-        layers = scenario.get("layers")
-        if not isinstance(layers, list):
-            return _unsupported_answer(_DOMAIN_LABELS[topic])
-        layer_labels = _SCENARIO_LAYER_LABELS[topic]
-        entries: list[str] = []
-        for item in layers:
-            if not isinstance(item, dict):
-                return _unsupported_answer(_DOMAIN_LABELS[topic])
-            layer = item.get("layer")
-            status = item.get("label")
-            if layer not in layer_labels or status not in _SCENARIO_STATUS_LABELS:
-                return _unsupported_answer(_DOMAIN_LABELS[topic])
-            entries.append(
-                f"{layer_labels[layer]}：{_SCENARIO_STATUS_LABELS[status]}"
-            )
-        if not entries:
-            return _unsupported_answer(_DOMAIN_LABELS[topic])
-        heading = "继续看" if intent is RenderIntent.FOLLOW_UP else ""
-        return _with_disclaimer(
-            f"{heading}{_DOMAIN_LABELS[topic]}：" + "；".join(entries) + "。"
-        )
-
-    status = runtime.effective_domain_statuses.get(domain)
-    confidence = runtime.effective_domain_confidence.get(domain)
-    if status not in _STATUS_LABELS or confidence not in _CONFIDENCE_LABELS:
-        return _unsupported_answer(_DOMAIN_LABELS[topic])
-    prefix = "继续看" if intent is RenderIntent.FOLLOW_UP else ""
-    body = (
-        f"{prefix}{_DOMAIN_LABELS[topic]}：当前可见趋势为{_STATUS_LABELS[status]}，"
-        f"置信度{_CONFIDENCE_LABELS[confidence]}。"
-    )
-    if intent is not RenderIntent.COMMENT:
-        body += "请结合现实条件作出决定。"
-    return _with_disclaimer(body)
 
 
 def render_phase23_intent(
@@ -168,31 +51,20 @@ def render_phase23_intent(
     *,
     question: str,
 ) -> RenderIntentResult:
-    """Render a selected view from a completed Phase23 result only."""
+    """Compatibility adapter using the same focused renderer as the service."""
+    from .focused_renderer import detect_topic, render_phase23_focused_answer
 
-    if intent is RenderIntent.FULL_READING:
-        return RenderIntentResult(
-            intent=intent,
-            answer=runtime.final_answer,
-            supported=True,
-            topic=None,
-            runtime_result_hash=runtime.canonical_hash,
-        )
-
-    topic = _topic_for(question)
-    if topic is None:
-        return RenderIntentResult(
-            intent=intent,
-            answer=_unsupported_answer(question),
-            supported=False,
-            topic=None,
-            runtime_result_hash=runtime.canonical_hash,
-        )
-    answer = _domain_answer(runtime, topic, intent)
+    topic = None if intent is RenderIntent.FULL_READING else detect_topic(question)
+    answer = render_phase23_focused_answer(
+        runtime,
+        intent,
+        question=question,
+        topic=topic,
+    )
     return RenderIntentResult(
         intent=intent,
         answer=answer,
-        supported="支持范围" not in answer,
+        supported=intent is RenderIntent.FULL_READING or topic is not None,
         topic=topic,
         runtime_result_hash=runtime.canonical_hash,
     )
@@ -202,18 +74,29 @@ def render_confirmed_pillar_follow_up(
     runtime: ConfirmedPillarRuntimeResult,
     question: str,
 ) -> RenderIntentResult:
-    """Return the formal static-runtime boundary for a confirmed-pillar follow-up."""
+    """Compatibility adapter for a confirmed-pillar follow-up."""
+    from .focused_renderer import detect_topic, render_confirmed_pillar_focused_answer
 
-    topic = _topic_for(question)
-    label = _DOMAIN_LABELS.get(topic or "", question.strip() or "这个问题")
-    answer = _with_disclaimer(
-        f"已确认四柱的静态 Runtime 当前支持命局结构、日主强弱、格局与喜忌。"
-        f"“{label}”的定向或时间性结论不在支持范围，本次不会补写。"
+    topic = detect_topic(question)
+    answer = render_confirmed_pillar_focused_answer(
+        runtime,
+        RenderIntent.FOLLOW_UP,
+        question=question,
+        topic=topic,
     )
     return RenderIntentResult(
         intent=RenderIntent.FOLLOW_UP,
         answer=answer,
-        supported=False,
+        supported=topic is not None,
         topic=topic,
         runtime_result_hash=runtime.canonical_hash,
     )
+
+
+__all__ = [
+    "RenderIntent",
+    "RenderIntentResult",
+    "classify_render_intent",
+    "render_confirmed_pillar_follow_up",
+    "render_phase23_intent",
+]

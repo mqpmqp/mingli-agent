@@ -191,6 +191,7 @@ def _phase23_check() -> PhaseGate:
         "anchor_year":2028,
         "reality":{"cash_runway_months":2},
         "fusion_evidence":[{"evidence_id":"wealth-reality","claim_id":"wealth","scope":"runtime:baseline","source_type":"reality","source_id":"confirmed","direction":"contradict","weight":0,"priority":100,"verified":True}],
+        "render_intent":"full_reading",
     })
     return _result(23, (
         tuple(item.stage for item in result.stages) == RUNTIME_STAGES,

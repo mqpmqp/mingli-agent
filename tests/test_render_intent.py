@@ -24,6 +24,7 @@ def phase23_request() -> dict[str, object]:
         "anchor_year": 2026,
         "reality": {},
         "fusion_evidence": [],
+        "render_intent": "full_reading",
     }
 
 
@@ -119,7 +120,7 @@ def test_unsupported_topic_fails_closed_without_generic_conclusion() -> None:
     )
 
     assert rendered.supported is False
-    assert "支持范围" in rendered.answer
+    assert "请说明想看的主题" in rendered.answer
     assert "五年" not in rendered.answer
     assert rendered.answer.count("仅供文化研究与娱乐参考。") == 1
 
@@ -130,7 +131,7 @@ def test_confirmed_pillar_follow_up_is_an_official_limited_runtime() -> None:
     rendered = render_confirmed_pillar_follow_up(confirmed, "继续看财运")
 
     assert rendered.intent is RenderIntent.FOLLOW_UP
-    assert rendered.supported is False
-    assert "支持范围" in rendered.answer
+    assert rendered.supported is True
+    assert "财运" in rendered.answer
     assert "出生日期" not in rendered.answer
     assert rendered.answer.count("仅供文化研究与娱乐参考。") == 1

@@ -47,6 +47,7 @@ RUNTIME_STAGES = (
     "final_answer",
 )
 DOMAINS = ("career", "wealth", "relationship")
+FULL_READING_INTENT = "full_reading"
 LABEL_TO_STATUS = {
     "support_tendency": "supportive",
     "conflict_tendency": "challenging",
@@ -242,14 +243,20 @@ def run_mingli_agent(raw: Mapping[str, object]) -> MingLiRuntimeResult:
         "baseline_domains": effective,
         "annual_evidence": raw.get("annual_evidence", []),
     })
-    renderer = render_yuan_eight_sections({
-        "profile": {key: chart_input.get(key) for key in ("calendar", "birth_date", "birth_time")},
-        "chenggu": chenggu,
-        "domains": effective,
-        "domain_confidence": effective_confidence,
-        "five_years": renderer_years(five_year),
-        "advice_codes": raw.get("advice_codes", []),
-    }).to_dict()
+    full_report_requested = raw.get("render_intent") == FULL_READING_INTENT
+    renderer: dict[str, object] = {"sections": [], "rendered_text": ""}
+    if full_report_requested:
+        renderer = render_yuan_eight_sections({
+            "profile": {
+                key: chart_input.get(key)
+                for key in ("calendar", "birth_date", "birth_time")
+            },
+            "chenggu": chenggu,
+            "domains": effective,
+            "domain_confidence": effective_confidence,
+            "five_years": renderer_years(five_year),
+            "advice_codes": raw.get("advice_codes", []),
+        }).to_dict()
 
     artifacts = {
         "fact_graph": fact_graph,
@@ -336,6 +343,7 @@ def benchmark_phase23() -> dict[str, object]:
         }],
         "annual_evidence": [{"evidence_id": "c28", "year": 2028, "domain": "career", "signal": 2, "source_type":"timing", "source_id":"phase14"}],
         "advice_codes": ["verify_reality"],
+        "render_intent": FULL_READING_INTENT,
     }
     result = run_mingli_agent(payload)
     checks = [
