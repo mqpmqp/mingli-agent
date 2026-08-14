@@ -190,7 +190,10 @@ def analyze_question_payload(payload: object) -> dict[str, object]:
         has_active_case=(context.get("has_active_case") is True or context.get("previous_topic") is not None),
         comment=context.get("comment") is True,
     )
-    topic = detect_topic(question, inherited_topic=context.get("topic"))
+    inherited_topic = context.get("topic")
+    if not isinstance(inherited_topic, str) or not inherited_topic.strip():
+        inherited_topic = context.get("previous_topic")
+    topic = detect_topic(question, inherited_topic=inherited_topic)
     if intent is RenderIntent.FULL_READING:
         topic = None
     if question == "/new":

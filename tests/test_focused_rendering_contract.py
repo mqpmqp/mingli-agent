@@ -151,6 +151,15 @@ def test_hermes_structured_pillars_call_returns_focused_answer_without_sections(
     assert not all(title in result["final_answer"] for title in SECTION_TITLES)
 
 
+def test_four_pillars_cannot_trigger_a_full_report_without_birth_metadata() -> None:
+    result = analyze_mingli_payload(pillar_request("完整分析这个命盘"))
+
+    assert result["render_intent"] == RenderIntent.FULL_READING.value
+    assert result["full_report_generated"] is False
+    assert result["sections"] == []
+    assert "完整八段报告需要出生年月日时、地点和历法信息" in result["final_answer"]
+
+
 def test_new_resets_without_a_runtime_or_full_report() -> None:
     with patch.object(
         phase23,
@@ -178,6 +187,22 @@ def test_follow_up_inherits_career_and_scopes_to_the_requested_year() -> None:
         RenderIntent.FOLLOW_UP.value,
         RenderIntent.TIMING.value,
     }
+    assert result["topic"] == "career"
+    assert "2027" in result["final_answer"]
+    assert "财运" not in result["final_answer"]
+    assert "感情" not in result["final_answer"]
+    assert result["sections"] == []
+
+
+def test_follow_up_inherits_previous_topic_and_scopes_to_the_requested_year() -> None:
+    result = analyze_mingli_payload(
+        chart_request(
+            "那2027年呢",
+            context={"previous_topic": "career"},
+        )
+    )
+
+    assert result["render_intent"] == RenderIntent.FOLLOW_UP.value
     assert result["topic"] == "career"
     assert "2027" in result["final_answer"]
     assert "财运" not in result["final_answer"]
@@ -243,6 +268,27 @@ def test_timing_path_is_scoped_and_never_calls_yuan_renderer() -> None:
     assert "\u4e94\u5e74\u65ad\u4e8b" not in result["final_answer"]
     assert result["sections"] == []
     assert yuan.call_count == 0
+
+
+def test_month_range_is_not_silently_expanded_to_an_annual_answer() -> None:
+    result = analyze_mingli_payload(chart_request("她2027年1月到5月感情怎么样？"))
+
+    assert result["render_intent"] == RenderIntent.TIMING.value
+    assert result["topic"] == "relationship"
+    assert "2027年1月至5月" in result["final_answer"]
+    assert "月度" in result["final_answer"]
+    assert "五年断事" not in result["final_answer"]
+    assert result["sections"] == []
+
+
+def test_relative_month_question_is_timing_and_never_uses_a_five_year_window() -> None:
+    result = analyze_mingli_payload(chart_request("明年3月考试运怎么样？"))
+
+    assert result["render_intent"] == RenderIntent.TIMING.value
+    assert result["topic"] == "study"
+    assert "明年3月" in result["final_answer"]
+    assert "五年断事" not in result["final_answer"]
+    assert result["sections"] == []
 
 
 def test_health_reference_is_targeted_and_keeps_medical_reality_first() -> None:

@@ -15,6 +15,7 @@ def _z(value: str) -> str:
 
 
 YEAR = _z(r"\u5e74")
+MONTH = _z(r"\u6708")
 CAREER = _z(r"\u4e8b\u4e1a")
 WEALTH = _z(r"\u8d22\u8fd0")
 RELATIONSHIP = _z(r"\u611f\u60c5")
@@ -47,6 +48,15 @@ MEDIUM = _z(r"\u4e2d\u7f6e\u4fe1")
 LOW = _z(r"\u4f4e\u7f6e\u4fe1")
 
 _YEAR_RE = re.compile(r"(?<!\d)(20\d{2})(?:\u5e74)?")
+_MONTH_NUMBER = r"(?:0?[1-9]|1[0-2])"
+_MONTH_RANGE_RE = re.compile(
+    rf"(?<!\d)(20\d{{2}})\u5e74\s*({_MONTH_NUMBER})\u6708\s*"
+    rf"(?:\u5230|\u81f3|-|~|\u2014)\s*({_MONTH_NUMBER})\u6708"
+)
+_MONTH_RE = re.compile(rf"(?<!\d)(20\d{{2}})\u5e74\s*({_MONTH_NUMBER})\u6708")
+_RELATIVE_MONTH_RE = re.compile(
+    rf"(\u4eca\u5e74|\u660e\u5e74|\u540e\u5e74)\s*({_MONTH_NUMBER})\u6708"
+)
 _TOPIC_RULES = (
     ("career_exam", (_z(r"\u8003\u516c"), _z(r"\u8003\u7f16"), _z(r"\u6559\u5e08\u7f16"), _z(r"\u4e8b\u4e1a\u5355\u4f4d"), _z(r"\u4f53\u5236\u5185"), _z(r"\u8fdb\u4f53\u5236"))),
     ("relationship_reunion", (_z(r"\u590d\u5408"), _z(r"\u590d\u8054"), _z(r"\u633d\u56de"))),
@@ -82,6 +92,23 @@ def requested_year(question: object) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def requested_time_window(question: object) -> str | None:
+    normalized = _text(question)
+    range_match = _MONTH_RANGE_RE.search(normalized)
+    if range_match is not None:
+        year, start_month, end_month = range_match.groups()
+        return f"{year}{YEAR}{int(start_month)}{MONTH}\u81f3{int(end_month)}{MONTH}"
+    month_match = _MONTH_RE.search(normalized)
+    if month_match is not None:
+        year, month = month_match.groups()
+        return f"{year}{YEAR}{int(month)}{MONTH}"
+    relative_match = _RELATIVE_MONTH_RE.search(normalized)
+    if relative_match is not None:
+        relative_year, month = relative_match.groups()
+        return f"{relative_year}{int(month)}{MONTH}"
+    return None
+
+
 def _explicit_full(normalized: str) -> bool:
     phrases = (
         _z(r"\u5b8c\u6574\u5206\u6790\u8fd9\u4e2a\u547d\u76d8"), _z(r"\u5b8c\u6574\u5206\u6790\u547d\u76d8"), _z(r"\u5168\u76d8\u5206\u6790"),
@@ -106,7 +133,7 @@ def classify_question_intent(text: object, *, has_active_case: bool, comment: bo
         return RenderIntent.COMMENT
     if has_active_case and (normalized.startswith((_z(r"\u90a3"), _z(r"\u7136\u540e"), _z(r"\u63a5\u7740"))) or any(token in normalized for token in (_z(r"\u7ee7\u7eed"), _z(r"\u518d\u770b"), _z(r"\u8fd8\u6709")))):
         return RenderIntent.FOLLOW_UP
-    if requested_year(normalized) is not None or any(token in normalized for token in (_z(r"\u4ec0\u4e48\u65f6\u5019"), _z(r"\u54ea\u4e00\u5e74"), _z(r"\u672a\u6765\u51e0\u5e74"), _z(r"\u67d0\u5e74"), _z(r"\u67d0\u6708"), _z(r"\u65f6\u95f4\u7a97\u53e3"))):
+    if requested_time_window(normalized) is not None or requested_year(normalized) is not None or any(token in normalized for token in (_z(r"\u4ec0\u4e48\u65f6\u5019"), _z(r"\u54ea\u4e00\u5e74"), _z(r"\u672a\u6765\u51e0\u5e74"), _z(r"\u67d0\u5e74"), _z(r"\u67d0\u6708"), _z(r"\u65f6\u95f4\u7a97\u53e3"), _z(r"\u4eca\u5e74"), _z(r"\u660e\u5e74"), _z(r"\u540e\u5e74"))):
         return RenderIntent.TIMING
     if any(token in normalized for token in (_z(r"\u4e24\u4e2a\u4eba"), _z(r"\u4e24\u4e2a"), _z(r"\u54ea\u4e2a\u66f4"), _z(r"\u6bd4\u8f83"), _z(r"\u5bf9\u6bd4"))):
         return RenderIntent.COMPARISON
@@ -183,8 +210,23 @@ def _reunion(runtime: object, *, static: bool = False) -> str:
     )))
 
 
-def _timing(runtime: object, topic: str | None, year: int | None) -> str:
+def _timing(
+    runtime: object,
+    topic: str | None,
+    year: int | None,
+    *,
+    time_window: str | None = None,
+) -> str:
     label = _TOPIC_LABELS.get(topic or "", _z(r"\u5f53\u524d\u4e3b\u9898"))
+    if time_window is not None:
+        scoped = _z(r"\u4ec5\u8986\u76d6")
+        no_expand = _z(r"\uff1b\u4e0d\u81ea\u52a8\u6269\u5c55\u5230\u5176\u4ed6\u6708\u4efd\u6216\u5e74\u4efd\u3002")
+        return _answer("\n".join((
+            f"{CONCLUSION}{time_window}{label}\u6682\u65e0\u5df2\u51bb\u7ed3\u7684\u6708\u5ea6\u5224\u65ad\uff0c\u4e0d\u80fd\u7528\u5e74\u5ea6\u6216\u4e94\u5e74\u8d8b\u52bf\u4ee3\u66ff\u8be5\u65f6\u95f4\u7a97\u53e3\u3002",
+            f"{CONFIDENCE}{LOW}.",
+            f"{TIME_WINDOW}{scoped}{time_window}{no_expand}",
+            f"{ADVICE}\u8bf7\u7ed3\u5408\u8be5\u65f6\u95f4\u6bb5\u7684\u73b0\u5b9e\u6761\u4ef6\u4e0e\u53ef\u6267\u884c\u8ba1\u5212\u3002",
+        )))
     if year is None:
         return _answer(CONCLUSION + _z(r"\u8bf7\u8865\u5145\u5177\u4f53\u5e74\u4efd\u6216\u6708\u4efd\uff0c\u624d\u80fd\u9650\u5b9a\u65f6\u95f4\u7a97\u53e3\u3002"))
     five_year = getattr(runtime, "five_year", {})
@@ -287,8 +329,16 @@ def render_phase23_focused_answer(runtime: object, intent: RenderIntent, *, ques
         return _comparison(topic)
     if topic is None:
         return clarification_answer()
-    if intent in {RenderIntent.TIMING, RenderIntent.FOLLOW_UP} and requested_year(question) is not None:
-        return _timing(runtime, topic, requested_year(question))
+    time_window = requested_time_window(question)
+    if intent in {RenderIntent.TIMING, RenderIntent.FOLLOW_UP} and (
+        time_window is not None or requested_year(question) is not None
+    ):
+        return _timing(
+            runtime,
+            topic,
+            requested_year(question),
+            time_window=time_window,
+        )
     if topic == "career_exam":
         return _career_exam(runtime)
     if topic == "relationship_reunion":
@@ -321,7 +371,17 @@ def render_confirmed_pillar_focused_answer(
     if topic is None:
         return clarification_answer()
     year = requested_year(question)
-    if intent in {RenderIntent.TIMING, RenderIntent.FOLLOW_UP} and year is not None:
+    time_window = requested_time_window(question)
+    if intent in {RenderIntent.TIMING, RenderIntent.FOLLOW_UP} and (
+        time_window is not None or year is not None
+    ):
+        if time_window is not None:
+            scoped = _z(r"\u5df2\u786e\u8ba4\u56db\u67f1\u7684\u9759\u6001\u6a21\u5f0f\u6ca1\u6709") + time_window + _z(r"\u7684\u6708\u5ea6\u4e8b\u5b9e\uff0c\u4e0d\u80fd\u7528\u5e74\u5ea6\u6216\u4e94\u5e74\u8d8b\u52bf\u4ee3\u66ff\u8be5\u65f6\u95f4\u7a97\u53e3\u3002")
+            return _with_confirmed_basis(_answer("\n".join((
+                CONCLUSION + scoped,
+                CONFIDENCE + LOW + ".",
+                TIME_WINDOW + _z(r"\u4ec5\u8986\u76d6") + time_window + _z(r"\uff1b\u4e0d\u81ea\u52a8\u6269\u5c55\u5230\u5176\u4ed6\u6708\u4efd\u6216\u5e74\u4efd\u3002"),
+            ))), runtime)
         scoped = _z(r"\u5df2\u786e\u8ba4\u56db\u67f1\u7684\u9759\u6001\u6a21\u5f0f\u65e0\u6cd5\u4ee3\u66ff\u6307\u5b9a\u5e74\u4efd\u7684\u73b0\u5b9e\u6761\u4ef6\uff1b\u672c\u6b21\u53ea\u9650\u5b9a\u5728")
         return _with_confirmed_basis(_answer(CONCLUSION + scoped + str(year) + YEAR + _z(r"\u3002")), runtime)
     if topic == "career_exam":
@@ -343,4 +403,4 @@ def response_confidence(runtime: object, topic: str | None) -> str:
     return "low"
 
 
-__all__ = ["classify_question_intent", "clarification_answer", "detect_topic", "render_confirmed_pillar_focused_answer", "render_phase23_focused_answer", "requested_year", "reset_answer", "response_confidence"]
+__all__ = ["classify_question_intent", "clarification_answer", "detect_topic", "render_confirmed_pillar_focused_answer", "render_phase23_focused_answer", "requested_time_window", "requested_year", "reset_answer", "response_confidence"]

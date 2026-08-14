@@ -62,6 +62,10 @@ birth-metadata path, provide `chart_input` with `gender`, `calendar`,
 `true_solar_time`; provide `anchor_year`, `reality`, and `fusion_evidence` as
 needed by the existing deterministic contract.
 
+For a stateless follow-up, Hermes may send the prior response topic as
+`context: {"previous_topic": "career"}`. Core uses that only to retain the
+requested topic; it never reuses or reprints a prior full report.
+
 ## Response examples
 
 Focused question:
