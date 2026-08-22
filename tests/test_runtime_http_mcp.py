@@ -6,7 +6,8 @@ import logging
 import pytest
 from starlette.testclient import TestClient
 
-from mingli.service_app import MAX_REQUEST_BYTES, create_app, create_mcp
+from mingli.service_app import MAX_REQUEST_BYTES, create_mcp
+from mingli.service_gateway import create_gateway_app
 
 MCP_HEADERS = {
     "accept": "application/json, text/event-stream",
@@ -47,7 +48,7 @@ def mingli_payload() -> dict[str, object]:
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(create_app(), base_url="http://127.0.0.1:8000") as value:
+    with TestClient(create_gateway_app(), base_url="http://127.0.0.1:8000") as value:
         yield value
 
 
@@ -292,7 +293,7 @@ def test_mcp_analyze_tool_has_explicit_machine_friendly_input_schema(client) -> 
 
 
 def test_mcp_transport_allows_only_configured_public_host_and_origin() -> None:
-    public_app = create_app(
+    public_app = create_gateway_app(
         create_mcp(
             host="0.0.0.0",
             allowed_hosts=["runtime.example.com"],
