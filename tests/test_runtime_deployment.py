@@ -14,6 +14,7 @@ def test_docker_image_contract_is_minimal_non_root_and_health_checked() -> None:
     assert "COPY . ." not in dockerfile
     assert "USER mingli" in dockerfile
     assert "HEALTHCHECK" in dockerfile
+    assert "--timeout=15s" in dockerfile
     assert 'CMD ["mingli-service"]' in dockerfile
 
 
