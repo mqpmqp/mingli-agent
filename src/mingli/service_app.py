@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from time import perf_counter
-from typing import Literal, TypeVar
+from typing import Literal
 from uuid import uuid4
 
 from mcp.server.fastmcp import FastMCP
@@ -30,7 +30,6 @@ MAX_REQUEST_BYTES = 1_000_000
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 _LOGGER = logging.getLogger("mingli.service")
 _BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
-_ToolResult = TypeVar("_ToolResult")
 
 MCP_NAME = "MingLi Agent Runtime"
 MCP_INSTRUCTIONS = (
@@ -72,34 +71,6 @@ def _annotations(title: str) -> ToolAnnotations:
     )
 
 
-def _log_internal_error(
-    operation: str,
-    exc: Exception,
-    **context: object,
-) -> None:
-    _LOGGER.error(
-        "internal_service_error",
-        extra={
-            "operation": operation,
-            "exception_type": type(exc).__name__,
-            **context,
-        },
-    )
-
-
-def _execute_mcp_tool(
-    operation: str,
-    handler: Callable[[], _ToolResult],
-) -> _ToolResult:
-    try:
-        return handler()
-    except ValueError:
-        raise
-    except Exception as exc:
-        _log_internal_error(operation, exc)
-        raise RuntimeError("Internal service error") from None
-
-
 def _csv_setting(name: str) -> list[str]:
     return [
         item
@@ -130,42 +101,39 @@ def analyze_mingli(
     scenario: Literal["career_exam", "relationship_reunion"] | None = None,
     reality: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    def execute() -> dict[str, object]:
-        payload: dict[str, object] = {
-            "chart_input": {
-                "gender": gender,
-                "calendar": calendar,
-                "birth_date": birth_date,
-                "birth_time": birth_time,
-                "timezone": timezone,
-                "birth_location": {"longitude": longitude, "latitude": latitude},
-                "true_solar_time": true_solar_time,
-                "is_leap_month": is_leap_month,
-            },
-            "anchor_year": anchor_year,
-            "reality": reality or {},
-            "fusion_evidence": [],
-        }
-        if scenario is not None:
-            payload["scenario"] = scenario
-        result = analyze_mingli_payload(payload)
-        return {
-            "schema_version": result["schema_version"],
-            "method_id": result["method_id"],
-            "calculation_version": result["calculation_version"],
-            "run_id": result["run_id"],
-            "chart": result["chart"],
-            "scenario_assessment": result["scenario_assessment"],
-            "chenggu": result["chenggu"],
-            "final_answer": result["final_answer"],
-            "effective_domain_statuses": result["effective_domain_statuses"],
-            "effective_domain_confidence": result["effective_domain_confidence"],
-            "warnings": result["warnings"],
-            "canonical_hash": result["canonical_hash"],
-            "prediction_validity": result["prediction_validity"],
-        }
-
-    return _execute_mcp_tool("analyze_mingli", execute)
+    payload: dict[str, object] = {
+        "chart_input": {
+            "gender": gender,
+            "calendar": calendar,
+            "birth_date": birth_date,
+            "birth_time": birth_time,
+            "timezone": timezone,
+            "birth_location": {"longitude": longitude, "latitude": latitude},
+            "true_solar_time": true_solar_time,
+            "is_leap_month": is_leap_month,
+        },
+        "anchor_year": anchor_year,
+        "reality": reality or {},
+        "fusion_evidence": [],
+    }
+    if scenario is not None:
+        payload["scenario"] = scenario
+    result = analyze_mingli_payload(payload)
+    return {
+        "schema_version": result["schema_version"],
+        "method_id": result["method_id"],
+        "calculation_version": result["calculation_version"],
+        "run_id": result["run_id"],
+        "chart": result["chart"],
+        "scenario_assessment": result["scenario_assessment"],
+        "chenggu": result["chenggu"],
+        "final_answer": result["final_answer"],
+        "effective_domain_statuses": result["effective_domain_statuses"],
+        "effective_domain_confidence": result["effective_domain_confidence"],
+        "warnings": result["warnings"],
+        "canonical_hash": result["canonical_hash"],
+        "prediction_validity": result["prediction_validity"],
+    }
 
 
 def create_ziwei_chart(
@@ -181,38 +149,29 @@ def create_ziwei_chart(
     birth_time_known: bool = True,
     leap_month: bool = False,
 ) -> dict[str, object]:
-    return _execute_mcp_tool(
-        "create_ziwei_chart",
-        lambda: build_ziwei_chart_payload(
-            {
-                "calendar_type": calendar_type,
-                "birth_date": birth_date,
-                "birth_time": birth_time,
-                "birth_time_known": birth_time_known,
-                "timezone": timezone,
-                "longitude": longitude,
-                "latitude": latitude,
-                "solar_time_mode": solar_time_mode,
-                "late_zi_policy": late_zi_policy,
-                "leap_month": leap_month,
-                "gender": gender,
-            }
-        ),
+    return build_ziwei_chart_payload(
+        {
+            "calendar_type": calendar_type,
+            "birth_date": birth_date,
+            "birth_time": birth_time,
+            "birth_time_known": birth_time_known,
+            "timezone": timezone,
+            "longitude": longitude,
+            "latitude": latitude,
+            "solar_time_mode": solar_time_mode,
+            "late_zi_policy": late_zi_policy,
+            "leap_month": leap_month,
+            "gender": gender,
+        }
     )
 
 
 def evaluate_ziwei_chart(chart: dict[str, object]) -> dict[str, object]:
-    return _execute_mcp_tool(
-        "evaluate_ziwei_chart",
-        lambda: evaluate_ziwei_chart_payload(chart),
-    )
+    return evaluate_ziwei_chart_payload(chart)
 
 
 def get_ziwei_rule_coverage() -> dict[str, object]:
-    return _execute_mcp_tool(
-        "get_ziwei_rule_coverage",
-        get_ziwei_coverage,
-    )
+    return get_ziwei_coverage()
 
 
 def _request_id(request: Request) -> str:
@@ -279,14 +238,15 @@ class RequestPolicyMiddleware(BaseHTTPMiddleware):
             return response
         try:
             response = await call_next(request)
-        except Exception as exc:
-            _log_internal_error(
-                "request_dispatch",
-                exc,
-                request_id=request_id,
-                http_method=request.method,
-                http_path=request.url.path,
-                duration_ms=round((perf_counter() - started) * 1000, 3),
+        except Exception:
+            _LOGGER.exception(
+                "request_failed",
+                extra={
+                    "request_id": request_id,
+                    "http_method": request.method,
+                    "http_path": request.url.path,
+                    "duration_ms": round((perf_counter() - started) * 1000, 3),
+                },
             )
             raise
         response = _apply_response_headers(response, request_id)
@@ -356,8 +316,8 @@ async def _execute_json(
         return _error_response("invalid_request", str(exc), 400)
     except ValueError as exc:
         return _error_response("domain_validation_failed", str(exc), 422)
-    except Exception as exc:
-        _log_internal_error("http_handler", exc)
+    except Exception:
+        _LOGGER.exception("Unhandled service error")
         return _error_response("internal_error", "Internal service error", 500)
 
 
