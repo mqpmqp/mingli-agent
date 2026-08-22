@@ -60,6 +60,24 @@ ngrok http 8000 --host-header=rewrite
 
 最终 MCP URL 形如 `https://<temporary-host>/mcp`。每次隧道 URL 改变都需要在 ChatGPT 中更新开发应用。
 
+## 持久 VPS HTTPS 配置
+
+仓库的 `deploy/Caddyfile` 是当前只读 Runtime 的持久 HTTPS 反代配置。Runtime 容器必须只绑定 `127.0.0.1:8000`，Caddy 对外监听 80/443；不要重写上游 `Host`，这样 `MINGLI_ALLOWED_HOSTS` 的精确公网域名校验仍然生效。反代显式使用 `flush_interval -1`，避免缓存 Streamable HTTP 响应。
+
+容器应至少设置：
+
+```text
+MINGLI_ALLOWED_HOSTS=127.0.0.1:8000,localhost:8000,<public-host>
+MINGLI_ALLOWED_ORIGINS=https://chatgpt.com
+MINGLI_FORWARDED_ALLOW_IPS=<actual-reverse-proxy-source-ip-or-cidr>
+```
+
+`MINGLI_FORWARDED_ALLOW_IPS` 必须填写 Runtime 实际看到的反向代理来源地址；Caddy 在宿主机、Runtime 在 Docker bridge 时通常是 bridge gateway（应从部署现场确认，例如 `172.17.0.1`），不能照抄 loopback，也不能设为 `*`。
+
+并使用受进程管理器或容器运行时管理的重启策略。部署前后必须从 VPS 外部独立验证 DNS、TCP 80、TCP 443、TLS 证书和 `/mcp`；VPS 内部的 HTTPS 冒烟不能替代公网验证。若 80 可达但 443 被云防火墙阻断，即使证书已通过 HTTP-01 签发，也必须报告 `BLOCKED_DEPLOYMENT_ACCESS`，不得降级到明文 HTTP 或把服务写成已恢复。
+
+`sslip.io` 主机只适合本次恢复和受控测试，其解析依赖 VPS 公网 IP。长期入口应使用静态 IP 与自有域名；公网 IP 或 MCP URL 变化后必须同步更新 ChatGPT Developer App 并 Refresh。
+
 ## 连接 ChatGPT Developer Mode
 
 1. 打开 **Settings → Security and login → Developer mode**；若开关不可用，需要工作区管理员允许。
