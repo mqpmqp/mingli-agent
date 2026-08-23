@@ -8,3 +8,9 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+web/pwa/node_modules/
+web/pwa/dist/
+web/pwa/public/runtime/
+web/pwa/playwright-report/
+web/pwa/test-results/
+web/pwa/coverage/
