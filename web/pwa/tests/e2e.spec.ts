@@ -530,6 +530,25 @@ test.describe("real deterministic chart journey", () => {
     await expect(page.getByTestId("result-section")).toBeHidden();
     await expect(page.getByTestId("action-feedback")).toHaveText("");
   });
+
+  test("keeps the cleared state final when an earlier calculation settles late", async ({ page }, testInfo) => {
+    useRuntimeProject(testInfo);
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+    await fillChartForm(page);
+
+    await page.evaluate(() => {
+      const form = document.querySelector<HTMLFormElement>("#chart-form");
+      const clearButton = document.querySelector<HTMLButtonElement>('[data-testid="clear-data"]');
+      if (!form || !clearButton) throw new Error("测试页面缺少表单或清空按钮");
+      form.requestSubmit();
+      queueMicrotask(() => clearButton.click());
+    });
+
+    await expect(page.getByTestId("result-section")).toBeHidden({ timeout: 60_000 });
+    await expect(page.getByTestId("result-json")).toHaveValue("");
+    await expect(page.locator('[name="birth_date"]')).toHaveValue("");
+  });
 });
 
 test.describe("PWA update experience", () => {
