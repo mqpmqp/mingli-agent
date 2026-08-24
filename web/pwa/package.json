@@ -10,9 +10,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "build": "tsc --noEmit && vite build",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:parity": "playwright test tests/parity.poc.spec.ts --project=mobile-390",
+    "test": "vitest run tests/form.test.ts tests/presentation.test.ts tests/version.test.ts",
+    "test:coverage": "vitest run tests/form.test.ts tests/presentation.test.ts tests/version.test.ts --coverage",
+    "test:parity": "playwright test tests/parity.poc.spec.ts tests/parity.spec.ts --project=mobile-390",
     "test:e2e": "playwright test tests/e2e.spec.ts",
     "test:offline": "playwright test tests/offline.spec.ts"
   },

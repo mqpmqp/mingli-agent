@@ -15,10 +15,30 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "mobile-360",
+      use: {
+        browserName: "chromium",
+        viewport: { width: 360, height: 800 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
       name: "mobile-390",
       use: {
         browserName: "chromium",
         viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
+      name: "mobile-430",
+      use: {
+        browserName: "chromium",
+        viewport: { width: 430, height: 932 },
         deviceScaleFactor: 2,
         isMobile: true,
         hasTouch: true,
