@@ -23,11 +23,7 @@ import json, sys
 from mingli.bazi import DeterministicBaziEngine
 
 result = DeterministicBaziEngine().calculate(json.loads(sys.argv[1]))
-keys = (
-    "method_id", "calculation_version", "calendar", "pillars",
-    "boundaries", "luck", "warnings", "prediction_validity",
-)
-print(json.dumps({key: result[key] for key in keys}, ensure_ascii=False, sort_keys=True))
+print(json.dumps(result, ensure_ascii=False, sort_keys=True))
 `;
 
 declare global {
@@ -42,7 +38,7 @@ declare global {
 
 test("loads the repository wheel in Pyodide and matches CPython 3.11", async ({ page }) => {
   const expected = JSON.parse(
-    execFileSync(PYTHON, ["-c", PYTHON_REFERENCE, JSON.stringify(INPUT)], {
+    execFileSync(PYTHON, ["-X", "utf8", "-c", PYTHON_REFERENCE, JSON.stringify(INPUT)], {
       cwd: REPO_ROOT,
       encoding: "utf8",
     }),
