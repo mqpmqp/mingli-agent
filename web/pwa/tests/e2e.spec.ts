@@ -538,10 +538,14 @@ test.describe("PWA update experience", () => {
   }, testInfo) => {
     test.skip(testInfo.project.name !== RUNTIME_PROJECT, "One project is enough for service-worker event wiring.");
     await page.addInitScript(() => {
+      const pageLoadCount = Number(sessionStorage.getItem("__pwaPageLoadCount") ?? "0") + 1;
+      sessionStorage.setItem("__pwaPageLoadCount", String(pageLoadCount));
+
       const installing = Object.assign(new EventTarget(), {
         state: "installing",
         postMessage: (message: unknown) => {
           window.name = JSON.stringify(message);
+          serviceWorker.dispatchEvent(new Event("controllerchange"));
         },
       });
       const registration = Object.assign(new EventTarget(), {
@@ -585,6 +589,9 @@ test.describe("PWA update experience", () => {
     });
     await page.route("**/runtime/**", (route) => route.abort("failed"));
     await page.goto("/");
+    const initialPageLoadCount = await page.evaluate(
+      () => Number(sessionStorage.getItem("__pwaPageLoadCount") ?? "0"),
+    );
     await expect
       .poll(() =>
         page.evaluate(() =>
@@ -599,5 +606,8 @@ test.describe("PWA update experience", () => {
     await expect(banner).toContainText(/新版本|更新/);
     await page.locator('[data-action="reload-app"]').click();
     await expect.poll(() => page.evaluate(() => window.name)).toBe(JSON.stringify({ type: "SKIP_WAITING" }));
+    await expect
+      .poll(() => page.evaluate(() => Number(sessionStorage.getItem("__pwaPageLoadCount") ?? "0")))
+      .toBeGreaterThan(initialPageLoadCount);
   });
 });

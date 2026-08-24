@@ -1,3 +1,5 @@
+import { rm, writeFile } from "node:fs/promises";
+
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 type WebAppManifest = {
@@ -102,8 +104,8 @@ async function attachMetrics(testInfo: TestInfo, metrics: Partial<Record<MetricN
 }
 
 async function fillSyntheticInput(page: Page): Promise<void> {
-  await MOBILE_E2E.genderMale(page).check();
-  await MOBILE_E2E.calendarSolar(page).check();
+  await expect(MOBILE_E2E.genderMale(page)).toBeChecked();
+  await expect(MOBILE_E2E.calendarSolar(page)).toBeChecked();
   await MOBILE_E2E.birthDate(page).fill(SYNTHETIC_INPUT.birthDate);
   await MOBILE_E2E.birthTime(page).fill(SYNTHETIC_INPUT.birthTime);
   await MOBILE_E2E.timezone(page).fill(SYNTHETIC_INPUT.timezone);
@@ -255,12 +257,10 @@ test("first online calculation remains identical after an offline reload without
     await expect(MOBILE_E2E.offlineReady(page)).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
     metrics.FIRST_INIT_MS = Date.now() - firstInitStarted;
 
-    await expect
-      .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)), {
-        message: "the first successful online load must be controlled before going offline",
-        timeout: 30_000,
-      })
-      .toBe(true);
+    expect(
+      await page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
+      "offline-ready must only be shown after the first page is controlled",
+    ).toBe(true);
     const serviceWorker = await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.ready;
       return {
@@ -346,5 +346,78 @@ test("first online calculation remains identical after an offline reload without
   } finally {
     await context.setOffline(false).catch(() => undefined);
     await attachMetrics(testInfo, metrics);
+  }
+});
+
+test("activating the current build removes older static cache generations", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  const cachePrefix = "mingli-pwa-static-";
+  const obsoleteCache = `${cachePrefix}obsolete-e2e-generation`;
+
+  await page.goto(APP_PATH, { waitUntil: "domcontentloaded" });
+  await expect(MOBILE_E2E.offlineReady(page)).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  const currentCaches = await page.evaluate(async (prefix) =>
+    (await caches.keys()).filter((name) => name.startsWith(prefix)).sort(),
+  cachePrefix);
+  expect(currentCaches).toHaveLength(1);
+
+  await page.evaluate(async ({ cacheName }) => {
+    const cache = await caches.open(cacheName);
+    await cache.put("/__obsolete-cache-sentinel", new Response("obsolete"));
+  }, { cacheName: obsoleteCache });
+  await expect.poll(() => page.evaluate(async (name) => (await caches.keys()).includes(name), obsoleteCache)).toBe(true);
+
+  const workerResponse = await request.get("/sw.js");
+  expect(workerResponse.ok()).toBe(true);
+  const workerSource = `${await workerResponse.text()}\n// e2e generation two\n`;
+  const workerPath = new URL("../dist/sw-generation-two.js", import.meta.url);
+  await writeFile(workerPath, workerSource, "utf8");
+  try {
+
+  await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.register("/sw-generation-two.js", { scope: "/" });
+    const installing = registration.installing ?? registration.waiting;
+    if (!installing) throw new Error("updated service worker did not enter installing or waiting");
+
+    if (installing.state !== "installed") {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error("updated service worker install timed out")), 30_000);
+        installing.addEventListener("statechange", () => {
+          if (installing.state === "installed") {
+            window.clearTimeout(timeout);
+            resolve();
+          } else if (installing.state === "redundant") {
+            window.clearTimeout(timeout);
+            reject(new Error("updated service worker became redundant"));
+          }
+        });
+      });
+    }
+
+    const waiting = registration.waiting;
+    if (!waiting) throw new Error("updated service worker did not reach waiting");
+    const controllerChanged = new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error("controllerchange timed out")), 30_000);
+      navigator.serviceWorker.addEventListener(
+        "controllerchange",
+        () => {
+          window.clearTimeout(timeout);
+          resolve();
+        },
+        { once: true },
+      );
+    });
+    waiting.postMessage({ type: "SKIP_WAITING" });
+    await controllerChanged;
+  });
+
+  await expect
+    .poll(
+      () => page.evaluate(async (prefix) => (await caches.keys()).filter((name) => name.startsWith(prefix)).sort(), cachePrefix),
+      { timeout: 30_000 },
+    )
+    .toEqual(currentCaches);
+  } finally {
+    await rm(workerPath, { force: true });
   }
 });
