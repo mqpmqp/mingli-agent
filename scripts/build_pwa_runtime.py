@@ -30,6 +30,30 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _runtime_file_records(runtime_root: Path) -> tuple[list[dict[str, Any]], int]:
+    """Return a deterministic, traversal-safe allowlist for runtime assets."""
+    root = runtime_root.resolve(strict=True)
+    records: list[dict[str, Any]] = []
+    total_bytes = 0
+    for candidate in sorted(root.rglob("*"), key=lambda path: path.relative_to(root).as_posix()):
+        if candidate.is_symlink():
+            raise ValueError(f"runtime asset must not be a symlink: {candidate}")
+        if not candidate.is_file():
+            continue
+        resolved = candidate.resolve(strict=True)
+        try:
+            relative = resolved.relative_to(root).as_posix()
+        except ValueError as exc:
+            raise ValueError(f"runtime asset escapes output root: {candidate}") from exc
+        path = PurePosixPath(relative)
+        if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
+            raise ValueError(f"unsafe runtime asset path: {relative}")
+        size = resolved.stat().st_size
+        records.append({"path": path.as_posix(), "bytes": size, "sha256": _sha256(resolved)})
+        total_bytes += size
+    return records, total_bytes
+
+
 def load_runtime_lock(root: Path) -> dict[str, Any]:
     lock_path = root / RUNTIME_LOCK
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
@@ -266,11 +290,32 @@ def _extract_pyodide(archive: Path, destination: Path) -> None:
                 shutil.copyfileobj(source, output)
 
 
+def _source_date_epoch(root: Path) -> int:
+    completed = subprocess.run(
+        ["git", "show", "-s", "--format=%ct", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    try:
+        epoch = int(completed.stdout.strip())
+    except ValueError as exc:
+        raise ValueError("git HEAD has an invalid commit timestamp") from exc
+    if epoch < 315_532_800:
+        raise ValueError("git HEAD timestamp predates the ZIP reproducibility epoch")
+    return epoch
+
+
 def _build_wheel(root: Path, destination: Path) -> Path:
+    build_environment = os.environ.copy()
+    build_environment["SOURCE_DATE_EPOCH"] = str(_source_date_epoch(root))
     subprocess.run(
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(destination)],
         cwd=root,
         check=True,
+        env=build_environment,
     )
     wheels = sorted(destination.glob("mingli_agent-*.whl"))
     if len(wheels) != 1:
@@ -344,7 +389,7 @@ def build_runtime(root: Path, output: Path | None = None) -> dict[str, Any]:
             separators=(",", ":"),
         ).encode("utf-8")
         build_id = hashlib.sha256(build_material).hexdigest()[:20]
-        first_load_bytes = sum(path.stat().st_size for path in staging.rglob("*") if path.is_file())
+        files, first_load_bytes = _runtime_file_records(staging)
         manifest = {
             "schema_version": "mingli-pwa-runtime-manifest@1.0",
             "app_build_id": build_id,
@@ -356,6 +401,12 @@ def build_runtime(root: Path, output: Path | None = None) -> dict[str, Any]:
                 "archive_sha256": lock["pyodide"]["sha256"],
                 "module": "pyodide/pyodide.mjs",
                 "index": "pyodide/",
+                "bootstrap": {
+                    "asm_js": "pyodide/pyodide.asm.js",
+                    "wasm": "pyodide/pyodide.asm.wasm",
+                    "stdlib": "pyodide/python_stdlib.zip",
+                    "lockfile": "pyodide/pyodide-lock.json",
+                },
             },
             "tzdata": {
                 "version": lock["tzdata"]["version"],
@@ -363,6 +414,7 @@ def build_runtime(root: Path, output: Path | None = None) -> dict[str, Any]:
                 "sha256": lock["tzdata"]["sha256"],
             },
             "parity": {"filename": "parity-reference.json", "case_count": len(reference)},
+            "files": files,
             "first_load_bytes": first_load_bytes,
         }
         (staging / "runtime-manifest.json").write_text(
