@@ -445,7 +445,12 @@ test.describe("PWA update experience", () => {
   }, testInfo) => {
     test.skip(testInfo.project.name !== RUNTIME_PROJECT, "One project is enough for service-worker event wiring.");
     await page.addInitScript(() => {
-      const installing = Object.assign(new EventTarget(), { state: "installing" });
+      const installing = Object.assign(new EventTarget(), {
+        state: "installing",
+        postMessage: (message: unknown) => {
+          window.name = JSON.stringify(message);
+        },
+      });
       const registration = Object.assign(new EventTarget(), {
         active: {},
         installing,
@@ -476,6 +481,11 @@ test.describe("PWA update experience", () => {
         value: () => {
           registration.dispatchEvent(new Event("updatefound"));
           installing.state = "installed";
+          Object.defineProperty(registration, "waiting", {
+            configurable: true,
+            value: installing,
+          });
+
           installing.dispatchEvent(new Event("statechange"));
         },
       });
@@ -494,5 +504,7 @@ test.describe("PWA update experience", () => {
     const banner = page.getByTestId("update-banner");
     await expect(banner).toBeVisible();
     await expect(banner).toContainText(/新版本|更新/);
+    await page.locator('[data-action="reload-app"]').click();
+    await expect.poll(() => page.evaluate(() => window.name)).toBe(JSON.stringify({ type: "SKIP_WAITING" }));
   });
 });
