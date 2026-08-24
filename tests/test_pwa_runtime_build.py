@@ -30,6 +30,22 @@ def test_runtime_lock_pins_browser_dependencies_and_sha256() -> None:
         assert digest == digest.lower()
 
 
+def test_workflow_defers_runner_temp_until_a_step_is_running() -> None:
+    workflow = (ROOT / ".github/workflows/pwa.yml").read_text(encoding="utf-8")
+    job_configuration, steps = workflow.split("    steps:\n", maxsplit=1)
+    runner_temp = "${{ runner.temp }}"
+
+    assert runner_temp not in job_configuration
+
+    build_step = steps.split(
+        "      - name: Build pinned browser runtime and verify downloads\n", maxsplit=1
+    )[1].split("      - name:", maxsplit=1)[0]
+    assert (
+        f"MINGLI_PWA_RUNTIME_CACHE: {runner_temp}/mingli-pwa-runtime-cache"
+        in build_step
+    )
+
+
 def test_parity_cases_reuse_all_benchmarks_and_cover_required_boundaries() -> None:
     cases = build_pwa_runtime.collect_parity_cases(ROOT)
 
