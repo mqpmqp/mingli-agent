@@ -36,6 +36,8 @@
 | SW 代际覆盖 | `68387b5` `test(pwa): cover service worker generation transitions` | 真实断言 `controllerchange` reload；预置旧 generation cache 后激活新 worker，最终只保留当前 build cache。 |
 | 排盘清空竞态 RED | `923602d` `test(pwa): cover calculation clear race` | 真实 Chromium 微任务 reproducer 在清空后重新显示旧结果，`1 failed`。 |
 | 排盘清空竞态 GREEN | `8acf452` `fix(pwa): ignore stale calculation results` | calculation revision 使更早 Promise 的结果/错误失效；同一 reproducer `1 passed`。 |
+| CI 启动 RED | `1233288` `test(pwa): reject runner context before job start` | 远端 run `32785237461` 零 job 失败；本地合同测试因 job 级 `runner.temp` 命中而 `1 failed`。 |
+| CI 启动 GREEN | `1518485` `fix(ci): defer runner temp until job starts` | 缓存路径下移到 runtime 构建 step；同一测试 `1 passed, 4 deselected`。 |
 
 所有 checkpoint 均可从当前分支 HEAD 追溯，未 squash 或改写。
 
@@ -83,12 +85,15 @@
 | 19 | 无上传/持久化/用户数据缓存 | E2E request/storage/cache audit | PASS |
 | 20 | `SOLAR_TERM_UNCERTAIN` 显示 `REVIEW_REQUIRED` 且无四柱 | `e2e.spec.ts` | PASS |
 | 21 | CI 干净重建、测试、确定性 tar.gz + SHA 收据，不部署 Pages | `.github/workflows/pwa.yml` | 静态审计 PASS；远端 run 在 push 后确认 |
+| 22 | `runner.temp` 仅在 runner 已分配的 step 中求值 | `test_workflow_defers_runner_temp_until_a_step_is_running` | RED→GREEN |
 
 ## 实际命令与结果
 
 | 命令 | 结果 |
 | --- | --- |
 | `python -m pytest -q tests/test_pwa_runtime_build.py tests/test_bazi_engine.py` | `10 passed, 2 subtests passed` |
+| `python -m pytest -q tests/test_pwa_runtime_build.py -k workflow_defers_runner_temp` | RED：`1 failed, 4 deselected`；GREEN：`1 passed, 4 deselected` |
+| CI 启动修复后重跑同一 focused suite | `11 passed, 2 subtests passed` |
 | `test-fast --timeout-seconds 300 ... -- -q` | `404 passed, 1 skipped, 151 deselected, 2 warnings, 16 subtests passed` |
 | 完整 `python -m pytest` | `555 passed, 1 skipped, 31 subtests passed, 2 warnings`；validation SHA 上实际运行 `1138.63s` |
 | `python -m compileall -q src scripts` | PASS |
@@ -109,6 +114,7 @@
 
 - 移动 E2E 的 22 个 skip 是显式项目矩阵策略：运行时/状态测试仅在 canonical 390 项目执行；三个视口都执行 shell 与真实结果旅程，不是禁用测试。
 - 完整 pytest、Python focused 与 `test-fast` 均在 validation SHA 上实际通过；保护范围审计同时确认 Python 核心未改。
+- 首次远端 PWA run 在 job 创建前失败；新增合同测试复现并把 `runner.temp` 下移到 step，最终远端结论另行记录。
 - `controllerchange` 可早于 activate 事件 `waitUntil` 清理完成；旧 cache 测试有界轮询最终 CacheStorage 状态。
 - parity 证明同一确定性实现工程一致，不等于命理预测准确率；`prediction_validity=not_evaluated` 保留。
 - 离线缓存仍可能被浏览器或操作系统回收；固定 tzdata 未来修订需要新构建和重新 parity。
