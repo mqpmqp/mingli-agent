@@ -68,7 +68,7 @@ test("loads the repository wheel in Pyodide and matches CPython 3.11", async ({ 
     }),
   );
 
-  await page.goto("/tests/fixtures/poc.html");
+  await page.goto("/");
   await page.waitForFunction(() => Boolean(window.__mingliPwa), undefined, { timeout: 15_000 });
   const actual = await page.evaluate(async (input) => {
     if (!window.__mingliPwa) throw new Error("MingLi Pyodide runtime is unavailable");

@@ -9,19 +9,20 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run tests/form.test.ts tests/presentation.test.ts tests/version.test.ts",
     "test:coverage": "vitest run tests/form.test.ts tests/presentation.test.ts tests/version.test.ts --coverage",
     "test:parity": "playwright test tests/parity.poc.spec.ts tests/parity.spec.ts --project=mobile-390",
     "test:e2e": "playwright test tests/e2e.spec.ts",
-    "test:offline": "playwright test tests/offline.spec.ts"
+    "test:offline": "playwright test tests/offline.spec.ts --project=mobile-390"
   },
   "devDependencies": {
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.55.1",
     "@types/node": "22.15.29",
-    "@vitest/coverage-v8": "3.2.4",
+    "@vitest/coverage-v8": "3.2.7",
     "typescript": "5.9.2",
-    "vite": "7.1.3",
-    "vitest": "3.2.4"
+    "vite": "7.3.6",
+    "vitest": "3.2.7"
   }
 }

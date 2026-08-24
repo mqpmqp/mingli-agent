@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#172f2b" />
+    <meta name="description" content="在浏览器本地运行确定性 Python 八字引擎的离线排盘工具" />
+    <meta name="mingli-runtime-base" content="./runtime/" />
+    <meta name="mingli-app-build-id" content="de2111fa81657da32632" />
+    <meta name="mingli-git-sha" content="4fc75751354300dd417c0d28e4f1879e797973b5" />
+    <meta name="mingli-wheel-sha256" content="aed1ef4b21f8118eb2df6bb1d8d9e83a5073d4d4fbbb86cba1c5e8b01ca37958" />
+    <meta name="mingli-pyodide-version" content="0.25.1" />
+    <meta name="mingli-tzdata-version" content="2025.2" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon-192.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.svg" />
+    <title>明理 · 本地八字排盘</title>
+  </head>
+  <body>
+    <main class="app-shell" data-testid="mingli-app">
+      <header class="hero">
+        <p class="eyebrow">MINGLI · DETERMINISTIC BAZI</p>
+        <h1>本地八字排盘</h1>
+        <p class="privacy-contract">本地计算，出生资料未上传</p>
+        <p class="hero-copy">首次加载完成后可离线使用。排盘由仓库中的确定性 Python 引擎直接完成。</p>
+      </header>
+
+      <aside class="update-banner" data-testid="update-banner" hidden>
+        <div>
+          <strong>发现新版本</strong>
+          <p>请刷新页面，避免新旧运行资源混用。</p>
+        </div>
+        <button type="button" data-action="reload-app">立即更新</button>
+      </aside>
+
+      <section class="status-panel" aria-label="应用状态">
+        <div class="status-row">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div>
+            <strong>排盘引擎</strong>
+            <p data-testid="runtime-status" data-state="loading" aria-live="polite">正在初始化本地 Python 运行环境…</p>
+          </div>
+        </div>
+        <div class="status-row">
+          <span class="status-dot status-dot-secondary" aria-hidden="true"></span>
+          <div>
+            <strong>离线能力</strong>
+            <p data-testid="offline-ready" data-state="preparing" aria-live="polite">正在准备离线资源…</p>
+          </div>
+        </div>
+        <button class="button-secondary retry-button" type="button" data-testid="retry-runtime" hidden>重新加载运行环境</button>
+      </section>
+
+      <form id="chart-form" class="chart-form" novalidate>
+        <div class="section-heading">
+          <p class="step">01 / 输入</p>
+          <h2>出生资料</h2>
+          <p>地点不会自动解析或猜测，请手工填写并核对坐标。</p>
+        </div>
+
+        <fieldset>
+          <legend>性别</legend>
+          <div class="segmented-control">
+            <label><input data-testid="gender-male" type="radio" name="gender" value="male" checked />男</label>
+            <label><input data-testid="gender-female" type="radio" name="gender" value="female" />女</label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>历法</legend>
+          <div class="segmented-control">
+            <label><input data-testid="calendar-solar" type="radio" name="calendar" value="solar" checked />阳历</label>
+            <label><input data-testid="calendar-lunar" type="radio" name="calendar" value="lunar" />农历</label>
+          </div>
+        </fieldset>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>出生日期 <b aria-hidden="true">*</b></span>
+            <input data-testid="birth-date" type="date" name="birth_date" min="1901-01-01" max="2099-12-31" autocomplete="off" required />
+          </label>
+          <label class="field">
+            <span>出生时间 <b aria-hidden="true">*</b></span>
+            <input data-testid="birth-time" type="time" name="birth_time" step="60" autocomplete="off" required />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>时区（IANA 名称） <b aria-hidden="true">*</b></span>
+          <input data-testid="timezone" type="text" name="timezone" value="Asia/Shanghai" inputmode="text" autocomplete="off" spellcheck="false" required />
+          <small>例如：Asia/Shanghai。不要填写 UTC+08:00。</small>
+        </label>
+
+        <label class="field">
+          <span>出生地备注</span>
+          <input data-testid="location-note" type="text" name="birth_location_note" autocomplete="off" placeholder="仅供当前页面辨认，不进入排盘结果" />
+        </label>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>经度</span>
+            <input data-testid="longitude" type="number" name="longitude" min="-180" max="180" step="any" inputmode="decimal" autocomplete="off" placeholder="-180 至 180" />
+          </label>
+          <label class="field">
+            <span>纬度</span>
+            <input data-testid="latitude" type="number" name="latitude" min="-90" max="90" step="any" inputmode="decimal" autocomplete="off" placeholder="-90 至 90" />
+          </label>
+        </div>
+
+        <label class="check-row">
+          <input data-testid="true-solar-time" type="checkbox" name="true_solar_time" />
+          <span><strong>启用真太阳时</strong><small>启用后必须提供经度；时区仍按上方 IANA 名称解释。</small></span>
+        </label>
+
+        <label class="check-row leap-month-row" data-testid="leap-month-row" hidden>
+          <input type="checkbox" name="is_leap_month" disabled />
+          <span><strong>该农历日期为闰月</strong><small>仅在确认输入的是闰月时勾选。</small></span>
+        </label>
+
+        <details class="advanced-options">
+          <summary>高级选项</summary>
+          <label class="field">
+            <span>fold（夏令时重叠时间）</span>
+            <select name="fold">
+              <option value="0" selected>0 · 第一次出现</option>
+              <option value="1">1 · 第二次出现</option>
+            </select>
+            <small>绝大多数情况保持 0；仅在当地夏令时回拨产生重叠时间时选择。</small>
+          </label>
+        </details>
+
+        <label class="coordinate-confirm">
+          <input data-testid="coordinate-confirm" type="checkbox" name="coordinate_confirm" />
+          <span>我已核对以上经纬度；系统不会猜测地点坐标，也不会调用地图服务。</span>
+        </label>
+
+        <div class="form-error" data-testid="form-error" role="alert" hidden></div>
+        <button class="primary-button" data-testid="calculate" type="submit" disabled>开始排盘</button>
+      </form>
+
+      <section class="calculation-error" data-testid="calculation-error" role="alert" hidden></section>
+
+      <section class="result-section" data-testid="result-section" hidden>
+        <div data-testid="result">
+          <div class="section-heading result-heading">
+            <div>
+              <p class="step">02 / 结果</p>
+              <h2>确定性排盘结果</h2>
+            </div>
+            <p class="fact-only">仅展示引擎实际返回的事实，不推算喜忌、格局或流年。</p>
+          </div>
+
+          <div class="pillar-grid" aria-label="四柱">
+            <article><span>年柱</span><strong data-testid="year-pillar"></strong></article>
+            <article><span>月柱</span><strong data-testid="month-pillar"></strong></article>
+            <article><span>日柱</span><strong data-testid="day-pillar"></strong></article>
+            <article><span>时柱</span><strong data-testid="hour-pillar"></strong></article>
+          </div>
+
+          <dl class="result-list">
+            <div><dt>民用出生时间</dt><dd data-testid="civil-birth-time"></dd></div>
+            <div><dt>真太阳时间</dt><dd id="output-true-solar-time"></dd></div>
+            <div><dt>真太阳时修正</dt><dd data-testid="true-solar-correction-minutes"></dd></div>
+            <div><dt>均时差</dt><dd data-testid="equation-of-time-minutes"></dd></div>
+            <div><dt>日主</dt><dd data-testid="day-master"></dd></div>
+            <div><dt>起运方向</dt><dd data-testid="luck-direction"></dd></div>
+            <div><dt>起运年龄原始值</dt><dd data-testid="luck-start-age-raw"></dd></div>
+            <div><dt>起运年龄易读值</dt><dd data-testid="luck-start-age-readable"></dd></div>
+            <div><dt>起运取用的相邻节气</dt><dd data-testid="adjacent-solar-term"></dd></div>
+            <div><dt>相邻节气时间</dt><dd data-testid="adjacent-solar-term-time"></dd></div>
+            <div><dt>当前月令节气</dt><dd data-testid="current-month-term"></dd></div>
+            <div><dt>method_id</dt><dd data-testid="method-id"></dd></div>
+            <div><dt>calculation_version</dt><dd data-testid="calculation-version"></dd></div>
+            <div><dt>Git commit SHA</dt><dd data-testid="git-sha"></dd></div>
+            <div><dt>wheel SHA256</dt><dd data-testid="wheel-sha256"></dd></div>
+            <div><dt>canonical result hash</dt><dd data-testid="canonical-result-hash"></dd></div>
+            <div><dt>prediction_validity</dt><dd data-testid="prediction-validity"></dd></div>
+            <div><dt>warnings</dt><dd data-testid="warnings"></dd></div>
+          </dl>
+
+          <textarea class="visually-hidden" data-testid="result-json" aria-label="完整结果 JSON" readonly></textarea>
+
+          <div class="result-actions" aria-label="结果操作">
+            <button type="button" data-testid="copy-summary">复制简版排盘</button>
+            <button type="button" data-testid="copy-json">复制完整 JSON</button>
+            <button type="button" data-testid="download-json">下载 JSON</button>
+            <button type="button" data-testid="copy-prompt">复制交给 ChatGPT 解读的提示词</button>
+            <button class="danger-button" type="button" data-testid="clear-data">清空当前资料</button>
+          </div>
+          <p class="action-feedback" data-testid="action-feedback" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <footer>
+        <p>本工具只负责确定性排盘与结果导出；命理内容仅供传统文化研究与娱乐参考。</p>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

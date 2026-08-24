@@ -1,0 +1,126 @@
+name: Mobile Offline Bazi PWA
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - "codex/mobile-offline-bazi-pwa-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify_pwa:
+    name: Verify offline mobile PWA
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PWA_PYTHON: python
+      MINGLI_PWA_RUNTIME_CACHE: ${{ runner.temp }}/mingli-pwa-runtime-cache
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11.15
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11.15"
+          cache: pip
+
+      - name: Set up Node 22.18.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.18.0"
+          cache: npm
+          cache-dependency-path: web/pwa/package-lock.json
+
+      - name: Verify pinned host toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(python --version)" = "Python 3.11.15"
+          test "$(node --version)" = "v22.18.0"
+          test "$(npm --version)" = "10.9.3"
+
+      - name: Install Python package and development dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run focused Python tests
+        run: python -m pytest -q tests/test_pwa_runtime_build.py tests/test_bazi_engine.py
+
+      - name: Compile Python sources
+        run: python -m compileall -q src scripts
+
+      - name: Build Python distributions
+        run: python -m build
+
+      - name: Check Python dependency consistency
+        run: python -m pip check
+
+      - name: Install pinned frontend dependencies
+        working-directory: web/pwa
+        run: npm ci
+
+      - name: Verify Playwright version and install Chromium
+        working-directory: web/pwa
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(npx playwright --version)" = "Version 1.55.1"
+          npx playwright install --with-deps chromium
+
+      - name: Build pinned browser runtime and verify downloads
+        run: python scripts/build_pwa_runtime.py
+
+      - name: Run frontend unit tests
+        working-directory: web/pwa
+        run: npm test
+
+      - name: Run frontend coverage gate
+        working-directory: web/pwa
+        run: npm run test:coverage
+
+      - name: Build static PWA
+        working-directory: web/pwa
+        run: npm run build
+
+      - name: Run CPython to browser parity tests
+        working-directory: web/pwa
+        run: npm run test:parity
+
+      - name: Run mobile Chromium end-to-end tests
+        working-directory: web/pwa
+        run: npm run test:e2e
+
+      - name: Run offline PWA tests
+        working-directory: web/pwa
+        run: npm run test:offline
+
+      - name: Package static PWA artifact and checksum
+        id: pwa_artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="mingli-mobile-pwa-${GITHUB_SHA}.tar.gz"
+          source_date_epoch="$(git show -s --format=%ct HEAD)"
+          tar --sort=name --mtime="@${source_date_epoch}" --owner=0 --group=0 --numeric-owner -czf "${artifact}" -C web/pwa dist
+          sha256sum "${artifact}" | tee "${artifact}.sha256"
+          echo "filename=${artifact}" >> "${GITHUB_OUTPUT}"
+
+
+      - name: Upload static PWA artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mingli-mobile-pwa-${{ github.sha }}
+          path: |
+            ${{ steps.pwa_artifact.outputs.filename }}
+            ${{ steps.pwa_artifact.outputs.filename }}.sha256
+          if-no-files-found: error
+          retention-days: 14

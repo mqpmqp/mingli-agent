@@ -114,4 +114,11 @@ describe("八字输入表单校验", () => {
     expect(result.valid).toBe(true);
     expect(result.input).toMatchObject({ fold: Number(fold) });
   });
+
+  it("出生地备注只留在当前页面，不传入 Python 排盘运行时", () => {
+    const result = validateChartForm(validForm({ birthLocationNote: "仅供页面辨认" }));
+
+    expect(result.valid).toBe(true);
+    expect(result.input).not.toHaveProperty("birth_location_note");
+  });
 });

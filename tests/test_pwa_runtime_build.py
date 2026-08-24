@@ -19,10 +19,10 @@ def test_runtime_lock_pins_browser_dependencies_and_sha256() -> None:
     assert lock["pyodide"]["python_version"].startswith("3.11.")
     assert lock["tzdata"]["version"] == "2025.2"
     assert lock["frontend"] == {
-        "playwright": "1.55.0",
+        "playwright": "1.55.1",
         "typescript": "5.9.2",
-        "vite": "7.1.3",
-        "vitest": "3.2.4",
+        "vite": "7.3.6",
+        "vitest": "3.2.7",
     }
     for dependency in ("pyodide", "tzdata"):
         digest = lock[dependency]["sha256"]

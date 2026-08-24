@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="明理排盘图标">
+  <rect width="192" height="192" rx="42" fill="#173f38"/>
+  <circle cx="96" cy="96" r="67" fill="#f3f0e8"/>
+  <path d="M96 29a33.5 33.5 0 0 1 0 67 33.5 33.5 0 0 0 0 67 67 67 0 1 0 0-134Z" fill="#b78b42"/>
+  <circle cx="96" cy="62.5" r="8" fill="#173f38"/>
+  <circle cx="96" cy="129.5" r="8" fill="#f3f0e8"/>
+  <path d="M55 96h82M96 55v82" stroke="#173f38" stroke-width="3" stroke-linecap="round" opacity=".14"/>
+</svg>

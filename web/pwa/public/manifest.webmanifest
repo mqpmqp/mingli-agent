@@ -1,0 +1,26 @@
+{
+  "name": "明理 · 本地八字排盘",
+  "short_name": "明理排盘",
+  "description": "在手机浏览器本地运行确定性 Python 八字引擎，首次加载后可离线排盘。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f3f0e8",
+  "theme_color": "#172f2b",
+  "icons": [
+    {
+      "src": "./icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

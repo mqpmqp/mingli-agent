@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -39,20 +39,18 @@ type DeterminismSummary = {
   samples: DeterminismSample[];
 };
 
-declare global {
-  interface Window {
-    __mingliPwa?: {
-      ready: Promise<void>;
-      calculateOutcome(input: JsonRecord): Promise<RuntimeOutcome>;
-      determinism(input: JsonRecord, runs: number): Promise<DeterminismSummary>;
-      versions(): Promise<Record<string, string>>;
-    };
-  }
-}
+type RuntimeWindow = Window & {
+  __mingliPwa?: {
+    ready: Promise<void>;
+    calculateOutcome(input: JsonRecord): Promise<RuntimeOutcome>;
+    determinism(input: JsonRecord, runs: number): Promise<DeterminismSummary>;
+    versions(): Promise<Record<string, string>>;
+  };
+};
 
-async function openRuntime(page: Parameters<Parameters<typeof test>[1]>[0]["page"]): Promise<void> {
-  await page.goto("/tests/fixtures/poc.html");
-  await page.waitForFunction(() => Boolean(window.__mingliPwa), undefined, { timeout: 15_000 });
+async function openRuntime(page: Page): Promise<void> {
+  await page.goto("/");
+  await page.waitForFunction(() => Boolean((window as RuntimeWindow).__mingliPwa), undefined, { timeout: 15_000 });
 }
 
 test.describe("CPython reference to mobile Chromium parity", () => {
@@ -62,9 +60,10 @@ test.describe("CPython reference to mobile Chromium parity", () => {
     await openRuntime(page);
 
     const versions = await page.evaluate(async () => {
-      if (!window.__mingliPwa) throw new Error("MingLi Pyodide runtime is unavailable");
-      await window.__mingliPwa.ready;
-      return window.__mingliPwa.versions();
+      const runtime = (window as RuntimeWindow).__mingliPwa;
+      if (!runtime) throw new Error("MingLi Pyodide runtime is unavailable");
+      await runtime.ready;
+      return runtime.versions();
     });
 
     expect(versions.pyodide).toBe("0.25.1");
@@ -78,15 +77,16 @@ test.describe("CPython reference to mobile Chromium parity", () => {
     await openRuntime(page);
 
     const parity = await page.evaluate(async () => {
-      if (!window.__mingliPwa) throw new Error("MingLi Pyodide runtime is unavailable");
-      await window.__mingliPwa.ready;
+      const runtime = (window as RuntimeWindow).__mingliPwa;
+      if (!runtime) throw new Error("MingLi Pyodide runtime is unavailable");
+      await runtime.ready;
 
       const response = await fetch("/runtime/parity-reference.json", { cache: "no-store" });
       if (!response.ok) throw new Error(`Unable to load parity reference (${response.status})`);
       const cases = (await response.json()) as ParityCase[];
       const outcomes: RuntimeOutcome[] = [];
       for (const parityCase of cases) {
-        outcomes.push(await window.__mingliPwa.calculateOutcome(parityCase.input));
+        outcomes.push(await runtime.calculateOutcome(parityCase.input));
       }
       return { cases, outcomes };
     });
@@ -117,15 +117,16 @@ test.describe("CPython reference to mobile Chromium parity", () => {
     await openRuntime(page);
 
     const evidence = await page.evaluate(async () => {
-      if (!window.__mingliPwa) throw new Error("MingLi Pyodide runtime is unavailable");
-      await window.__mingliPwa.ready;
+      const runtime = (window as RuntimeWindow).__mingliPwa;
+      if (!runtime) throw new Error("MingLi Pyodide runtime is unavailable");
+      await runtime.ready;
 
       const response = await fetch("/runtime/parity-reference.json", { cache: "no-store" });
       if (!response.ok) throw new Error(`Unable to load parity reference (${response.status})`);
       const cases = (await response.json()) as ParityCase[];
       const reference = cases.find((parityCase) => parityCase.outcome.ok);
       if (!reference || !reference.outcome.ok) throw new Error("Parity reference has no successful case");
-      const summary = await window.__mingliPwa.determinism(reference.input, 100);
+      const summary = await runtime.determinism(reference.input, 100);
       return { expected: reference.outcome, summary };
     });
 
