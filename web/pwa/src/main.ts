@@ -66,6 +66,7 @@ const trueSolarOutput = requiredElement<HTMLElement>("#output-true-solar-time");
 const leapMonthRow = requiredElement<HTMLElement>('[data-testid="leap-month-row"]');
 const leapMonthInput = requiredElement<HTMLInputElement>('[name="is_leap_month"]');
 const actionFeedback = requiredElement<HTMLElement>('[data-testid="action-feedback"]');
+const coordinateConfirmation = requiredElement<HTMLInputElement>('[name="coordinate_confirm"]');
 const updateBanner = requiredElement<HTMLElement>('[data-testid="update-banner"]');
 
 const expectedVersions: VersionBinding = __MINGLI_BUILD_INFO__;
@@ -73,6 +74,7 @@ const expectedVersions: VersionBinding = __MINGLI_BUILD_INFO__;
 let runtime: RuntimeModule | null = null;
 let runtimeVersions: RuntimeVersions | null = null;
 let currentPresentation: ChartPresentationData | null = null;
+let feedbackRevision = 0;
 
 function setRuntimeState(state: "loading" | "ready" | "error", message: string): void {
   runtimeStatus.dataset.state = state;
@@ -122,6 +124,7 @@ function hideMessages(): void {
 }
 
 function clearRenderedResult(): void {
+  feedbackRevision += 1;
   currentPresentation = null;
   resultSection.hidden = true;
   resultSection.querySelectorAll<HTMLElement>("dd, .pillar-grid strong").forEach((element) => {
@@ -232,10 +235,13 @@ function renderResult(outcome: RuntimeSuccess, versions: RuntimeVersions): void 
 }
 
 async function copyText(text: string, successMessage: string): Promise<void> {
+  const revision = ++feedbackRevision;
   try {
     await navigator.clipboard.writeText(text);
+    if (revision !== feedbackRevision) return;
     actionFeedback.textContent = successMessage;
   } catch {
+    if (revision !== feedbackRevision) return;
     actionFeedback.textContent = "复制失败，请确认浏览器已允许剪贴板权限。";
   }
 }
@@ -361,6 +367,14 @@ async function activateAvailableUpdate(): Promise<void> {
   }
 }
 
+form.addEventListener("input", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLInputElement && (target.name === "longitude" || target.name === "latitude")) {
+    coordinateConfirmation.checked = false;
+  }
+  clearRenderedResult();
+});
+
 form.addEventListener("change", (event) => {
   const target = event.target;
   if (target instanceof HTMLInputElement && target.name === "calendar") updateLeapMonthVisibility();
@@ -419,6 +433,7 @@ requiredElement<HTMLButtonElement>('[data-testid="download-json"]').addEventList
   link.download = "mingli-bazi-result.json";
   link.click();
   URL.revokeObjectURL(url);
+  feedbackRevision += 1;
   actionFeedback.textContent = "JSON 文件已下载。 ";
 });
 

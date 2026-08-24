@@ -507,7 +507,7 @@ test.describe("real deterministic chart journey", () => {
     await expect(page.getByTestId("result-section")).toBeVisible({ timeout: 60_000 });
 
     await page.evaluate(() => {
-      let resolveWrite = () => undefined;
+      let resolveWrite: () => void = () => undefined;
       const pendingWrite = new Promise<void>((resolve) => {
         resolveWrite = resolve;
       });
