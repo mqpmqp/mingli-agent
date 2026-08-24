@@ -75,6 +75,7 @@ let runtime: RuntimeModule | null = null;
 let runtimeVersions: RuntimeVersions | null = null;
 let currentPresentation: ChartPresentationData | null = null;
 let feedbackRevision = 0;
+let calculationRevision = 0;
 
 function setRuntimeState(state: "loading" | "ready" | "error", message: string): void {
   runtimeStatus.dataset.state = state;
@@ -124,6 +125,7 @@ function hideMessages(): void {
 }
 
 function clearRenderedResult(): void {
+  calculationRevision += 1;
   feedbackRevision += 1;
   currentPresentation = null;
   resultSection.hidden = true;
@@ -396,16 +398,19 @@ form.addEventListener("submit", async (event) => {
   }
 
   calculateButton.disabled = true;
+  const revision = calculationRevision;
   const originalLabel = calculateButton.textContent;
   calculateButton.textContent = "正在排盘…";
   try {
     const outcome = await runtime.calculateOutcome(validation.input as unknown as Record<string, unknown>);
+    if (revision !== calculationRevision) return;
     if (!outcome.ok) {
       showCalculationError(mapChartCalculationError(outcome.error.code));
       return;
     }
     renderResult(outcome, runtimeVersions);
   } catch (error) {
+    if (revision !== calculationRevision) return;
     showCalculationError(`排盘计算未完成：${errorMessage(error)}`);
   } finally {
     calculateButton.disabled = false;
