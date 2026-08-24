@@ -20,7 +20,6 @@ jobs:
     timeout-minutes: 60
     env:
       PWA_PYTHON: python
-      MINGLI_PWA_RUNTIME_CACHE: ${{ runner.temp }}/mingli-pwa-runtime-cache
 
     steps:
       - name: Check out repository
@@ -77,6 +76,8 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Build pinned browser runtime and verify downloads
+        env:
+          MINGLI_PWA_RUNTIME_CACHE: ${{ runner.temp }}/mingli-pwa-runtime-cache
         run: python scripts/build_pwa_runtime.py
 
       - name: Run frontend unit tests
