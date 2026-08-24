@@ -21,7 +21,7 @@ const SYNTHETIC_INPUT = {
 
 const RESULT_FIELDS = [
   "civil-birth-time",
-  "true-solar-time",
+  "result-true-solar-time",
   "true-solar-correction-minutes",
   "equation-of-time-minutes",
   "year-pillar",
@@ -69,15 +69,26 @@ function useRuntimeProject(testInfo: TestInfo): void {
 async function choose(page: Page, name: string, value: string): Promise<void> {
   const select = page.locator(`select[name="${name}"]`);
   if ((await select.count()) > 0) {
-    await select.selectOption(value);
+    const control = select.first();
+    if (!(await control.isVisible())) {
+      const summary = control.locator("xpath=ancestor::details[1]/summary[1]");
+      if ((await summary.count()) > 0) await summary.click();
+    }
+    await control.selectOption(value);
     return;
   }
 
   const valuedControl = page.locator(`[name="${name}"][value="${value}"]`);
   if ((await valuedControl.count()) > 0) {
-    const type = await valuedControl.first().getAttribute("type");
+    const control = valuedControl.first();
+    const type = await control.getAttribute("type");
     if (type === "radio" || type === "checkbox") {
-      await valuedControl.first().check();
+      const label = control.locator("xpath=ancestor::label[1]");
+      if ((await label.count()) > 0) {
+        await label.click();
+      } else {
+        await control.check();
+      }
       return;
     }
   }
@@ -160,6 +171,7 @@ test.describe("mobile privacy-first shell", () => {
     await expect(page.getByText("本地计算，出生资料未上传", { exact: true })).toBeVisible();
     const form = page.locator("#chart-form");
     await expect(form).toBeVisible();
+    await page.locator("details.advanced-options > summary").click();
     await expect(page.getByTestId("runtime-status")).toBeVisible();
 
     for (const name of [
@@ -207,6 +219,24 @@ test.describe("mobile privacy-first shell", () => {
       new FormData(form as HTMLFormElement).has("is_leap_month"),
     );
     expect(formHasLeapMonth).toBe(false);
+  });
+
+  test("requires coordinates to be confirmed again after either value changes", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== RUNTIME_PROJECT, "One project is enough for form-state behavior.");
+    await page.route("**/runtime/**", (route) => route.abort("failed"));
+    await page.goto("/");
+
+    const confirmation = page.locator('[name="coordinate_confirm"]');
+    await page.locator('[name="longitude"]').fill(SYNTHETIC_INPUT.longitude);
+    await page.locator('[name="latitude"]').fill(SYNTHETIC_INPUT.latitude);
+    await confirmation.check();
+
+    await page.locator('[name="longitude"]').fill("120.5");
+    await expect(confirmation).not.toBeChecked();
+
+    await confirmation.check();
+    await page.locator('[name="latitude"]').fill("30.5");
+    await expect(confirmation).not.toBeChecked();
   });
 });
 
@@ -293,6 +323,18 @@ test.describe("runtime lifecycle", () => {
 
   test("distinguishes repository wheel installation failure and offers retry", async ({ page }, testInfo) => {
     useRuntimeProject(testInfo);
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "serviceWorker", {
+        configurable: true,
+        value: {
+          controller: null,
+          register: async () => {
+            throw new Error("service worker disabled for wheel-failure isolation");
+          },
+        },
+      });
+    });
+
     let wheelRequests = 0;
     await page.route(/\/runtime\/packages\/mingli_agent-.*\.whl(?:\?.*)?$/, async (route) => {
       wheelRequests += 1;
@@ -312,8 +354,7 @@ test.describe("real deterministic chart journey", () => {
   test("renders every required result and supports copy, download, prompt, and privacy-safe clear", async ({
     context,
     page,
-  }, testInfo) => {
-    useRuntimeProject(testInfo);
+  }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP_ORIGIN });
     await page.goto("/");
     await waitForRuntimeReady(page);
@@ -341,6 +382,7 @@ test.describe("real deterministic chart journey", () => {
 
     await page.getByTestId("copy-json").click();
     const copiedJsonText = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copiedJsonText).not.toContain(PRIVATE_MARKER);
     const copiedJson = JSON.parse(copiedJsonText) as Record<string, unknown>;
     expect(copiedJson.result).toMatchObject({
       method_id: expect.any(String),
@@ -354,7 +396,9 @@ test.describe("real deterministic chart journey", () => {
     expect(download.suggestedFilename()).toMatch(/\.json$/i);
     const downloadedPath = await download.path();
     expect(downloadedPath).not.toBeNull();
-    const downloadedJson = JSON.parse(await readFile(downloadedPath!, "utf8")) as Record<string, unknown>;
+    const downloadedJsonText = await readFile(downloadedPath!, "utf8");
+    expect(downloadedJsonText).not.toContain(PRIVATE_MARKER);
+    const downloadedJson = JSON.parse(downloadedJsonText) as Record<string, unknown>;
     expect(downloadedJson).toEqual(copiedJson);
 
     await page.getByTestId("copy-prompt").click();
@@ -437,6 +481,55 @@ test.describe("real deterministic chart journey", () => {
       await expect(page.getByTestId(pillar)).toBeHidden();
     }
   });
+
+  test("invalidates a rendered result as soon as the form input changes", async ({ page }, testInfo) => {
+    useRuntimeProject(testInfo);
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+    await fillChartForm(page);
+    await submitChart(page);
+
+    const result = page.getByTestId("result-section");
+    await expect(result).toBeVisible({ timeout: 60_000 });
+    await page.locator('[name="birth_location_note"]').fill("已修改，旧结果不得继续导出");
+
+    await expect(result).toBeHidden();
+    await expect(page.getByTestId("result-json")).toHaveValue("");
+    await expect(page.getByTestId("action-feedback")).toHaveText("");
+  });
+
+  test("keeps the cleared state final when an earlier clipboard write settles late", async ({ page }, testInfo) => {
+    useRuntimeProject(testInfo);
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+    await fillChartForm(page);
+    await submitChart(page);
+    await expect(page.getByTestId("result-section")).toBeVisible({ timeout: 60_000 });
+
+    await page.evaluate(() => {
+      let resolveWrite = () => undefined;
+      const pendingWrite = new Promise<void>((resolve) => {
+        resolveWrite = resolve;
+      });
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: () => pendingWrite },
+      });
+      Object.defineProperty(window, "__resolveClipboardWrite", {
+        configurable: true,
+        value: resolveWrite,
+      });
+    });
+
+    await page.getByTestId("copy-summary").click();
+    await page.getByTestId("clear-data").click();
+    await page.evaluate(() => {
+      (window as typeof window & { __resolveClipboardWrite: () => void }).__resolveClipboardWrite();
+    });
+
+    await expect(page.getByTestId("result-section")).toBeHidden();
+    await expect(page.getByTestId("action-feedback")).toHaveText("");
+  });
 });
 
 test.describe("PWA update experience", () => {
@@ -500,7 +593,7 @@ test.describe("PWA update experience", () => {
       )
       .toBe(true);
 
-    await page.evaluate(() => (window as Window & { __emitPwaUpdate: () => void }).__emitPwaUpdate());
+    await page.evaluate(() => (window as unknown as Window & { __emitPwaUpdate: () => void }).__emitPwaUpdate());
     const banner = page.getByTestId("update-banner");
     await expect(banner).toBeVisible();
     await expect(banner).toContainText(/新版本|更新/);
