@@ -36,6 +36,30 @@ declare global {
   }
 }
 
+const PYODIDE_BOOTSTRAP_ASSETS = [
+  "pyodide/pyodide.asm.js",
+  "pyodide/pyodide.asm.wasm",
+  "pyodide/python_stdlib.zip",
+  "pyodide/pyodide-lock.json",
+] as const;
+
+for (const asset of PYODIDE_BOOTSTRAP_ASSETS) {
+  test("rejects tampered " + asset + " before Pyodide executes it", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.route("**/runtime/" + asset, async (route) => {
+      const upstream = await route.fetch();
+      const tampered = Buffer.from(await upstream.body());
+      tampered[0] = tampered[0] === 0 ? 1 : 0;
+      await route.fulfill({ response: upstream, body: tampered });
+    });
+
+    await page.goto("/");
+    const status = page.getByTestId("runtime-status");
+    await expect(status).toHaveAttribute("data-state", "error", { timeout: 120_000 });
+    await expect(status).toContainText("SHA256 校验失败：" + asset);
+  });
+}
+
 test("loads the repository wheel in Pyodide and matches CPython 3.11", async ({ page }) => {
   const expected = JSON.parse(
     execFileSync(PYTHON, ["-X", "utf8", "-c", PYTHON_REFERENCE, JSON.stringify(INPUT)], {
