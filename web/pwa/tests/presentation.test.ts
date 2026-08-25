@@ -52,10 +52,12 @@ const forbiddenDerivedTerms = ["喜忌", "喜用神", "格局", "流年", "大�
 
 describe("ChartCalculationError 中文提示", () => {
   it.each([
+    ["INVALID_INPUT", /输入.*结构|结构.*输入/u],
     ["INVALID_DATE", /日期/u],
     ["INVALID_TIME", /时间/u],
     ["INVALID_CALENDAR", /历法/u],
     ["INVALID_GENDER", /性别/u],
+    ["INVALID_LUNAR_DATE", /农历.*(?:月份|日期)|(?:月份|日期).*农历/u],
     ["MISSING_LONGITUDE", /经度/u],
     ["INVALID_COORDINATE", /经度|纬度|坐标/u],
     ["INVALID_TIMEZONE", /时区/u],
@@ -64,6 +66,7 @@ describe("ChartCalculationError 中文提示", () => {
     ["UNSUPPORTED_YEAR", /年份|年度|1901|2099/u],
     ["INVALID_LEAP_MONTH", /闰月/u],
     ["INVALID_FOLD", /fold|重叠时间|夏令时/u],
+    ["INTERNAL_SOLAR_TERM", /内部.*计算|计算.*失败/u],
   ])("为 %s 返回中文、可操作的提示", (code, subject) => {
     const message = mapChartCalculationError(code);
 
@@ -77,6 +80,37 @@ describe("ChartCalculationError 中文提示", () => {
 
     expect(message).toContain("REVIEW_REQUIRED");
     expect(message).toMatch(/人工复核|重新选择/u);
+  });
+
+  it("INVALID_LUNAR_DATE 指引用户检查月份、日期与闰月且不暴露内部文本", () => {
+    const message = mapChartCalculationError("INVALID_LUNAR_DATE");
+
+    expect(message).toMatch(/农历/u);
+    expect(message).toMatch(/月份/u);
+    expect(message).toMatch(/日期/u);
+    expect(message).toMatch(/闰月/u);
+    expect(message).toMatch(/检查|确认/u);
+    expect(message).not.toContain("INVALID_LUNAR_DATE");
+    expect(message).not.toMatch(/Traceback|\.py|line \d+/iu);
+  });
+
+  it("INTERNAL_SOLAR_TERM 明确内部失败并给出重新加载与重复报告建议", () => {
+    const message = mapChartCalculationError("INTERNAL_SOLAR_TERM");
+
+    expect(message).toMatch(/内部.*(?:计算|失败)|(?:计算|失败).*内部/u);
+    expect(message).toMatch(/重新加载|刷新/u);
+    expect(message).toMatch(/重复.*(?:输入范围|版本).*报告|报告.*(?:输入范围|版本)/u);
+    expect(message).not.toContain("INTERNAL_SOLAR_TERM");
+  });
+
+  it("未知错误码安全失败关闭，不回显内部代码或 Python 异常", () => {
+    const code = "SYNTHETIC_UNKNOWN_INTERNAL_CODE";
+    const message = mapChartCalculationError(code);
+
+    expect(message).toMatch(/停止|未完成|失败/u);
+    expect(message).toMatch(/请|重新|刷新/u);
+    expect(message).not.toContain(code);
+    expect(message).not.toMatch(/Traceback|\.py|line \d+/iu);
   });
 });
 
