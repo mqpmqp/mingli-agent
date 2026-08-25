@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 from pathlib import Path
+import re
 from typing import Any
 
 from scripts import build_pwa_runtime
@@ -73,6 +75,39 @@ def test_parity_cases_reuse_all_benchmarks_and_cover_required_boundaries() -> No
         "historical_timezone",
         "error",
     } <= categories
+
+
+def test_frontend_error_messages_match_every_literal_bazi_fail_code() -> None:
+    bazi_source = (ROOT / "src/mingli/bazi.py").read_text(encoding="utf-8")
+    tree = ast.parse(bazi_source, filename="src/mingli/bazi.py")
+    engine_codes = {
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_fail"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    }
+
+    presentation_source = (ROOT / "web/pwa/src/presentation.ts").read_text(
+        encoding="utf-8"
+    )
+    mapping = re.search(
+        r"const\s+ERROR_MESSAGES\b[^=]*=\s*\{(?P<body>.*?)^\};",
+        presentation_source,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert mapping is not None, "presentation.ts must define ERROR_MESSAGES"
+    frontend_codes = set(
+        re.findall(r"^\s{2}([A-Z][A-Z0-9_]+):", mapping.group("body"), re.MULTILINE)
+    )
+
+    assert frontend_codes == engine_codes, (
+        f"missing frontend mappings: {sorted(engine_codes - frontend_codes)}; "
+        f"stale frontend mappings: {sorted(frontend_codes - engine_codes)}"
+    )
 
 def test_runtime_file_manifest_is_safe_complete_and_byte_exact(tmp_path: Path) -> None:
     files = {
