@@ -4,6 +4,7 @@ import ast
 import hashlib
 from pathlib import Path
 import re
+import subprocess
 from typing import Any
 
 from scripts import build_pwa_runtime
@@ -108,6 +109,27 @@ def test_frontend_error_messages_match_every_literal_bazi_fail_code() -> None:
         f"missing frontend mappings: {sorted(engine_codes - frontend_codes)}; "
         f"stale frontend mappings: {sorted(frontend_codes - engine_codes)}"
     )
+
+
+def test_pwa_png_icons_are_regular_git_blobs_not_lfs_pointers() -> None:
+    signature = b"\x89PNG\r\n\x1a\n"
+    icon_paths = (
+        "web/pwa/public/icons/icon-192.png",
+        "web/pwa/public/icons/icon-512.png",
+        "web/pwa/public/icons/apple-touch-icon-180.png",
+    )
+
+    for icon_path in icon_paths:
+        blob = subprocess.run(
+            ["git", "show", f"HEAD:{icon_path}"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+        ).stdout
+        assert blob.startswith(signature), (
+            f"{icon_path} must be committed as a regular PNG blob; "
+            "GitHub Actions checkout does not fetch Git LFS objects by default"
+        )
 
 def test_runtime_file_manifest_is_safe_complete_and_byte_exact(tmp_path: Path) -> None:
     files = {
