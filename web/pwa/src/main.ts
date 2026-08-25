@@ -63,6 +63,14 @@ const calculationError = requiredElement<HTMLElement>('[data-testid="calculation
 const resultSection = requiredElement<HTMLElement>('[data-testid="result-section"]');
 const resultJson = requiredElement<HTMLTextAreaElement>('[data-testid="result-json"]');
 const trueSolarOutput = requiredElement<HTMLElement>("#output-true-solar-time");
+const solarDateRow = requiredElement<HTMLElement>('[data-testid="solar-date-row"]');
+const solarDateInput = requiredElement<HTMLInputElement>('[name="birth_date"]');
+const lunarDateFields = requiredElement<HTMLFieldSetElement>('[data-testid="lunar-date-fields"]');
+const lunarDateInputs = [
+  requiredElement<HTMLInputElement>('[name="lunar_year"]'),
+  requiredElement<HTMLInputElement>('[name="lunar_month"]'),
+  requiredElement<HTMLInputElement>('[name="lunar_day"]'),
+];
 const leapMonthRow = requiredElement<HTMLElement>('[data-testid="leap-month-row"]');
 const leapMonthInput = requiredElement<HTMLInputElement>('[name="is_leap_month"]');
 const actionFeedback = requiredElement<HTMLElement>('[data-testid="action-feedback"]');
@@ -91,12 +99,29 @@ function showUpdateBanner(): void {
   updateBanner.hidden = false;
 }
 
-function updateLeapMonthVisibility(): void {
+function updateCalendarVisibility(clearInactive = false): void {
   const calendar = new FormData(form).get("calendar")?.toString() ?? "";
-  const visible = isLeapMonthVisible(calendar);
-  leapMonthRow.hidden = !visible;
-  leapMonthInput.disabled = !visible;
-  if (!visible) leapMonthInput.checked = false;
+  const lunarVisible = isLeapMonthVisible(calendar);
+
+  solarDateRow.hidden = lunarVisible;
+  solarDateInput.disabled = lunarVisible;
+  solarDateInput.required = !lunarVisible;
+  lunarDateFields.hidden = !lunarVisible;
+  for (const input of lunarDateInputs) {
+    input.disabled = !lunarVisible;
+    input.required = lunarVisible;
+  }
+
+  leapMonthRow.hidden = !lunarVisible;
+  leapMonthInput.disabled = !lunarVisible;
+  if (!lunarVisible) leapMonthInput.checked = false;
+
+  if (!clearInactive) return;
+  if (lunarVisible) {
+    solarDateInput.value = "";
+  } else {
+    for (const input of lunarDateInputs) input.value = "";
+  }
 }
 
 function readFormValues(): ChartFormValues {
@@ -105,6 +130,9 @@ function readFormValues(): ChartFormValues {
     gender: data.get("gender")?.toString() ?? "",
     calendar: data.get("calendar")?.toString() ?? "",
     birthDate: data.get("birth_date")?.toString() ?? "",
+    lunarYear: data.get("lunar_year")?.toString() ?? "",
+    lunarMonth: data.get("lunar_month")?.toString() ?? "",
+    lunarDay: data.get("lunar_day")?.toString() ?? "",
     birthTime: data.get("birth_time")?.toString() ?? "",
     timezone: data.get("timezone")?.toString() ?? "",
     birthLocationNote: data.get("birth_location_note")?.toString() ?? "",
@@ -384,7 +412,10 @@ form.addEventListener("input", (event) => {
 
 form.addEventListener("change", (event) => {
   const target = event.target;
-  if (target instanceof HTMLInputElement && target.name === "calendar") updateLeapMonthVisibility();
+  if (target instanceof HTMLInputElement && target.name === "calendar") {
+    coordinateConfirmation.checked = false;
+    updateCalendarVisibility(true);
+  }
 });
 
 form.addEventListener("submit", async (event) => {
@@ -449,7 +480,7 @@ requiredElement<HTMLButtonElement>('[data-testid="download-json"]').addEventList
 
 requiredElement<HTMLButtonElement>('[data-testid="clear-data"]').addEventListener("click", () => {
   form.reset();
-  updateLeapMonthVisibility();
+  updateCalendarVisibility();
   hideMessages();
   clearRenderedResult();
 });
@@ -462,5 +493,5 @@ requiredElement<HTMLButtonElement>('[data-action="reload-app"]').addEventListene
 window.addEventListener("online", refreshOfflineLabel);
 window.addEventListener("offline", refreshOfflineLabel);
 
-updateLeapMonthVisibility();
+updateCalendarVisibility();
 void initializeApplication();

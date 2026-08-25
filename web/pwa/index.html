@@ -75,7 +75,7 @@
         </fieldset>
 
         <div class="form-grid">
-          <label class="field">
+          <label class="field" data-testid="solar-date-row">
             <span>出生日期 <b aria-hidden="true">*</b></span>
             <input data-testid="birth-date" type="date" name="birth_date" min="1901-01-01" max="2099-12-31" autocomplete="off" required />
           </label>
@@ -84,6 +84,25 @@
             <input data-testid="birth-time" type="time" name="birth_time" step="60" autocomplete="off" required />
           </label>
         </div>
+
+        <fieldset class="lunar-date-fields" data-testid="lunar-date-fields" hidden>
+          <legend>农历出生日期 <b aria-hidden="true">*</b></legend>
+          <div class="lunar-date-grid">
+            <label class="field">
+              <span>年</span>
+              <input data-testid="lunar-year" type="number" name="lunar_year" min="1901" max="2099" step="1" inputmode="numeric" autocomplete="off" disabled />
+            </label>
+            <label class="field">
+              <span>月</span>
+              <input data-testid="lunar-month" type="number" name="lunar_month" min="1" max="12" step="1" inputmode="numeric" autocomplete="off" disabled />
+            </label>
+            <label class="field">
+              <span>日</span>
+              <input data-testid="lunar-day" type="number" name="lunar_day" min="1" max="30" step="1" inputmode="numeric" autocomplete="off" disabled />
+            </label>
+          </div>
+          <small>这里只检查年、月、日范围；具体月份、日期与闰月是否存在，由本地确定性引擎判断。</small>
+        </fieldset>
 
         <label class="field">
           <span>时区（IANA 名称） <b aria-hidden="true">*</b></span>
@@ -113,7 +132,7 @@
         </label>
 
         <label class="check-row leap-month-row" data-testid="leap-month-row" hidden>
-          <input type="checkbox" name="is_leap_month" disabled />
+          <input data-testid="leap-month" type="checkbox" name="is_leap_month" disabled />
           <span><strong>该农历日期为闰月</strong><small>仅在确认输入的是闰月时勾选。</small></span>
         </label>
 

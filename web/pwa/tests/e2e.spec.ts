@@ -192,6 +192,23 @@ async function keyboardFill(page: Page, target: Locator, value: string): Promise
 }
 
 function calculateWithCPython(input: ChartInput): Record<string, unknown> {
+  const engineInput: Record<string, unknown> = {
+    gender: input.gender,
+    calendar: input.calendar,
+    birth_date: input.birth_date,
+    birth_time: input.birth_time,
+    timezone: input.timezone,
+    true_solar_time: Boolean(input.true_solar_time),
+    fold: Number(input.fold ?? 0),
+  };
+  if (input.longitude !== null && input.longitude !== undefined && input.longitude !== "") {
+    engineInput.longitude = Number(input.longitude);
+  }
+  if (input.latitude !== null && input.latitude !== undefined && input.latitude !== "") {
+    engineInput.latitude = Number(input.latitude);
+  }
+  if (input.calendar === "lunar") engineInput.is_leap_month = Boolean(input.is_leap_month);
+
   const script = [
     "import json, sys",
     "from mingli.bazi import DeterministicBaziEngine",
@@ -199,7 +216,7 @@ function calculateWithCPython(input: ChartInput): Record<string, unknown> {
     "print(json.dumps(result, ensure_ascii=False, sort_keys=True))",
   ].join("\n");
   return JSON.parse(
-    execFileSync(PYTHON, ["-X", "utf8", "-c", script, JSON.stringify(input)], {
+    execFileSync(PYTHON, ["-X", "utf8", "-c", script, JSON.stringify(engineInput)], {
       cwd: REPO_ROOT,
       encoding: "utf8",
     }),

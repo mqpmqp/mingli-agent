@@ -2,6 +2,9 @@ export type ChartFormValues = {
   gender: string;
   calendar: string;
   birthDate: string;
+  lunarYear: string;
+  lunarMonth: string;
+  lunarDay: string;
   birthTime: string;
   timezone: string;
   birthLocationNote: string;
@@ -36,7 +39,7 @@ export function isLeapMonthVisible(calendar: string): boolean {
   return calendar === "lunar";
 }
 
-function isValidDate(value: string, calendar: "solar" | "lunar"): boolean {
+function isValidSolarDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;
   const [, yearText, monthText, dayText] = match;
@@ -44,9 +47,15 @@ function isValidDate(value: string, calendar: "solar" | "lunar"): boolean {
   const month = Number(monthText);
   const day = Number(dayText);
   if (year < 1901 || year > 2099 || month < 1 || month > 12 || day < 1) return false;
-  if (calendar === "lunar") return day <= 30;
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function parseLunarPart(value: string, minimum: number, maximum: number): number | null {
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : null;
 }
 
 function isValidTimezone(value: string): boolean {
@@ -75,18 +84,28 @@ export function validateChartForm(values: ChartFormValues): ChartFormValidation 
   const gender = values.gender.trim();
   const calendar = values.calendar.trim();
   const birthDate = values.birthDate.trim();
+  const lunarYear = parseLunarPart(values.lunarYear, 1901, 2099);
+  const lunarMonth = parseLunarPart(values.lunarMonth, 1, 12);
+  const lunarDay = parseLunarPart(values.lunarDay, 1, 30);
   const birthTime = values.birthTime.trim();
   const timezone = values.timezone.trim();
 
   if (gender !== "male" && gender !== "female") errors.gender = "请选择性别。";
   if (calendar !== "solar" && calendar !== "lunar") errors.calendar = "请选择阳历或农历。";
 
-  if (!birthDate) {
+  let normalizedBirthDate = birthDate;
+  if (calendar === "lunar") {
+    if (lunarYear === null) errors.lunarYear = "农历年份无效，请填写 1901 至 2099 的整数。";
+    if (lunarMonth === null) errors.lunarMonth = "农历月份无效，请填写 1 至 12 的整数。";
+    if (lunarDay === null) errors.lunarDay = "农历日期无效，请填写 1 至 30 的整数。";
+    if (lunarYear !== null && lunarMonth !== null && lunarDay !== null) {
+      normalizedBirthDate = [lunarYear, lunarMonth, lunarDay]
+        .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, "0"))
+        .join("-");
+    }
+  } else if (!birthDate) {
     errors.birthDate = "请填写出生日期。";
-  } else if (
-    (calendar === "solar" || calendar === "lunar") &&
-    !isValidDate(birthDate, calendar)
-  ) {
+  } else if (calendar === "solar" && !isValidSolarDate(birthDate)) {
     errors.birthDate = "出生日期无效，请填写 1901 至 2099 年内的有效日期。";
   }
 
@@ -121,7 +140,7 @@ export function validateChartForm(values: ChartFormValues): ChartFormValidation 
   const input: ChartEngineInput = {
     gender: gender as ChartEngineInput["gender"],
     calendar: calendar as ChartEngineInput["calendar"],
-    birth_date: birthDate,
+    birth_date: normalizedBirthDate,
     birth_time: birthTime,
     timezone,
     true_solar_time: values.trueSolarTime,
