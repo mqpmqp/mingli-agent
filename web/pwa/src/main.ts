@@ -3,6 +3,7 @@ import "./styles.css";
 import {
   isLeapMonthVisible,
   validateChartForm,
+  type ChartFormErrors,
   type ChartFormValues,
 } from "./form";
 import {
@@ -75,7 +76,26 @@ const leapMonthRow = requiredElement<HTMLElement>('[data-testid="leap-month-row"
 const leapMonthInput = requiredElement<HTMLInputElement>('[name="is_leap_month"]');
 const actionFeedback = requiredElement<HTMLElement>('[data-testid="action-feedback"]');
 const coordinateConfirmation = requiredElement<HTMLInputElement>('[name="coordinate_confirm"]');
+const genderMale = requiredElement<HTMLInputElement>('[data-testid="gender-male"]');
 const updateBanner = requiredElement<HTMLElement>('[data-testid="update-banner"]');
+
+const FORM_ERROR_FIELD_NAMES: Record<keyof ChartFormValues, readonly string[]> = {
+  gender: ["gender"],
+  calendar: ["calendar"],
+  birthDate: ["birth_date"],
+  lunarYear: ["lunar_year"],
+  lunarMonth: ["lunar_month"],
+  lunarDay: ["lunar_day"],
+  birthTime: ["birth_time"],
+  timezone: ["timezone"],
+  birthLocationNote: ["birth_location_note"],
+  longitude: ["longitude"],
+  latitude: ["latitude"],
+  trueSolarTime: ["true_solar_time"],
+  isLeapMonth: ["is_leap_month"],
+  fold: ["fold"],
+  coordinateConfirmed: ["coordinate_confirm"],
+};
 
 const expectedVersions: VersionBinding = __MINGLI_BUILD_INFO__;
 
@@ -84,6 +104,7 @@ let runtimeVersions: RuntimeVersions | null = null;
 let currentPresentation: ChartPresentationData | null = null;
 let feedbackRevision = 0;
 let calculationRevision = 0;
+let activeFormErrors: ChartFormErrors = {};
 
 function setRuntimeState(state: "loading" | "ready" | "error", message: string): void {
   runtimeStatus.dataset.state = state;
@@ -145,9 +166,55 @@ function readFormValues(): ChartFormValues {
   };
 }
 
+function controlsForErrorKey(key: keyof ChartFormValues): HTMLElement[] {
+  return FORM_ERROR_FIELD_NAMES[key].flatMap((name) =>
+    Array.from(form.querySelectorAll<HTMLElement>(`[name="${name}"]`)),
+  );
+}
+
+function removeErrorDescription(control: HTMLElement): void {
+  const descriptions = (control.getAttribute("aria-describedby") ?? "")
+    .split(/\s+/)
+    .filter((id) => id && id !== formError.id);
+  if (descriptions.length > 0) {
+    control.setAttribute("aria-describedby", descriptions.join(" "));
+  } else {
+    control.removeAttribute("aria-describedby");
+  }
+  control.removeAttribute("aria-invalid");
+}
+
+function renderActiveFormErrors(): void {
+  const messages = [...new Set(Object.values(activeFormErrors).filter((message): message is string => Boolean(message)))];
+  formError.textContent = messages.join(" ");
+  formError.hidden = messages.length === 0;
+}
+
+function clearFormError(key: keyof ChartFormValues): void {
+  if (!(key in activeFormErrors)) return;
+  for (const control of controlsForErrorKey(key)) removeErrorDescription(control);
+  delete activeFormErrors[key];
+  renderActiveFormErrors();
+}
+
+function clearFormErrorForControl(control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): void {
+  for (const [key, names] of Object.entries(FORM_ERROR_FIELD_NAMES) as Array<
+    [keyof ChartFormValues, readonly string[]]
+  >) {
+    if (names.includes(control.name)) clearFormError(key);
+  }
+}
+
+function clearAllFormErrors(): void {
+  for (const key of Object.keys(activeFormErrors) as Array<keyof ChartFormValues>) {
+    for (const control of controlsForErrorKey(key)) removeErrorDescription(control);
+  }
+  activeFormErrors = {};
+  renderActiveFormErrors();
+}
+
 function hideMessages(): void {
-  formError.hidden = true;
-  formError.textContent = "";
+  clearAllFormErrors();
   calculationError.hidden = true;
   calculationError.textContent = "";
 }
@@ -165,10 +232,21 @@ function clearRenderedResult(): void {
   actionFeedback.textContent = "";
 }
 
-function showFormErrors(errors: Partial<Record<keyof ChartFormValues, string>>): void {
-  const messages = [...new Set(Object.values(errors).filter((message): message is string => Boolean(message)))];
-  formError.textContent = messages.join(" ");
-  formError.hidden = false;
+function showFormErrors(errors: ChartFormErrors): void {
+  clearAllFormErrors();
+  activeFormErrors = { ...errors };
+  for (const key of Object.keys(activeFormErrors) as Array<keyof ChartFormValues>) {
+    for (const control of controlsForErrorKey(key)) {
+      control.setAttribute("aria-invalid", "true");
+      const descriptions = new Set(
+        (control.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean),
+      );
+      descriptions.add(formError.id);
+      control.setAttribute("aria-describedby", [...descriptions].join(" "));
+    }
+  }
+  renderActiveFormErrors();
+  formError.focus();
 }
 
 function showCalculationError(message: string): void {
@@ -404,6 +482,13 @@ async function activateAvailableUpdate(): Promise<void> {
 
 form.addEventListener("input", (event) => {
   const target = event.target;
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLSelectElement ||
+    target instanceof HTMLTextAreaElement
+  ) {
+    clearFormErrorForControl(target);
+  }
   if (target instanceof HTMLInputElement && (target.name === "longitude" || target.name === "latitude")) {
     coordinateConfirmation.checked = false;
   }
@@ -412,7 +497,17 @@ form.addEventListener("input", (event) => {
 
 form.addEventListener("change", (event) => {
   const target = event.target;
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLSelectElement ||
+    target instanceof HTMLTextAreaElement
+  ) {
+    clearFormErrorForControl(target);
+  }
   if (target instanceof HTMLInputElement && target.name === "calendar") {
+    for (const key of ["birthDate", "lunarYear", "lunarMonth", "lunarDay", "isLeapMonth"] as const) {
+      clearFormError(key);
+    }
     coordinateConfirmation.checked = false;
     updateCalendarVisibility(true);
   }
@@ -483,6 +578,7 @@ requiredElement<HTMLButtonElement>('[data-testid="clear-data"]').addEventListene
   updateCalendarVisibility();
   hideMessages();
   clearRenderedResult();
+  genderMale.focus();
 });
 
 retryRuntime.addEventListener("click", () => location.reload());

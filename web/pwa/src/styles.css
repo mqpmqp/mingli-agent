@@ -397,6 +397,11 @@ legend,
   overflow-wrap: anywhere;
 }
 
+.form-error:focus {
+  outline: 3px solid rgb(118 41 32 / 28%);
+  outline-offset: 2px;
+}
+
 .calculation-error {
   padding: 1rem;
 }
