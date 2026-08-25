@@ -121,7 +121,7 @@ def test_pwa_png_icons_are_regular_git_blobs_not_lfs_pointers() -> None:
 
     for icon_path in icon_paths:
         blob = subprocess.run(
-            ["git", "show", f"HEAD:{icon_path}"],
+            ["git", "show", f":{icon_path}"],
             cwd=ROOT,
             check=True,
             capture_output=True,
