@@ -17,6 +17,8 @@ PWA 使用固定 Pyodide `0.25.1` 加载本仓库构建的 wheel，并在浏览�
 - F5：先用独立 loopback server、CDP 和服务端字节收据测量冷启动，再改为 Service Worker 先完成控制后加载 Runtime；固定 Runtime 资产首次真实网络传输重复数为 0，完整性与版本绑定未削弱。
 - F6：纯合成全字段隐私哨兵检查 URL、query、可读 headers、body、Web Storage、IndexedDB、CacheStorage 和清空后的 DOM；无 mutation、`/api` 或跨域 HTTP 请求。
 
+首次整改 push 的 PWA push/PR run 进一步发现：仓库全局 `*.png` Git LFS 规则把三个小图标提交成 pointer，而默认 Actions checkout 不拉取 LFS 实体。本轮追加 `6bb8fd2` RED 合同与 `6204187` GREEN 修复；规则块保持不动，只在其后对 `web/pwa/public/icons/*.png` 做精确 override，并把三个 index blob 转为真实 PNG。
+
 浏览器在执行前验证 Pyodide module、asm.js、WASM、stdlib、lockfile、tzdata 和仓库 wheel 的路径、字节数与 SHA-256。应用脚本、Git SHA、wheel SHA、Pyodide、tzdata 和 app build ID 必须一致。Service Worker 只缓存同源、scope 内、非 API 的 GET 静态资源。
 
 ## 整改代码候选收据
@@ -68,6 +70,7 @@ PWA 使用固定 Pyodide `0.25.1` 加载本仓库构建的 wheel，并在浏览�
 - F5：`a83afdf` RED → `bd1f443` GREEN。
 - F3/F6：`b4a04a` 收紧门禁 → `c7d33df`、`f7c7f98` GREEN。
 - 隔离回归：`b8487b9`、`2e77530` 防止 Service Worker cache 干扰 Runtime 篡改与 retry 失败注入。
+- CI 图标交付：`6bb8fd2` RED → `6204187` GREEN；默认 checkout 的 Git blob 现在直接含 PNG signature，focused suite 增至 `13 passed, 2 subtests passed`。
 
 ## 最终交付字段策略
 
