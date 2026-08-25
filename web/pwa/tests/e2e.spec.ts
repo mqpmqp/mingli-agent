@@ -1,10 +1,16 @@
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const RUNTIME_PROJECT = "mobile-390";
 const APP_ORIGIN = "http://127.0.0.1:4173";
 const PRIVATE_MARKER = "E2E-SYNTHETIC-PRIVATE-MARKER-48";
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(HERE, "../../..");
+const PYTHON = process.env.PWA_PYTHON ?? "python";
 
 const SYNTHETIC_INPUT = {
   gender: "male",
@@ -108,7 +114,14 @@ async function setCheckbox(page: Page, name: string, checked: boolean): Promise<
 async function fillChartForm(page: Page, input: ChartInput = SYNTHETIC_INPUT): Promise<void> {
   await choose(page, "gender", input.gender);
   await choose(page, "calendar", input.calendar);
-  await page.locator('[name="birth_date"]').fill(input.birth_date);
+  if (input.calendar === "lunar") {
+    const [year, month, day] = input.birth_date.split("-");
+    await page.locator('[name="lunar_year"]').fill(String(Number(year)));
+    await page.locator('[name="lunar_month"]').fill(String(Number(month)));
+    await page.locator('[name="lunar_day"]').fill(String(Number(day)));
+  } else {
+    await page.locator('[name="birth_date"]').fill(input.birth_date);
+  }
   await page.locator('[name="birth_time"]').fill(input.birth_time.slice(0, 5));
   await page.locator('[name="timezone"]').fill(input.timezone);
 
@@ -161,6 +174,28 @@ async function expectFormError(page: Page, message: RegExp): Promise<void> {
 async function waitForRuntimeReady(page: Page): Promise<void> {
   const status = page.getByTestId("runtime-status");
   await expect(status).toContainText(/已就绪|可以排盘|可离线排盘/, { timeout: 120_000 });
+}
+
+function calculateWithCPython(input: ChartInput): Record<string, unknown> {
+  const script = [
+    "import json, sys",
+    "from mingli.bazi import DeterministicBaziEngine",
+    "result = DeterministicBaziEngine().calculate(json.loads(sys.argv[1]))",
+    "print(json.dumps(result, ensure_ascii=False, sort_keys=True))",
+  ].join("\n");
+  return JSON.parse(
+    execFileSync(PYTHON, ["-X", "utf8", "-c", script, JSON.stringify(input)], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    }),
+  ) as Record<string, unknown>;
+}
+
+async function renderedEngineResult(page: Page): Promise<Record<string, unknown>> {
+  const presentation = JSON.parse(await page.getByTestId("result-json").inputValue()) as {
+    result: Record<string, unknown>;
+  };
+  return presentation.result;
 }
 
 test.describe("mobile privacy-first shell", () => {
@@ -219,6 +254,40 @@ test.describe("mobile privacy-first shell", () => {
       new FormData(form as HTMLFormElement).has("is_leap_month"),
     );
     expect(formHasLeapMonth).toBe(false);
+  });
+
+  test("uses independent numeric lunar year month day controls without Gregorian date semantics", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== RUNTIME_PROJECT, "One project is enough for form-state behavior.");
+    await page.route("**/runtime/**", (route) => route.abort("failed"));
+    await page.goto("/");
+
+    await choose(page, "calendar", "lunar");
+    await expect(page.getByTestId("birth-date")).toBeHidden();
+    await expect(page.getByTestId("birth-date")).toBeDisabled();
+
+    for (const [name, minimum, maximum] of [
+      ["lunar_year", "1901", "2099"],
+      ["lunar_month", "1", "12"],
+      ["lunar_day", "1", "30"],
+    ] as const) {
+      const control = page.locator(`[name="${name}"]`);
+      await expect(control).toBeVisible();
+      await expect(control).toBeEnabled();
+      await expect(control).toHaveAttribute("type", "number");
+      await expect(control).toHaveAttribute("min", minimum);
+      await expect(control).toHaveAttribute("max", maximum);
+    }
+
+    await page.locator('[name="lunar_year"]').fill("2023");
+    await page.locator('[name="lunar_month"]').fill("2");
+    await page.locator('[name="lunar_day"]').fill("29");
+    expect(
+      await page
+        .locator('[name="lunar_day"]')
+        .evaluate((element) => (element as HTMLInputElement).checkValidity()),
+    ).toBe(true);
   });
 
   test("requires coordinates to be confirmed again after either value changes", async ({ page }, testInfo) => {
@@ -351,6 +420,73 @@ test.describe("runtime lifecycle", () => {
 });
 
 test.describe("real deterministic chart journey", () => {
+  test("submits lunar 2023 leap month day 29 through the visible UI and matches CPython", async ({
+    page,
+  }, testInfo) => {
+    useRuntimeProject(testInfo);
+    const input: ChartInput = {
+      ...SYNTHETIC_INPUT,
+      calendar: "lunar",
+      birth_date: "2023-02-29",
+      is_leap_month: true,
+    };
+    const expected = calculateWithCPython(input);
+
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+    await fillChartForm(page, input);
+    await submitChart(page);
+
+    await expect(page.getByTestId("result-section")).toBeVisible({ timeout: 60_000 });
+    expect(await renderedEngineResult(page)).toEqual(expected);
+    for (const pillar of ["year-pillar", "month-pillar", "day-pillar", "hour-pillar"]) {
+      await expect(page.getByTestId(pillar)).toHaveText(/[\u3400-\u9fff]{2}/u);
+    }
+  });
+
+  test("submits structurally valid lunar day 30 to the engine and shows INVALID_LUNAR_DATE safely", async ({
+    page,
+  }, testInfo) => {
+    useRuntimeProject(testInfo);
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+    await fillChartForm(page, {
+      ...SYNTHETIC_INPUT,
+      calendar: "lunar",
+      birth_date: "2023-02-30",
+      is_leap_month: true,
+    });
+    await submitChart(page);
+
+    const error = page.getByTestId("calculation-error");
+    await expect(error).toBeVisible({ timeout: 60_000 });
+    await expect(error).toContainText(/农历.*(?:月份|日期).*无效|(?:月份|日期).*闰月/u);
+    await expect(error).toContainText(/检查.*月份.*日期.*闰月/u);
+    await expect(error).not.toContainText("INVALID_LUNAR_DATE");
+    await expect(page.getByTestId("result-section")).toBeHidden();
+    for (const pillar of ["year-pillar", "month-pillar", "day-pillar", "hour-pillar"]) {
+      await expect(page.getByTestId(pillar)).toBeHidden();
+    }
+  });
+
+  test("submits an ordinary non-leap lunar date through the visible UI", async ({ page }, testInfo) => {
+    useRuntimeProject(testInfo);
+    const input: ChartInput = {
+      ...SYNTHETIC_INPUT,
+      calendar: "lunar",
+      birth_date: "2023-01-15",
+      is_leap_month: false,
+    };
+
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+    await fillChartForm(page, input);
+    await submitChart(page);
+
+    await expect(page.getByTestId("result-section")).toBeVisible({ timeout: 60_000 });
+    expect(await renderedEngineResult(page)).toEqual(calculateWithCPython(input));
+  });
+
   test("renders every required result and supports copy, download, prompt, and privacy-safe clear", async ({
     context,
     page,

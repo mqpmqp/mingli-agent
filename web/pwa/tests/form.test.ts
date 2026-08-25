@@ -11,6 +11,9 @@ function validForm(overrides: Partial<ChartFormValues> = {}): ChartFormValues {
     gender: "male",
     calendar: "solar",
     birthDate: "2000-01-07",
+    lunarYear: "",
+    lunarMonth: "",
+    lunarDay: "",
     birthTime: "12:00",
     timezone: "Asia/Shanghai",
     birthLocationNote: "上海",
@@ -55,10 +58,60 @@ describe("八字输入表单校验", () => {
     expect(solar.input).not.toHaveProperty("is_leap_month");
 
     const lunar = validateChartForm(
-      validForm({ calendar: "lunar", birthDate: "2023-02-01", isLeapMonth: true }),
+      validForm({
+        calendar: "lunar",
+        birthDate: "2099-12-31",
+        lunarYear: "2023",
+        lunarMonth: "2",
+        lunarDay: "29",
+        isLeapMonth: true,
+      }),
     );
     expect(lunar.valid).toBe(true);
-    expect(lunar.input).toMatchObject({ calendar: "lunar", is_leap_month: true });
+    expect(lunar.input).toMatchObject({
+      calendar: "lunar",
+      birth_date: "2023-02-29",
+      is_leap_month: true,
+    });
+  });
+
+  it("用独立年月日组合农历合同，不套用公历日期合法性", () => {
+    const leapMonthDay29 = validateChartForm(
+      validForm({
+        calendar: "lunar",
+        birthDate: "",
+        lunarYear: "2023",
+        lunarMonth: "2",
+        lunarDay: "29",
+        isLeapMonth: true,
+      }),
+    );
+    const structurallyValidDay30 = validateChartForm(
+      validForm({
+        calendar: "lunar",
+        birthDate: "",
+        lunarYear: "2023",
+        lunarMonth: "2",
+        lunarDay: "30",
+        isLeapMonth: true,
+      }),
+    );
+    const outOfRangeDay31 = validateChartForm(
+      validForm({
+        calendar: "lunar",
+        birthDate: "",
+        lunarYear: "2023",
+        lunarMonth: "2",
+        lunarDay: "31",
+      }),
+    );
+
+    expect(leapMonthDay29.valid).toBe(true);
+    expect(leapMonthDay29.input).toMatchObject({ birth_date: "2023-02-29" });
+    expect(structurallyValidDay30.valid).toBe(true);
+    expect(structurallyValidDay30.input).toMatchObject({ birth_date: "2023-02-30" });
+    expect(outOfRangeDay31.valid).toBe(false);
+    expect(outOfRangeDay31.errors.lunarDay).toMatch(/1.*30|日期/u);
   });
 
   it("启用真太阳时时必须填写经度", () => {
