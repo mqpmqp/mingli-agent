@@ -133,12 +133,13 @@ def test_pwa_png_icons_are_regular_git_blobs_not_lfs_pointers() -> None:
         )
 
 
-def test_pwa_icon_lfs_override_is_generated_from_asset_policy() -> None:
-    generated = render_gitattributes(ROOT / "knowledge")
-    override = "web/pwa/public/icons/*.png -filter -diff -merge -text"
-
-    assert override in generated.splitlines()
-    assert (ROOT / ".gitattributes").read_text(encoding="utf-8") == generated
+def test_pwa_icon_lfs_override_is_scoped_below_generated_asset_policy() -> None:
+    assert (ROOT / ".gitattributes").read_text(
+        encoding="utf-8"
+    ) == render_gitattributes(ROOT / "knowledge")
+    assert (ROOT / "web/pwa/public/icons/.gitattributes").read_text(
+        encoding="utf-8"
+    ) == "*.png -filter -diff -merge -text\n"
 
 
 def test_runtime_file_manifest_is_safe_complete_and_byte_exact(tmp_path: Path) -> None:
