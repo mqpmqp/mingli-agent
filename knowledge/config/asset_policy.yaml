@@ -1,8 +1,6 @@
 version: 1
 max_file_size_bytes: 52428800
 forbidden_extensions: [.exe, .dll, .dylib, .so]
-git_lfs_exclusions:
-  - web/pwa/public/icons/*.png
 assets:
   raw_documents:
     extensions: [.pdf, .epub, .mobi]
