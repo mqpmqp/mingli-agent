@@ -18,7 +18,11 @@ type WebAppManifest = {
   name?: string;
   short_name?: string;
   start_url?: string;
+  scope?: string;
   display?: string;
+  orientation?: string;
+  background_color?: string;
+  theme_color?: string;
   icons?: Array<{
     src?: string;
     sizes?: string;
@@ -38,6 +42,8 @@ type ObservedRequest = {
   method: string;
   resourceType: string;
   url: string;
+  query: Array<[string, string]>;
+  allHeaders: Record<string, string>;
   postData: string | null;
 };
 
@@ -86,16 +92,47 @@ const METRIC_NAMES: MetricName[] = [
 ];
 
 const SYNTHETIC_INPUT = {
-  gender: "male",
-  calendar: "solar",
-  birthDate: "2000-01-07",
-  birthTime: "12:00",
-  timezone: "Asia/Shanghai",
-  locationNote: "PW_PRIVACY_SENTINEL_7f3a9c2e",
-  longitude: "121.4737",
-  latitude: "31.2304",
+  gender: "female",
+  calendar: "lunar",
+  birthDate: "2023-02-29",
+  lunarYear: "2023",
+  lunarMonth: "2",
+  lunarDay: "29",
+  birthTime: "13:27",
+  timezone: "Pacific/Chatham",
+  locationNote: "PW_ALL_FIELDS_SENTINEL_7f3a9c2e",
+  longitude: "-176.54321",
+  latitude: "-43.98765",
   trueSolarTime: true,
+  isLeapMonth: true,
+  fold: "0",
 } as const;
+
+const DISTINCTIVE_SENSITIVE_VALUES = [
+  SYNTHETIC_INPUT.birthDate,
+  SYNTHETIC_INPUT.birthTime,
+  SYNTHETIC_INPUT.timezone,
+  SYNTHETIC_INPUT.locationNote,
+  SYNTHETIC_INPUT.longitude,
+  SYNTHETIC_INPUT.latitude,
+] as const;
+
+const STRUCTURED_SENSITIVE_FIELDS = [
+  { names: ["gender"], value: SYNTHETIC_INPUT.gender },
+  { names: ["calendar"], value: SYNTHETIC_INPUT.calendar },
+  { names: ["birth_date", "birthDate"], value: SYNTHETIC_INPUT.birthDate },
+  { names: ["lunar_year", "lunarYear"], value: SYNTHETIC_INPUT.lunarYear },
+  { names: ["lunar_month", "lunarMonth"], value: SYNTHETIC_INPUT.lunarMonth },
+  { names: ["lunar_day", "lunarDay"], value: SYNTHETIC_INPUT.lunarDay },
+  { names: ["birth_time", "birthTime"], value: SYNTHETIC_INPUT.birthTime },
+  { names: ["timezone"], value: SYNTHETIC_INPUT.timezone },
+  { names: ["longitude"], value: SYNTHETIC_INPUT.longitude },
+  { names: ["latitude"], value: SYNTHETIC_INPUT.latitude },
+  { names: ["is_leap_month", "isLeapMonth"], value: String(SYNTHETIC_INPUT.isLeapMonth) },
+  { names: ["true_solar_time", "trueSolarTime"], value: String(SYNTHETIC_INPUT.trueSolarTime) },
+  { names: ["fold"], value: SYNTHETIC_INPUT.fold },
+  { names: ["birth_location_note", "birthLocationNote"], value: SYNTHETIC_INPUT.locationNote },
+] as const;
 
 // Stable mobile E2E contract. The app should expose state through the DOM rather
 // than requiring tests to call its internal runtime or calculation objects.
@@ -104,19 +141,30 @@ const MOBILE_E2E = {
   runtimeStatus: (page: Page) => page.getByTestId("runtime-status"),
   offlineReady: (page: Page) => page.getByTestId("offline-ready"),
   genderMale: (page: Page) => page.getByTestId("gender-male"),
+  genderFemale: (page: Page) => page.getByTestId("gender-female"),
   calendarSolar: (page: Page) => page.getByTestId("calendar-solar"),
+  calendarLunar: (page: Page) => page.getByTestId("calendar-lunar"),
   birthDate: (page: Page) => page.getByTestId("birth-date"),
+  lunarYear: (page: Page) => page.getByTestId("lunar-year"),
+  lunarMonth: (page: Page) => page.getByTestId("lunar-month"),
+  lunarDay: (page: Page) => page.getByTestId("lunar-day"),
   birthTime: (page: Page) => page.getByTestId("birth-time"),
   timezone: (page: Page) => page.getByTestId("timezone"),
   locationNote: (page: Page) => page.getByTestId("location-note"),
   longitude: (page: Page) => page.getByTestId("longitude"),
   latitude: (page: Page) => page.getByTestId("latitude"),
   trueSolarTime: (page: Page) => page.getByTestId("true-solar-time"),
+  leapMonth: (page: Page) => page.getByTestId("leap-month"),
+  fold: (page: Page) => page.locator('[name="fold"]'),
   coordinateConfirm: (page: Page) => page.getByTestId("coordinate-confirm"),
   calculate: (page: Page) => page.getByTestId("calculate"),
   result: (page: Page) => page.getByTestId("result"),
   resultJson: (page: Page) => page.getByTestId("result-json"),
   resultHash: (page: Page) => page.getByTestId("canonical-result-hash"),
+  clearData: (page: Page) => page.getByTestId("clear-data"),
+  formError: (page: Page) => page.getByTestId("form-error"),
+  calculationError: (page: Page) => page.getByTestId("calculation-error"),
+  actionFeedback: (page: Page) => page.getByTestId("action-feedback"),
 } as const;
 
 const STATIC_CACHE_PATHS = [
@@ -208,6 +256,76 @@ async function measureRuntimeRequest(request: Request): Promise<RuntimeNetworkRe
       measurementError: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+async function captureObservedRequest(request: Request): Promise<ObservedRequest> {
+  const url = new URL(request.url());
+  return {
+    method: request.method(),
+    resourceType: request.resourceType(),
+    url: request.url(),
+    query: [...url.searchParams.entries()],
+    allHeaders: await request.allHeaders(),
+    postData: request.postData(),
+  };
+}
+
+function normalizeFieldName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function sensitiveRequestLeaks(requests: ObservedRequest[]): string[] {
+  const leaks: string[] = [];
+  for (const request of requests) {
+    const headersText = JSON.stringify(request.allHeaders);
+    const postData = request.postData ?? "";
+    for (const value of DISTINCTIVE_SENSITIVE_VALUES) {
+      if (
+        request.url.includes(value) ||
+        request.url.includes(encodeURIComponent(value)) ||
+        headersText.includes(value) ||
+        postData.includes(value)
+      ) {
+        leaks.push(`${request.method} ${new URL(request.url).pathname}: distinctive value ${value}`);
+      }
+    }
+
+    for (const field of STRUCTURED_SENSITIVE_FIELDS) {
+      const normalizedNames = new Set(field.names.map(normalizeFieldName));
+      const expectedValue = field.value.toLowerCase();
+      for (const [name, value] of request.query) {
+        if (normalizedNames.has(normalizeFieldName(name)) && value.toLowerCase().includes(expectedValue)) {
+          leaks.push(`${request.method} ${new URL(request.url).pathname}: query field ${name}`);
+        }
+      }
+      for (const [name, value] of Object.entries(request.allHeaders)) {
+        if (normalizedNames.has(normalizeFieldName(name)) && value.toLowerCase().includes(expectedValue)) {
+          leaks.push(`${request.method} ${new URL(request.url).pathname}: header field ${name}`);
+        }
+      }
+      const normalizedPostData = postData.toLowerCase();
+      for (const name of field.names.map((value) => value.toLowerCase())) {
+        const patterns = [
+          `"${name}":"${expectedValue}"`,
+          `"${name}":${expectedValue}`,
+          `${name}=${expectedValue}`,
+          `${name}:${expectedValue}`,
+          `${encodeURIComponent(name)}=${encodeURIComponent(field.value)}`.toLowerCase(),
+        ];
+        if (patterns.some((pattern) => normalizedPostData.includes(pattern))) {
+          leaks.push(`${request.method} ${new URL(request.url).pathname}: body field ${name}`);
+        }
+      }
+    }
+  }
+  return [...new Set(leaks)].sort();
+}
+
+function pngDimensions(body: Buffer): { width: number; height: number } {
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  expect(body.subarray(0, signature.length), "icon is missing the PNG signature").toEqual(signature);
+  expect(body.subarray(12, 16).toString("ascii"), "PNG first chunk must be IHDR").toBe("IHDR");
+  return { width: body.readUInt32BE(16), height: body.readUInt32BE(20) };
 }
 
 function contentTypeForPath(path: string): string {
@@ -377,16 +495,23 @@ async function assertEmptyColdStartState(context: BrowserContext, page: Page, or
 }
 
 async function fillSyntheticInput(page: Page): Promise<void> {
-  await expect(MOBILE_E2E.genderMale(page)).toBeChecked();
-  await expect(MOBILE_E2E.calendarSolar(page)).toBeChecked();
-  await MOBILE_E2E.birthDate(page).fill(SYNTHETIC_INPUT.birthDate);
+  await MOBILE_E2E.genderFemale(page).check({ force: true });
+  await MOBILE_E2E.calendarLunar(page).check({ force: true });
+  await expect(MOBILE_E2E.genderFemale(page)).toBeChecked();
+  await expect(MOBILE_E2E.calendarLunar(page)).toBeChecked();
+  await expect(MOBILE_E2E.birthDate(page)).toBeHidden();
+  await MOBILE_E2E.lunarYear(page).fill(SYNTHETIC_INPUT.lunarYear);
+  await MOBILE_E2E.lunarMonth(page).fill(SYNTHETIC_INPUT.lunarMonth);
+  await MOBILE_E2E.lunarDay(page).fill(SYNTHETIC_INPUT.lunarDay);
   await MOBILE_E2E.birthTime(page).fill(SYNTHETIC_INPUT.birthTime);
   await MOBILE_E2E.timezone(page).fill(SYNTHETIC_INPUT.timezone);
   await MOBILE_E2E.locationNote(page).fill(SYNTHETIC_INPUT.locationNote);
   await MOBILE_E2E.longitude(page).fill(SYNTHETIC_INPUT.longitude);
   await MOBILE_E2E.latitude(page).fill(SYNTHETIC_INPUT.latitude);
-  await MOBILE_E2E.trueSolarTime(page).check();
-  await MOBILE_E2E.coordinateConfirm(page).check();
+  await MOBILE_E2E.trueSolarTime(page).check({ force: true });
+  await MOBILE_E2E.leapMonth(page).check({ force: true });
+  await MOBILE_E2E.fold(page).selectOption(SYNTHETIC_INPUT.fold);
+  await MOBILE_E2E.coordinateConfirm(page).check({ force: true });
 }
 
 async function textOrValue(locator: Locator): Promise<string> {
@@ -479,12 +604,19 @@ test("manifest is installable in standalone mode with reachable start URL and ic
   const manifest = (await response.json()) as WebAppManifest;
   expect(manifest.name?.trim()).toBeTruthy();
   expect(manifest.short_name?.trim()).toBeTruthy();
+  expect(manifest.start_url).toBe("./");
+  expect(manifest.scope).toBe("./");
   expect(manifest.display).toBe("standalone");
-  expect(manifest.start_url?.trim()).toBeTruthy();
+  expect(manifest.orientation).toBe("portrait-primary");
+  expect(manifest.background_color).toMatch(/^#[0-9a-f]{6}$/i);
+  expect(manifest.theme_color).toMatch(/^#[0-9a-f]{6}$/i);
 
   const manifestUrl = new URL(response.url());
   const startUrl = new URL(manifest.start_url!, manifestUrl);
+  const scopeUrl = new URL(manifest.scope!, manifestUrl);
   expect(startUrl.origin).toBe(manifestUrl.origin);
+  expect(scopeUrl.origin).toBe(manifestUrl.origin);
+  expect(startUrl.href.startsWith(scopeUrl.href), "manifest start_url must remain inside scope").toBe(true);
   const startResponse = await request.get(startUrl.href);
   expect(startResponse.ok(), `manifest start_url failed with HTTP ${startResponse.status()}`).toBeTruthy();
 
@@ -495,10 +627,52 @@ test("manifest is installable in standalone mode with reachable start URL and ic
 
   for (const icon of icons) {
     expect(icon.src?.trim()).toBeTruthy();
+    expect(icon.type).toBe("image/png");
+    const sizes = (icon.sizes ?? "").split(/\s+/).filter(Boolean);
+    expect(sizes, `manifest icon must declare one exact size: ${icon.src}`).toHaveLength(1);
+    const sizeMatch = /^(\d+)x(\d+)$/.exec(sizes[0]!);
+    expect(sizeMatch, `invalid manifest icon size: ${icon.sizes}`).not.toBeNull();
     const iconUrl = new URL(icon.src!, manifestUrl);
     expect(iconUrl.origin).toBe(manifestUrl.origin);
     const iconResponse = await request.get(iconUrl.href);
     expect(iconResponse.ok(), `manifest icon failed: ${iconUrl.pathname}`).toBeTruthy();
+    expect(iconResponse.headers()["content-type"] ?? "").toMatch(/^image\/png(?:;|$)/i);
+    expect(pngDimensions(await iconResponse.body())).toEqual({
+      width: Number(sizeMatch![1]),
+      height: Number(sizeMatch![2]),
+    });
+    if (sizes[0] === "512x512") expect(icon.purpose?.split(/\s+/)).toContain("maskable");
+  }
+
+  const appHtml = await startResponse.text();
+  const appleLink = appHtml.match(/<link\b[^>]*\brel=["']apple-touch-icon["'][^>]*>/i)?.[0] ?? "";
+  const appleHref = appleLink.match(/\bhref=["']([^"']+)["']/i)?.[1] ?? "";
+  expect(appleHref, "document must declare an apple-touch-icon").not.toBe("");
+  const appleResponse = await request.get(new URL(appleHref, startUrl).href);
+  expect(appleResponse.ok()).toBe(true);
+  expect(appleResponse.headers()["content-type"] ?? "").toMatch(/^image\/png(?:;|$)/i);
+  expect(pngDimensions(await appleResponse.body())).toEqual({ width: 180, height: 180 });
+});
+
+test("Chromium accepts the processed PWA manifest without installability errors", async ({ context, page }, testInfo) => {
+  test.setTimeout(120_000);
+  await page.goto(APP_PATH, { waitUntil: "domcontentloaded" });
+  await expect(MOBILE_E2E.offlineReady(page)).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+
+  const cdp = await context.newCDPSession(page);
+  try {
+    const appManifest = await cdp.send("Page.getAppManifest");
+    const installability = await cdp.send("Page.getInstallabilityErrors");
+    await attachJson(testInfo, "chromium-pwa-acceptance", { appManifest, installability });
+    expect(appManifest.url).toMatch(/\/manifest\.webmanifest$/);
+    expect(appManifest.errors).toEqual([]);
+    expect(installability.installabilityErrors).toEqual([]);
+    console.log("PWA_MANIFEST_INSTALLABILITY=PASS");
+    console.log("CHROMIUM_PWA_ACCEPTANCE=PASS");
+    console.log("IOS_PHYSICAL_INSTALL=NOT_RUN");
+    console.log("ANDROID_PHYSICAL_INSTALL=NOT_RUN");
+  } finally {
+    await cdp.detach().catch(() => undefined);
   }
 });
 
@@ -617,21 +791,16 @@ test("cold start transfers every fixed runtime asset over the network at most on
   }
 });
 
-test("first online calculation remains identical after an offline reload without persisting or uploading data", async ({
+test("all-field privacy sentinels stay local and online/offline results remain identical", async ({
   context,
   page,
 }, testInfo) => {
   test.setTimeout(180_000);
 
   const metrics: Partial<Record<MetricName, number>> = {};
-  const observedRequests: ObservedRequest[] = [];
+  const observedRequestReceipts: Array<Promise<ObservedRequest>> = [];
   page.on("request", (request) => {
-    observedRequests.push({
-      method: request.method(),
-      resourceType: request.resourceType(),
-      url: request.url(),
-      postData: request.postData(),
-    });
+    observedRequestReceipts.push(captureObservedRequest(request));
   });
 
   try {
@@ -677,11 +846,15 @@ test("first online calculation remains identical after an offline reload without
     metrics.SECOND_LOAD_MS = Date.now() - secondLoadStarted;
 
     await expect(MOBILE_E2E.birthDate(page)).toHaveValue("");
+    await expect(MOBILE_E2E.lunarYear(page)).toHaveValue("");
+    await expect(MOBILE_E2E.lunarMonth(page)).toHaveValue("");
+    await expect(MOBILE_E2E.lunarDay(page)).toHaveValue("");
     await expect(MOBILE_E2E.birthTime(page)).toHaveValue("");
     await expect(MOBILE_E2E.locationNote(page)).toHaveValue("");
     await expect(MOBILE_E2E.longitude(page)).toHaveValue("");
     await expect(MOBILE_E2E.latitude(page)).toHaveValue("");
     await expect(MOBILE_E2E.trueSolarTime(page)).not.toBeChecked();
+    await expect(MOBILE_E2E.leapMonth(page)).not.toBeChecked();
 
     await fillSyntheticInput(page);
     const secondCalcStarted = Date.now();
@@ -694,7 +867,7 @@ test("first online calculation remains identical after an offline reload without
     const offlineStorage = await storageAudit(page);
     expectNoPersistentUserData(offlineStorage);
 
-    const cacheAudit = await cacheStorageAudit(page, [SYNTHETIC_INPUT.locationNote, onlineResult.hash]);
+    const cacheAudit = await cacheStorageAudit(page, [...DISTINCTIVE_SENSITIVE_VALUES, onlineResult.hash]);
     await attachJson(testInfo, "cache-storage-audit", cacheAudit);
     expect(cacheAudit.cacheNames.length).toBeGreaterThan(0);
     expect(cacheAudit.entries.length).toBeGreaterThan(0);
@@ -713,6 +886,46 @@ test("first online calculation remains identical after an offline reload without
       expect(entry.readError, `could not audit cached text response: ${entry.url}`).toBeNull();
     }
 
+    await MOBILE_E2E.clearData(page).click();
+    await expect(MOBILE_E2E.result(page)).toBeHidden();
+    await expect(MOBILE_E2E.genderMale(page)).toBeChecked();
+    await expect(MOBILE_E2E.calendarSolar(page)).toBeChecked();
+    await expect(MOBILE_E2E.birthDate(page)).toBeVisible();
+    await expect(MOBILE_E2E.birthDate(page)).toHaveValue("");
+    await expect(MOBILE_E2E.lunarYear(page)).toHaveValue("");
+    await expect(MOBILE_E2E.lunarMonth(page)).toHaveValue("");
+    await expect(MOBILE_E2E.lunarDay(page)).toHaveValue("");
+    await expect(MOBILE_E2E.birthTime(page)).toHaveValue("");
+    await expect(MOBILE_E2E.timezone(page)).toHaveValue("Asia/Shanghai");
+    await expect(MOBILE_E2E.locationNote(page)).toHaveValue("");
+    await expect(MOBILE_E2E.longitude(page)).toHaveValue("");
+    await expect(MOBILE_E2E.latitude(page)).toHaveValue("");
+    await expect(MOBILE_E2E.trueSolarTime(page)).not.toBeChecked();
+    await expect(MOBILE_E2E.leapMonth(page)).not.toBeChecked();
+    await expect(MOBILE_E2E.coordinateConfirm(page)).not.toBeChecked();
+    await expect(MOBILE_E2E.fold(page)).toHaveValue("0");
+    await expect(MOBILE_E2E.formError(page)).toBeHidden();
+    await expect(MOBILE_E2E.formError(page)).toHaveText("");
+    await expect(MOBILE_E2E.calculationError(page)).toBeHidden();
+    await expect(MOBILE_E2E.calculationError(page)).toHaveText("");
+    await expect(MOBILE_E2E.resultJson(page)).toHaveValue("");
+    await expect(MOBILE_E2E.actionFeedback(page)).toHaveText("");
+
+    const domSensitiveMatches = await page.evaluate((values) => {
+      const formValues = [...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+        "input, textarea, select",
+      )].map((element) => element.value);
+      const surfaces = [
+        document.body.innerText,
+        ...formValues,
+        document.querySelector<HTMLElement>('[data-testid="action-feedback"]')?.innerText ?? "",
+        document.querySelector<HTMLTextAreaElement>('[data-testid="result-json"]')?.value ?? "",
+      ];
+      return values.filter((value) => surfaces.some((surface) => surface.includes(value)));
+    }, [...DISTINCTIVE_SENSITIVE_VALUES]);
+    expect(domSensitiveMatches).toEqual([]);
+
+    const observedRequests = await Promise.all(observedRequestReceipts);
     const forbiddenMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
     const mutationRequests = observedRequests.filter((request) => forbiddenMethods.has(request.method.toUpperCase()));
     const apiRequests = observedRequests.filter((request) => {
@@ -723,14 +936,22 @@ test("first online calculation remains identical after an offline reload without
       const url = new URL(request.url);
       return ["http:", "https:"].includes(url.protocol) && url.origin !== appOrigin;
     });
-    const serializedRequests = JSON.stringify(observedRequests);
+    const analyticsRequests = observedRequests.filter((request) =>
+      /(?:analytics|telemetry|tracking|doubleclick|google-analytics|\/collect(?:\/|\?|$))/i.test(request.url),
+    );
+    const privacyLeaks = sensitiveRequestLeaks(observedRequests);
 
     await attachJson(testInfo, "network-privacy-audit", observedRequests);
-    await attachJson(testInfo, "storage-privacy-audit", { online: onlineStorage, offline: offlineStorage });
+    await attachJson(testInfo, "storage-privacy-audit", {
+      online: onlineStorage,
+      offline: offlineStorage,
+      domSensitiveMatches,
+    });
     expect(mutationRequests).toEqual([]);
     expect(apiRequests).toEqual([]);
     expect(externalHttpRequests).toEqual([]);
-    expect(serializedRequests).not.toContain(SYNTHETIC_INPUT.locationNote);
+    expect(analyticsRequests).toEqual([]);
+    expect(privacyLeaks).toEqual([]);
   } finally {
     await context.setOffline(false).catch(() => undefined);
     await attachMetrics(testInfo, metrics);
