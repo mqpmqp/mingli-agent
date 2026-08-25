@@ -510,6 +510,9 @@ async function fillSyntheticInput(page: Page): Promise<void> {
   await MOBILE_E2E.latitude(page).fill(SYNTHETIC_INPUT.latitude);
   await MOBILE_E2E.trueSolarTime(page).check({ force: true });
   await MOBILE_E2E.leapMonth(page).check({ force: true });
+  if (!(await MOBILE_E2E.fold(page).isVisible())) {
+    await page.locator("details.advanced-options > summary").click();
+  }
   await MOBILE_E2E.fold(page).selectOption(SYNTHETIC_INPUT.fold);
   await MOBILE_E2E.coordinateConfirm(page).check({ force: true });
 }
@@ -560,6 +563,8 @@ async function cacheStorageAudit(page: Page, sensitiveValues: string[]) {
       url: string;
       method: string;
       contentType: string;
+      bodyBytes: number;
+      bodySha256: string | null;
       sensitiveMatches: string[];
       readError: string | null;
     }> = [];
@@ -569,13 +574,21 @@ async function cacheStorageAudit(page: Page, sensitiveValues: string[]) {
       for (const request of await cache.keys()) {
         const response = await cache.match(request);
         const contentType = response?.headers.get("content-type") ?? "";
+        let bodyBytes = 0;
+        let bodySha256: string | null = null;
         let sensitiveMatches: string[] = [];
         let readError: string | null = null;
 
-        if (response && /(?:text\/|javascript|json|manifest|xml)/i.test(contentType)) {
+        if (response) {
           try {
-            const body = await response.clone().text();
-            sensitiveMatches = values.filter((value) => body.includes(value));
+            const bytes = new Uint8Array(await response.clone().arrayBuffer());
+            bodyBytes = bytes.byteLength;
+            const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+            bodySha256 = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+            if (/(?:text\/|javascript|json|manifest|xml)/i.test(contentType)) {
+              const body = new TextDecoder().decode(bytes);
+              sensitiveMatches = values.filter((value) => body.includes(value));
+            }
           } catch (error) {
             readError = error instanceof Error ? error.message : String(error);
           }
@@ -586,6 +599,8 @@ async function cacheStorageAudit(page: Page, sensitiveValues: string[]) {
           url: request.url,
           method: request.method,
           contentType,
+          bodyBytes,
+          bodySha256,
           sensitiveMatches,
           readError,
         });
@@ -829,6 +844,9 @@ test("all-field privacy sentinels stay local and online/offline results remain i
     expect(serviceWorker.active).toBe(true);
     expect(serviceWorker.controlled).toBe(true);
     expect(new URL(serviceWorker.scope).origin).toBe(new URL(page.url()).origin);
+    const baselineCacheAudit = await cacheStorageAudit(page, [...DISTINCTIVE_SENSITIVE_VALUES]);
+    expect(baselineCacheAudit.cacheNames.length).toBeGreaterThan(0);
+    expect(baselineCacheAudit.entries.length).toBeGreaterThan(0);
 
     await fillSyntheticInput(page);
     const firstCalcStarted = Date.now();
@@ -868,13 +886,17 @@ test("all-field privacy sentinels stay local and online/offline results remain i
     expectNoPersistentUserData(offlineStorage);
 
     const cacheAudit = await cacheStorageAudit(page, [...DISTINCTIVE_SENSITIVE_VALUES, onlineResult.hash]);
-    await attachJson(testInfo, "cache-storage-audit", cacheAudit);
+    await attachJson(testInfo, "cache-storage-audit", { beforeInput: baselineCacheAudit, afterCalculation: cacheAudit });
     expect(cacheAudit.cacheNames.length).toBeGreaterThan(0);
     expect(cacheAudit.entries.length).toBeGreaterThan(0);
 
     const appOrigin = new URL(page.url()).origin;
+    const baselineEntries = new Map(
+      baselineCacheAudit.entries.map((entry) => [`${entry.cacheName}\n${entry.url}`, entry]),
+    );
     for (const entry of cacheAudit.entries) {
       const url = new URL(entry.url);
+      const baselineEntry = baselineEntries.get(`${entry.cacheName}\n${entry.url}`);
       expect(entry.method, `non-GET CacheStorage entry: ${entry.url}`).toBe("GET");
       expect(url.origin, `cross-origin CacheStorage entry: ${entry.url}`).toBe(appOrigin);
       expect(
@@ -882,7 +904,18 @@ test("all-field privacy sentinels stay local and online/offline results remain i
         `non-static CacheStorage entry: ${entry.url}`,
       ).toBe(true);
       expect(url.pathname, `API response cached: ${entry.url}`).not.toMatch(/^\/api(?:\/|$)/i);
-      expect(entry.sensitiveMatches, `sensitive value cached: ${entry.url}`).toEqual([]);
+      expect(baselineEntry, `new CacheStorage entry appeared after user input: ${entry.url}`).toBeDefined();
+      expect(entry.bodyBytes, `cached response bytes changed after user input: ${entry.url}`).toBe(
+        baselineEntry?.bodyBytes,
+      );
+      expect(entry.bodySha256, `cached response digest changed after user input: ${entry.url}`).toBe(
+        baselineEntry?.bodySha256,
+      );
+      const baselineMatches = new Set(baselineEntry?.sensitiveMatches ?? []);
+      expect(
+        entry.sensitiveMatches.filter((value) => !baselineMatches.has(value)),
+        `new sensitive value appeared in CacheStorage after user input: ${entry.url}`,
+      ).toEqual([]);
       expect(entry.readError, `could not audit cached text response: ${entry.url}`).toBeNull();
     }
 
