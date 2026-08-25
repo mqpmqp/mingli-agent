@@ -346,6 +346,11 @@ async function initializeServiceWorker(): Promise<void> {
   }
 }
 
+async function initializeApplication(): Promise<void> {
+  await initializeServiceWorker();
+  await loadRuntime();
+}
+
 async function activateAvailableUpdate(): Promise<void> {
   if (!("serviceWorker" in navigator)) {
     location.reload();
@@ -458,5 +463,4 @@ window.addEventListener("online", refreshOfflineLabel);
 window.addEventListener("offline", refreshOfflineLabel);
 
 updateLeapMonthVisibility();
-void initializeServiceWorker();
-void loadRuntime();
+void initializeApplication();
