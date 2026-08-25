@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 const RUNTIME_PROJECT = "mobile-390";
 const APP_ORIGIN = "http://127.0.0.1:4173";
@@ -174,6 +174,21 @@ async function expectFormError(page: Page, message: RegExp): Promise<void> {
 async function waitForRuntimeReady(page: Page): Promise<void> {
   const status = page.getByTestId("runtime-status");
   await expect(status).toContainText(/已就绪|可以排盘|可离线排盘/, { timeout: 120_000 });
+}
+
+async function tabTo(page: Page, target: Locator, limit = 60): Promise<void> {
+  for (let index = 0; index < limit; index += 1) {
+    await page.keyboard.press("Tab");
+    if (await target.evaluate((element) => element === document.activeElement)) return;
+  }
+  throw new Error(`Tab could not reach ${await target.evaluate((element) => element.outerHTML)}`);
+}
+
+async function keyboardFill(page: Page, target: Locator, value: string): Promise<void> {
+  await tabTo(page, target);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.press("Backspace");
+  await target.fill(value);
 }
 
 function calculateWithCPython(input: ChartInput): Record<string, unknown> {
@@ -358,6 +373,150 @@ test.describe("form validation", () => {
       await expectFormError(page, /时区.*(?:无效|不存在|IANA)|(?:无效|不存在|IANA).*时区/);
       await expect(formAlert(page)).not.toContainText("INVALID_TIMEZONE");
     });
+  });
+});
+
+test.describe("keyboard and accessible error recovery", () => {
+  test("moves keyboard focus to an alert summary and links then clears invalid field state", async ({
+    page,
+  }, testInfo) => {
+    useRuntimeProject(testInfo);
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+
+    const calculate = page.getByTestId("calculate");
+    await tabTo(page, calculate);
+    await page.keyboard.press("Enter");
+
+    const alert = page.getByTestId("form-error");
+    const birthDate = page.getByTestId("birth-date");
+    await expect(alert).toBeVisible();
+    await expect(alert).toBeFocused();
+    await expect(alert).toHaveAttribute("tabindex", "-1");
+    await expect(alert).toHaveAttribute("role", "alert");
+    await expect(alert).toHaveAttribute("aria-live", /assertive|polite/);
+    await expect(birthDate).toHaveAttribute("aria-invalid", "true");
+    await expect(birthDate).toHaveAttribute("aria-describedby", /form-error/);
+
+    await tabTo(page, birthDate);
+    await birthDate.fill(SYNTHETIC_INPUT.birth_date);
+    await expect(birthDate).not.toHaveAttribute("aria-invalid", "true");
+    await expect(birthDate).not.toHaveAttribute("aria-describedby", /form-error/);
+  });
+
+  test("completes a solar calculation, result action, and clear using keyboard navigation", async ({
+    context,
+    page,
+  }, testInfo) => {
+    useRuntimeProject(testInfo);
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP_ORIGIN });
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+
+    const genderMale = page.getByTestId("gender-male");
+    await tabTo(page, genderMale);
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("gender-female")).toBeChecked();
+
+    const calendarSolar = page.getByTestId("calendar-solar");
+    await tabTo(page, calendarSolar);
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowLeft");
+    await expect(calendarSolar).toBeChecked();
+
+    await keyboardFill(page, page.getByTestId("birth-date"), SYNTHETIC_INPUT.birth_date);
+    await keyboardFill(page, page.getByTestId("birth-time"), SYNTHETIC_INPUT.birth_time);
+    await keyboardFill(page, page.getByTestId("timezone"), SYNTHETIC_INPUT.timezone);
+    await keyboardFill(page, page.getByTestId("location-note"), "KEYBOARD_SOLAR_NOTE_48");
+    await keyboardFill(page, page.getByTestId("longitude"), SYNTHETIC_INPUT.longitude);
+    await keyboardFill(page, page.getByTestId("latitude"), SYNTHETIC_INPUT.latitude);
+
+    await tabTo(page, page.getByTestId("true-solar-time"));
+    await page.keyboard.press("Space");
+    await expect(page.getByTestId("true-solar-time")).toBeChecked();
+
+    const advanced = page.locator("details.advanced-options > summary");
+    await tabTo(page, advanced);
+    await page.keyboard.press("Enter");
+    const fold = page.locator('[name="fold"]');
+    await tabTo(page, fold);
+    await page.keyboard.press("ArrowDown");
+    await expect(fold).toHaveValue("1");
+
+    await tabTo(page, page.getByTestId("coordinate-confirm"));
+    await page.keyboard.press("Space");
+    await tabTo(page, page.getByTestId("calculate"));
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("result-section")).toBeVisible({ timeout: 60_000 });
+
+    await tabTo(page, page.getByTestId("copy-summary"));
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("action-feedback")).toContainText(/复制/u);
+    await tabTo(page, page.getByTestId("clear-data"));
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByTestId("result-section")).toBeHidden();
+    await expect(page.getByTestId("form-error")).toBeHidden();
+    await expect(genderMale).toBeFocused();
+    await expect(page.getByTestId("birth-date")).toHaveValue("");
+  });
+
+  test("completes a lunar leap-month calculation and clears new controls using the keyboard", async ({
+    context,
+    page,
+  }, testInfo) => {
+    useRuntimeProject(testInfo);
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP_ORIGIN });
+    await page.goto("/");
+    await waitForRuntimeReady(page);
+
+    await tabTo(page, page.getByTestId("gender-male"));
+    await page.keyboard.press("ArrowRight");
+    await tabTo(page, page.getByTestId("calendar-solar"));
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("calendar-lunar")).toBeChecked();
+
+    await keyboardFill(page, page.getByTestId("lunar-year"), "2023");
+    await keyboardFill(page, page.getByTestId("lunar-month"), "2");
+    await keyboardFill(page, page.getByTestId("lunar-day"), "29");
+    await keyboardFill(page, page.getByTestId("birth-time"), "12:00");
+    await keyboardFill(page, page.getByTestId("timezone"), "Asia/Shanghai");
+    await keyboardFill(page, page.getByTestId("location-note"), "KEYBOARD_LUNAR_NOTE_48");
+    await keyboardFill(page, page.getByTestId("longitude"), "121.4737");
+    await keyboardFill(page, page.getByTestId("latitude"), "31.2304");
+
+    await tabTo(page, page.getByTestId("true-solar-time"));
+    await page.keyboard.press("Space");
+    const leapMonth = page.locator('[name="is_leap_month"]');
+    await tabTo(page, leapMonth);
+    await page.keyboard.press("Space");
+    await expect(leapMonth).toBeChecked();
+
+    const advanced = page.locator("details.advanced-options > summary");
+    await tabTo(page, advanced);
+    await page.keyboard.press("Enter");
+    const fold = page.locator('[name="fold"]');
+    await tabTo(page, fold);
+    await page.keyboard.press("ArrowDown");
+    await expect(fold).toHaveValue("1");
+
+    await tabTo(page, page.getByTestId("coordinate-confirm"));
+    await page.keyboard.press("Space");
+    await tabTo(page, page.getByTestId("calculate"));
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("result-section")).toBeVisible({ timeout: 60_000 });
+
+    await tabTo(page, page.getByTestId("copy-json"));
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("action-feedback")).toContainText(/复制/u);
+    await tabTo(page, page.getByTestId("clear-data"));
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByTestId("result-section")).toBeHidden();
+    await expect(page.getByTestId("lunar-year")).toHaveValue("");
+    await expect(page.getByTestId("lunar-month")).toHaveValue("");
+    await expect(page.getByTestId("lunar-day")).toHaveValue("");
+    await expect(page.getByTestId("gender-male")).toBeFocused();
   });
 });
 
