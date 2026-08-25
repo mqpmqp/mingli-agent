@@ -1,6 +1,18 @@
-import { rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { extname, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type Request,
+  type TestInfo,
+} from "@playwright/test";
 
 type WebAppManifest = {
   name?: string;
@@ -29,8 +41,42 @@ type ObservedRequest = {
   postData: string | null;
 };
 
+type RuntimeManifest = {
+  first_load_bytes: number;
+  files: Array<{ path: string; bytes: number; sha256: string }>;
+};
+
+type RuntimeNetworkRecord = {
+  url: string;
+  path: string;
+  method: string;
+  resourceType: string;
+  initiator: "page" | "service-worker";
+  servedByServiceWorker: boolean;
+  fromMemoryOrDiskCache: boolean;
+  encodedBodyBytes: number;
+  encodedTransferBytes: number;
+  decodedBodyBytes: number;
+  measurementError: string | null;
+};
+
+type ColdStartServerRecord = {
+  path: string;
+  method: string;
+  encodedBodyBytes: number;
+  encodedTransferBytes: number;
+  decodedBodyBytes: number;
+};
+
+type ColdStartServer = {
+  origin: string;
+  records: ColdStartServerRecord[];
+  close: () => Promise<void>;
+};
+
 const APP_PATH = "/";
 const MANIFEST_PATH = "/manifest.webmanifest";
+const DIST_ROOT = fileURLToPath(new URL("../dist/", import.meta.url));
 const METRIC_NAMES: MetricName[] = [
   "FIRST_LOAD_MS",
   "FIRST_INIT_MS",
@@ -101,6 +147,233 @@ async function attachMetrics(testInfo: TestInfo, metrics: Partial<Record<MetricN
   for (const name of METRIC_NAMES) {
     console.log(`${name}=${metrics[name] ?? "NOT_RECORDED"}`);
   }
+}
+
+async function readRuntimeManifest(): Promise<RuntimeManifest> {
+  const raw = await readFile(new URL("../public/runtime/runtime-manifest.json", import.meta.url), "utf8");
+  const value = JSON.parse(raw) as Partial<RuntimeManifest>;
+  if (!Number.isSafeInteger(value.first_load_bytes) || value.first_load_bytes! <= 0 || !Array.isArray(value.files)) {
+    throw new Error("runtime-manifest.json 缺少可测量的 first_load_bytes/files");
+  }
+  if (
+    value.files.length === 0 ||
+    !value.files.every(
+      (file) =>
+        typeof file?.path === "string" &&
+        file.path !== "" &&
+        Number.isSafeInteger(file.bytes) &&
+        file.bytes > 0 &&
+        /^[0-9a-f]{64}$/.test(file.sha256),
+    )
+  ) {
+    throw new Error("runtime-manifest.json files 不能用于 cold-start 测量");
+  }
+  return value as RuntimeManifest;
+}
+
+async function measureRuntimeRequest(request: Request): Promise<RuntimeNetworkRecord> {
+  const url = new URL(request.url());
+  const base = {
+    url: request.url(),
+    path: url.pathname,
+    method: request.method(),
+    resourceType: request.resourceType(),
+    initiator: request.serviceWorker() ? ("service-worker" as const) : ("page" as const),
+  };
+
+  try {
+    const response = await request.response();
+    if (!response) throw new Error("request finished without a response");
+    const [sizes, body] = await Promise.all([request.sizes(), response.body()]);
+    const servedByServiceWorker = response.fromServiceWorker();
+    const fromMemoryOrDiskCache =
+      !servedByServiceWorker && sizes.responseBodySize === 0 && sizes.responseHeadersSize === 0 && body.length > 0;
+    return {
+      ...base,
+      servedByServiceWorker,
+      fromMemoryOrDiskCache,
+      encodedBodyBytes: sizes.responseBodySize,
+      encodedTransferBytes: sizes.responseBodySize + sizes.responseHeadersSize,
+      decodedBodyBytes: body.length,
+      measurementError: null,
+    };
+  } catch (error) {
+    return {
+      ...base,
+      servedByServiceWorker: false,
+      fromMemoryOrDiskCache: false,
+      encodedBodyBytes: 0,
+      encodedTransferBytes: 0,
+      decodedBodyBytes: 0,
+      measurementError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function contentTypeForPath(path: string): string {
+  const contentTypes: Record<string, string> = {
+    ".css": "text/css; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".wasm": "application/wasm",
+    ".webmanifest": "application/manifest+json; charset=utf-8",
+    ".whl": "application/octet-stream",
+    ".zip": "application/zip",
+  };
+  return contentTypes[extname(path).toLowerCase()] ?? "application/octet-stream";
+}
+
+async function startColdStartServer(): Promise<ColdStartServer> {
+  const records: ColdStartServerRecord[] = [];
+  const distPrefix = DIST_ROOT.endsWith(sep) ? DIST_ROOT : DIST_ROOT + sep;
+  const server = createServer((request, response) => {
+    void (async () => {
+      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+      const decodedPath = decodeURIComponent(requestUrl.pathname);
+      const relativePath = decodedPath === "/" ? "index.html" : decodedPath.slice(1);
+      const absolutePath = resolve(DIST_ROOT, relativePath);
+      const method = request.method ?? "GET";
+
+      let statusCode = 200;
+      let body: Buffer;
+      if (method !== "GET" && method !== "HEAD") {
+        statusCode = 405;
+        body = Buffer.from("method not allowed", "utf8");
+      } else if (decodedPath === "/__mingli-cold-start-probe__") {
+        body = Buffer.from("<!doctype html><title>cold-start-probe</title>", "utf8");
+      } else if (!absolutePath.startsWith(distPrefix)) {
+        statusCode = 403;
+        body = Buffer.from("forbidden", "utf8");
+      } else {
+        try {
+          body = await readFile(absolutePath);
+        } catch {
+          statusCode = 404;
+          body = Buffer.from("not found", "utf8");
+        }
+      }
+
+      response.statusCode = statusCode;
+      response.setHeader(
+        "Content-Type",
+        decodedPath === "/__mingli-cold-start-probe__" ? "text/html; charset=utf-8" : contentTypeForPath(relativePath),
+      );
+      response.setHeader("Content-Length", String(method === "HEAD" ? 0 : body.length));
+      response.setHeader("Cache-Control", "no-store");
+      response.setHeader("Connection", "close");
+
+      const socket = response.socket;
+      const bytesBefore = socket?.bytesWritten ?? 0;
+      response.once("finish", () => {
+        if (!decodedPath.startsWith("/runtime/")) return;
+        const encodedTransferBytes = socket ? socket.bytesWritten - bytesBefore : body.length;
+        records.push({
+          path: decodedPath,
+          method,
+          encodedBodyBytes: method === "HEAD" ? 0 : body.length,
+          encodedTransferBytes,
+          decodedBodyBytes: method === "HEAD" ? 0 : body.length,
+        });
+      });
+      response.end(method === "HEAD" ? undefined : body);
+    })().catch(() => {
+      if (!response.headersSent) {
+        response.statusCode = 500;
+        response.setHeader("Content-Type", "text/plain; charset=utf-8");
+      }
+      response.end("cold-start server error");
+    });
+  });
+
+  await new Promise<void>((resolveListen, rejectListen) => {
+    const onError = (error: Error): void => rejectListen(error);
+    server.once("error", onError);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", onError);
+      resolveListen();
+    });
+  });
+  const address = server.address() as AddressInfo;
+  return {
+    origin: `http://127.0.0.1:${address.port}`,
+    records,
+    close: () =>
+      new Promise<void>((resolveClose, rejectClose) => {
+        server.close((error) => {
+          if (error) rejectClose(error);
+          else resolveClose();
+        });
+      }),
+  };
+}
+
+function correlateColdStartRecords(
+  serverRecords: ColdStartServerRecord[],
+  pageRecords: RuntimeNetworkRecord[],
+  origin: string,
+): RuntimeNetworkRecord[] {
+  const directPageRecords = new Map<string, RuntimeNetworkRecord[]>();
+  const nonNetworkPageRecords: RuntimeNetworkRecord[] = [];
+
+  for (const record of pageRecords) {
+    const isDirectNetwork =
+      record.measurementError === null &&
+      record.encodedBodyBytes > 0 &&
+      !record.fromMemoryOrDiskCache &&
+      !record.servedByServiceWorker;
+    if (!isDirectNetwork) {
+      nonNetworkPageRecords.push(record);
+      continue;
+    }
+    const matches = directPageRecords.get(record.path) ?? [];
+    matches.push(record);
+    directPageRecords.set(record.path, matches);
+  }
+
+  const correlated = serverRecords.map((record): RuntimeNetworkRecord => {
+    const pageMatches = directPageRecords.get(record.path) ?? [];
+    const pageMatch = pageMatches.shift();
+    directPageRecords.set(record.path, pageMatches);
+    return {
+      url: origin + record.path,
+      path: record.path,
+      method: record.method,
+      resourceType: pageMatch?.resourceType ?? "fetch",
+      initiator: pageMatch ? "page" : "service-worker",
+      servedByServiceWorker: false,
+      fromMemoryOrDiskCache: false,
+      encodedBodyBytes: record.encodedBodyBytes,
+      encodedTransferBytes: record.encodedTransferBytes,
+      decodedBodyBytes: record.decodedBodyBytes,
+      measurementError:
+        record.encodedTransferBytes >= record.encodedBodyBytes
+          ? null
+          : "server transfer receipt was smaller than the encoded response body",
+    };
+  });
+
+  for (const unmatched of directPageRecords.values()) {
+    for (const record of unmatched) {
+      correlated.push({
+        ...record,
+        measurementError: "page network request was missing from the isolated server receipt",
+      });
+    }
+  }
+  return [...correlated, ...nonNetworkPageRecords];
+}
+async function assertEmptyColdStartState(context: BrowserContext, page: Page, origin: string): Promise<void> {
+  expect(context.serviceWorkers(), "fresh Chromium context already has a Service Worker").toHaveLength(0);
+  await page.route(`${origin}/__mingli-cold-start-probe__`, async (route) => {
+    await route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>cold-start-probe</title>" });
+  });
+  await page.goto(`${origin}/__mingli-cold-start-probe__`, { waitUntil: "domcontentloaded" });
+  expect(await page.evaluate(async () => caches.keys()), "fresh Chromium context already has CacheStorage data").toEqual([]);
+  await page.unroute(`${origin}/__mingli-cold-start-probe__`);
 }
 
 async function fillSyntheticInput(page: Page): Promise<void> {
@@ -226,6 +499,121 @@ test("manifest is installable in standalone mode with reachable start URL and ic
     expect(iconUrl.origin).toBe(manifestUrl.origin);
     const iconResponse = await request.get(iconUrl.href);
     expect(iconResponse.ok(), `manifest icon failed: ${iconUrl.pathname}`).toBeTruthy();
+  }
+});
+
+test("cold start transfers every fixed runtime asset over the network at most once", async ({ context, page }, testInfo) => {
+  test.setTimeout(180_000);
+
+  const coldStartServer = await startColdStartServer();
+  const origin = coldStartServer.origin;
+  const runtimeManifest = await readRuntimeManifest();
+  const fixedAssetPaths = new Set(runtimeManifest.files.map((file) => `/runtime/${file.path}`));
+  const monitoredRuntimePaths = new Set([...fixedAssetPaths, "/runtime/runtime-manifest.json"]);
+  const measurements: Array<Promise<RuntimeNetworkRecord>> = [];
+  const recordFinishedRequest = (request: Request): void => {
+    if (!request.serviceWorker() && new URL(request.url()).pathname.startsWith("/runtime/")) {
+      measurements.push(measureRuntimeRequest(request));
+    }
+  };
+
+  await assertEmptyColdStartState(context, page, origin);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Network.enable");
+  await cdp.send("Storage.clearDataForOrigin", { origin, storageTypes: "all" });
+  await cdp.send("Network.clearBrowserCache");
+  const browserVersion = await cdp.send("Browser.getVersion");
+  context.on("requestfinished", recordFinishedRequest);
+
+  try {
+    await page.goto(`${origin}${APP_PATH}`, { waitUntil: "domcontentloaded" });
+    await expect(MOBILE_E2E.runtimeStatus(page)).toHaveAttribute("data-state", "ready", { timeout: 120_000 });
+    await expect(MOBILE_E2E.offlineReady(page)).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+    await expect
+      .poll(() => {
+        const serverPaths = new Set(coldStartServer.records.map((record) => record.path));
+        return [...monitoredRuntimePaths].filter((path) => !serverPaths.has(path));
+      }, {
+        message: "isolated server did not receive every cold-start runtime asset request",
+        timeout: 30_000,
+      })
+      .toEqual([]);
+
+    const records = correlateColdStartRecords(
+      coldStartServer.records,
+      await Promise.all(measurements),
+      origin,
+    ).filter((record) => monitoredRuntimePaths.has(record.path));
+    const errors = records.filter((record) => record.measurementError !== null);
+    const observedPaths = new Set(records.map((record) => record.path));
+    const missingFixedAssets = [...monitoredRuntimePaths].filter((path) => !observedPaths.has(path));
+    const realNetworkTransfers = records.filter(
+      (record) =>
+        record.encodedBodyBytes > 0 && !record.fromMemoryOrDiskCache && !record.servedByServiceWorker,
+    );
+    const transfersByPath = new Map<string, RuntimeNetworkRecord[]>();
+    for (const record of realNetworkTransfers) {
+      const transfers = transfersByPath.get(record.path) ?? [];
+      transfers.push(record);
+      transfersByPath.set(record.path, transfers);
+    }
+    const duplicatePaths = [...transfersByPath.entries()]
+      .filter(([, transfers]) => transfers.length > 1)
+      .map(([path, transfers]) => ({
+        path,
+        networkTransfers: transfers.length,
+        extraTransfers: transfers.length - 1,
+        initiators: transfers.map((record) => record.initiator),
+        encodedBodyBytes: transfers.map((record) => record.encodedBodyBytes),
+      }));
+    const duplicateRuntimeNetworkFetches = duplicatePaths.reduce(
+      (total, duplicate) => total + duplicate.extraTransfers,
+      0,
+    );
+    const firstLoadTransferBytes = realNetworkTransfers.reduce(
+      (total, record) => total + record.encodedTransferBytes,
+      0,
+    );
+    const environment = [
+      "fresh Playwright Chromium context",
+      "no pre-existing Service Worker",
+      "no pre-existing CacheStorage",
+      "CDP Storage.clearDataForOrigin(all)",
+      "CDP Network.clearBrowserCache",
+      "isolated loopback static server with Cache-Control: no-store",
+      "server socket byte receipts correlated with page requests; remainder attributed to Service Worker install",
+      browserVersion.product,
+      origin,
+    ].join("; ");
+    const report = {
+      FIRST_LOAD_ASSET_BYTES: runtimeManifest.first_load_bytes,
+      FIRST_LOAD_TRANSFER_BYTES: firstLoadTransferBytes,
+      DUPLICATE_RUNTIME_NETWORK_FETCHES: duplicateRuntimeNetworkFetches,
+      COLD_START_MEASUREMENT_ENVIRONMENT: environment,
+      fixedAssetCount: runtimeManifest.files.length,
+      observedRuntimeRequestCount: records.length,
+      realNetworkTransferCount: realNetworkTransfers.length,
+      missingFixedAssets,
+      duplicatePaths,
+      records,
+    };
+
+    console.log(`FIRST_LOAD_ASSET_BYTES=${report.FIRST_LOAD_ASSET_BYTES}`);
+    console.log(`FIRST_LOAD_TRANSFER_BYTES=${report.FIRST_LOAD_TRANSFER_BYTES}`);
+    console.log(`DUPLICATE_RUNTIME_NETWORK_FETCHES=${report.DUPLICATE_RUNTIME_NETWORK_FETCHES}`);
+    console.log(`COLD_START_MEASUREMENT_ENVIRONMENT=${report.COLD_START_MEASUREMENT_ENVIRONMENT}`);
+    await attachJson(testInfo, "cold-start-runtime-network", report);
+
+    expect(errors, `cold-start measurement failed: ${JSON.stringify(errors)}`).toEqual([]);
+    expect(missingFixedAssets, `fixed runtime assets not observed: ${missingFixedAssets.join(", ")}`).toEqual([]);
+    expect(
+      duplicateRuntimeNetworkFetches,
+      `duplicate real runtime transfers: ${JSON.stringify(duplicatePaths)}`,
+    ).toBe(0);
+  } finally {
+    context.off("requestfinished", recordFinishedRequest);
+    await cdp.detach().catch(() => undefined);
+    await coldStartServer.close();
   }
 });
 
