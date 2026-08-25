@@ -70,6 +70,10 @@ def render_gitattributes(root: Path) -> str:
     )
     lines = ["# Generated from knowledge/config/asset_policy.yaml; do not edit this block."]
     lines.extend(f"*{extension} filter=lfs diff=lfs merge=lfs -text" for extension in extensions)
+    exclusions = sorted(policy.get("git_lfs_exclusions", ()))
+    if exclusions:
+        lines.extend(("", "# Git LFS exclusions generated from asset_policy.yaml."))
+        lines.extend(f"{pattern} -filter -diff -merge -text" for pattern in exclusions)
     return "\n".join(lines) + "\n"
 
 
