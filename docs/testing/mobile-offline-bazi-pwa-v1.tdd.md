@@ -40,6 +40,7 @@
 | F3/F6 安装与隐私 | `b4a04a`：收紧图标内容/尺寸、分层安装收据与全字段网络/CacheStorage 哨兵，旧实现不满足门禁。 | `c7d33df` 增加标准 PNG 图标；`f7c7f98` 用基线 cache 摘要消除静态资源误报并证明用户输入未改变 cache。 |
 | 失败注入隔离 | `b8487b9`、`2e77530`：禁用 SW cache 干扰，确保 Runtime 篡改与 manifest retry 测试命中预期失败路径。 | focused、全量 E2E 与 offline 均保持 GREEN。 |
 | F3 CI 图标交付 | 最终候选 push run `32844730423` 与 PR run `32844735580` 的 offline step 收到以 `version ` 开头的 Git LFS pointer 而非 PNG；`6bb8fd2` 新增 Git index blob 合同并得到 `1 failed, 6 deselected`。 | `6204187` 在生成的 LFS 规则块外为三个小图标添加精确 override，并把 index 转为普通 PNG blob；同一测试 `1 passed, 6 deselected`，focused suite `13 passed, 2 subtests passed`。 |
+| F3 LFS policy 集成 | `6204187` 的手工 override 触发知识资产生成合同，fast gate 得到同源 `5 failed, 402 passed`；`8e01af1` 增加 focused 生成合同并得到 `1 failed, 7 deselected`。 | `41b69db` 把精确图标例外纳入 `asset_policy.yaml` 并由既有生成器渲染；新合同与原 5 个失败 `6 passed`，focused `14 passed, 2 subtests passed`，fast `408 passed, 1 skipped, 151 deselected, 16 subtests passed`。 |
 
 所有 checkpoint 都位于当前分支从审查基线向前的线性历史中。
 
@@ -89,7 +90,8 @@
 | --- | --- |
 | `python -m pytest -q tests/test_pwa_runtime_build.py tests/test_bazi_engine.py` | 默认 pytest temp ACL 首次 `2 setup errors`；使用任务独占 `--basetemp` 后 `12 passed, 2 subtests passed` |
 | CI 图标 blob 修复后同一 focused suite | `13 passed, 2 subtests passed` |
-| 仓库 `test-fast` 真实命令 | `406 passed, 1 skipped, 151 deselected, 16 subtests passed` |
+| LFS policy 集成后同一 focused suite | `14 passed, 2 subtests passed` |
+| `python -m mingli.test_gates --timeout-seconds 1200 fast -- -q --basetemp=<任务独占目录>` | `408 passed, 1 skipped, 151 deselected, 1 warning, 16 subtests passed` |
 | `python -m pytest` | `557 passed, 1 skipped, 2 warnings`，`1483.30s` |
 | `python -m compileall -q src scripts` | PASS |
 | `python -m build` | PASS，sdist + wheel |
