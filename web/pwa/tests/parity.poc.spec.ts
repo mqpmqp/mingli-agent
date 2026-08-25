@@ -46,6 +46,16 @@ const PYODIDE_BOOTSTRAP_ASSETS = [
 for (const asset of PYODIDE_BOOTSTRAP_ASSETS) {
   test("rejects tampered " + asset + " before Pyodide executes it", async ({ page }) => {
     test.setTimeout(120_000);
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "serviceWorker", {
+        configurable: true,
+        value: {
+          register: async () => {
+            throw new Error("service worker disabled for runtime-integrity isolation");
+          },
+        },
+      });
+    });
     await page.route("**/runtime/" + asset, async (route) => {
       const upstream = await route.fetch();
       const tampered = Buffer.from(await upstream.body());
