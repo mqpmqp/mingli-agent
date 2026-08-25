@@ -14,7 +14,7 @@
 
 ## 输入与坐标
 
-输入页包含性别、历法、出生日期和分钟级时间、IANA 时区、出生地备注、经纬度、真太阳时、农历闰月选项，以及用于处理重复民用时间的高级 `fold` 选项。
+输入页包含性别、历法、出生日期和分钟级时间、IANA 时区、出生地备注、经纬度、真太阳时、农历闰月选项，以及用于处理重复民用时间的高级 `fold` 选项。阳历继续使用浏览器原生公历日期控件；农历使用独立的年、月、日数字控件（年 `1901–2099`、月 `1–12`、日 `1–30`），不会受 Gregorian `type=date` 合法性限制。
 
 第一版不包含可靠的地点数据库或地理编码服务。因此：
 
@@ -22,6 +22,7 @@
 - 应用不会把出生地备注发送给地图或地理编码 API。
 - 启用真太阳时时必须提供有效经度；经度范围为 `-180` 至 `180`，纬度范围为 `-90` 至 `90`。
 - “是否闰月”只在农历输入时适用。
+- 前端只检查农历年、月、日的结构范围；某个月、第 29/30 天或闰月是否真实存在，仍由本地 `DeterministicBaziEngine` 判断，前端不复制农历算法。
 - 时区应使用 `Asia/Shanghai`、`America/New_York` 这类 IANA 名称。`fold` 仅用于确有重复本地时间的时区场景，不能修复不存在的本地时间。
 
 坐标会直接影响真太阳时修正。无法确认坐标时，应关闭真太阳时或先从可信来源核对，不要用城市名猜测。
@@ -36,6 +37,8 @@ PWA 安装要求安全上下文，通常是 HTTPS；本机开发的 `localhost` 
 4. 完成一次测试排盘后再断网重载，确认该设备没有清理缓存。
 
 如果页面提示有新版本，请先恢复联网并刷新。不要在升级未完成时继续依赖旧页面。
+
+自动化安装证据按层记录：manifest 字段、图标响应与实际 PNG 尺寸通过后记为 `PWA_MANIFEST_INSTALLABILITY=PASS`；Chromium 中 manifest、Service Worker control、standalone display-mode 接受探针通过后记为 `CHROMIUM_PWA_ACCEPTANCE=PASS`。当前没有 iOS 或 Android 实机安装收据，因此必须同时记录 `IOS_PHYSICAL_INSTALL=NOT_RUN` 和 `ANDROID_PHYSICAL_INSTALL=NOT_RUN`，不得用无条件 `PWA_INSTALLABLE=PASS` 代替这四项。
 
 ## 版本绑定与失败关闭
 
@@ -109,7 +112,7 @@ npm run test:e2e
 npm run test:offline
 ```
 
-`test:parity` 比较 CPython 参考结果与 Chromium 中同一 Python 引擎的完整 canonical 结果；它证明工程实现一致，不代表命理预测准确率。移动端测试覆盖仓库配置的 360×800、390×844 和 430×932 视口，离线测试检查第二次加载、离线计算以及静态缓存隐私边界。
+`test:parity` 比较 CPython 参考结果与 Chromium 中同一 Python 引擎的完整 canonical 结果；它证明工程实现一致，不代表命理预测准确率。移动端测试覆盖仓库配置的 360×800、390×844 和 430×932 视口，以及真实键盘阳历/农历旅程。离线测试检查第二次加载、离线计算、冷启动真实网络传输、manifest/Chromium 安装接受和全字段网络/storage/cache 隐私边界。
 
 独立 GitHub Actions 工作流 `.github/workflows/pwa.yml` 会执行上述门禁，把 `web/pwa/dist/` 打包为 `mingli-mobile-pwa-<git-sha>.tar.gz`，同时生成同名 `.sha256` 收据并上传二者。工作流没有 Pages 权限或部署步骤，不会启用 GitHub Pages。
 

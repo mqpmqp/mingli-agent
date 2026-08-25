@@ -1,122 +1,114 @@
 # 手机离线八字 PWA v1 TDD 证据
 
-> 状态：`LOCAL_CANDIDATE_VERIFIED`。证据 SHA 为 `7bcee5bade7cc043243a32e21415492245caf8e6`；报告提交会产生新的 Git SHA，最终 HEAD 与远端 CI/artifact 由 Draft PR、Issue #48 和最终交付记录。本文件不包含私人验收输入或完整结果。
+> 状态：`POST_REVIEW_LOCAL_CANDIDATE_VERIFIED`。人工审查整改代码证据 SHA 为 `2e775306bcad25cda82331cb4e4ecc225ce51104`。文档提交会产生新的 Git SHA，最终 HEAD、CI 与 artifact 绑定值只在 push 后写入 Draft PR #49、Issue #48 和最终交付记录。本文件不包含私人验收输入或完整结果。
 
 ## 来源、目标与边界
 
-- 任务：`mqpmqp/mingli-agent` GitHub Issue #48。
-- 分支：`codex/mobile-offline-bazi-pwa-v1-20260823`；基线：`debbcef633a3d32c87b8cb254c0958a9f7e0fe19`。
-- 浏览器必须加载仓库 wheel 并调用 `mingli.bazi.DeterministicBaziEngine`，禁止近似 JavaScript 四柱算法。
+- 来源：`mqpmqp/mingli-agent` Issue #48 与 Draft PR #49 人工审查评论。
+- 分支：`codex/mobile-offline-bazi-pwa-v1-20260823`；base：`debbcef633a3d32c87b8cb254c0958a9f7e0fe19`；审查基线：`347f5d3b92a6f28e6058b9749600c182be04cc71`。
+- 浏览器加载当前提交构建的 wheel 并调用 `mingli.bazi.DeterministicBaziEngine`；禁止近似 JavaScript 历法/四柱算法。
 - 不依赖 VPS、MCP、OpenAI、外部排盘/地图 API；不上传、持久化或缓存出生资料与结果。
-- 未修改：`spec/`、`src/mingli/bazi.py`、冻结合同、四柱/真太阳时/节气/起运公式、Phase23、命理/紫微规则、Renderer、PR #47 VPS/Caddy。
-- 私人验收只记录 `MANUAL_PRIVATE_ACCEPTANCE=PASS/FAIL`。
+- 未修改 `spec/**`、`src/mingli/bazi.py`、冻结合同、四柱/真太阳时/节气/起运公式、Phase23、命理/紫微规则、Renderer、PR #47 VPS/Caddy。
+- `MANUAL_PRIVATE_ACCEPTANCE=NOT_RUN_IN_THIS_REVIEW`。
 
 ## 用户旅程
 
-1. 手机用户首次联网下载固定静态资源，随后断网仍能加载并运行同一确定性 Python 引擎。
-2. 用户填写历法、日期、分钟级时间、IANA 时区、性别、经纬度、真太阳时、闰月和 `fold`；坐标必须明确确认且修改后重新确认。
-3. 用户查看引擎真实返回的时间、四柱、日主、起运、节气、版本、hash、warnings 与 `prediction_validity`，并主动复制或下载。
-4. 表单变更立即失效旧结果；清空后异步复制或排盘均不得回写旧反馈/结果，DOM、Web Storage、IndexedDB 和 CacheStorage 不留用户资料。
-5. 错误显示中文可操作提示；`SOLAR_TERM_UNCERTAIN` 必须显示 `REVIEW_REQUIRED` 且不显示确定四柱。
-6. 维护者可用固定工具链复现 wheel、154 个 parity outcomes、100 次确定性、三档手机 E2E、离线与 CI artifact。
+1. 阳历用户继续使用原生日期控件；农历用户用独立年/月/日控件输入 `2023`、`2`、`29` 等不具公历语义的日期。
+2. 前端只校验农历年 `1901–2099`、月 `1–12`、日 `1–30`；具体月份、日期与闰月是否存在由 Python 引擎权威判断。
+3. 用户只用键盘完成阳历或农历核心流程；错误后焦点、alert 与字段 ARIA 状态可恢复，清空后回到首个输入。
+4. 冷浏览器首次加载每个固定 Runtime 资产最多一次真实网络传输，且首次完成后可离线，SHA 与五项版本绑定不削弱。
+5. 全字段纯合成隐私值不得进入网络 URL/query/headers/body、Web Storage、IndexedDB、CacheStorage 或清空后的 DOM。
+6. 维护者可复现 154-case CPython↔Pyodide parity、100× determinism、三档手机 E2E、离线、安装清单和 artifact。
 
 ## RED / GREEN checkpoint
 
-| 阶段 | Commit | RED/GREEN 证据 |
+| 范围 | RED commit 与真实失败 | GREEN commit 与保证 |
 | --- | --- | --- |
-| 最小 parity RED | `4fc7575` `test(pwa): add browser parity reproducer` | 移动 Chromium 要求加载仓库 wheel 并与 CPython 对比；目标运行时不存在，测试有效 RED。 |
-| 最小 parity GREEN | `fe1b1a7` `feat(pwa): run deterministic engine in pinned Pyodide` | 固定 Pyodide/tzdata，构建 wheel；同一合成输入的完整结果一致。 |
-| 完整 PWA RED | `5d6f280` `test(pwa): define offline mobile acceptance` | 154-case parity、100× determinism、UI、离线、隐私与可复现构建合同暴露缺失能力。 |
-| bootstrap 完整性 RED | `d51f327` `test(pwa): reject tampered Pyodide bootstrap assets` | 篡改 asm.js 时旧实现进入执行并报语法错误，证明未在执行前验证。 |
-| bootstrap 完整性 GREEN | `2088d9a` `feat(pwa): verify Pyodide bootstrap before execution` | module、asm.js、WASM、stdlib、lockfile 均先做 bytes/SHA 校验；4 个篡改用例与正常 PoC 通过。 |
-| SW 更新 RED | `8e64188` `test(pwa): require activation of waiting service worker` | 点击“立即更新”未向 waiting worker 发送 `SKIP_WAITING`。 |
-| SW 更新 GREEN | `1b0cfd9` `feat(pwa): activate waiting worker on update` | 发送 `SKIP_WAITING`，仅在 `controllerchange` 后 reload；focused E2E 通过。 |
-| 交互状态 RED | `29b9d9b` `test(pwa): cover interaction state invalidation` | 三个独立 Chromium reproducer 分别得到：坐标确认仍 checked、表单变更后结果仍 visible、清空后旧复制反馈回写。 |
-| 交互状态 GREEN | `1d45a10` `fix(pwa): invalidate stale interaction state` | 表单 input 清旧结果、坐标 input 撤销确认、clipboard feedback 使用 revision；同一 target `3 passed` 且 build PASS。 |
-| SW 代际覆盖 | `68387b5` `test(pwa): cover service worker generation transitions` | 真实断言 `controllerchange` reload；预置旧 generation cache 后激活新 worker，最终只保留当前 build cache。 |
-| 排盘清空竞态 RED | `923602d` `test(pwa): cover calculation clear race` | 真实 Chromium 微任务 reproducer 在清空后重新显示旧结果，`1 failed`。 |
-| 排盘清空竞态 GREEN | `8acf452` `fix(pwa): ignore stale calculation results` | calculation revision 使更早 Promise 的结果/错误失效；同一 reproducer `1 passed`。 |
-| CI 启动 RED | `1233288` `test(pwa): reject runner context before job start` | 远端 run `32785237461` 零 job 失败；本地合同测试因 job 级 `runner.temp` 命中而 `1 failed`。 |
-| CI 启动 GREEN | `1518485` `fix(ci): defer runner temp until job starts` | 缓存路径下移到 runtime 构建 step；同一测试 `1 passed, 4 deselected`。 |
+| 最小 parity | `4fc7575`：移动 Chromium 需要仓库 wheel，但 Runtime 不存在，测试有效 RED。 | `fe1b1a7`：固定 Pyodide/tzdata 并运行同一 Python 引擎；合成输入与 CPython 完整一致。 |
+| 完整 PWA | `5d6f280`：154 parity、100× determinism、UI、离线、隐私与可复现构建合同暴露缺失能力。 | 后续线性提交逐项闭合；没有 squash 或改写。 |
+| bootstrap 完整性 | `d51f327`：篡改 asm.js 时旧实现进入执行并报语法错误。 | `2088d9a`：module、asm.js、WASM、stdlib、lockfile 均先做 bytes/SHA 校验。 |
+| SW 更新 | `8e64188`：点击更新没有向 waiting worker 发送 `SKIP_WAITING`。 | `1b0cfd9`：发送消息并仅在 `controllerchange` 后 reload。 |
+| 交互状态 | `29b9d9b`：坐标确认未撤销、旧结果仍可导出、清空后旧复制反馈回写。 | `1d45a10`：input 失效旧结果、坐标变更撤销确认、clipboard 使用 revision。 |
+| SW 代际 | `68387b5` 增加真实 `controllerchange` 与旧 generation cache 回归。 | 当前实现只保留当前 app build cache。 |
+| 排盘清空竞态 | `923602d`：清空后较早排盘 Promise 重新显示旧结果，`1 failed`。 | `8acf452`：calculation revision 使较早结果/错误失效，同一测试 `1 passed`。 |
+| CI 启动 | `1233288`：远端 run `32785237461` 零 job；本地合同因 job 级 `runner.temp` 命中，`1 failed, 4 deselected`。 | `1518485`：缓存路径下移到 runner 已分配的 step；`1 passed, 4 deselected`。 |
+| F1 农历输入 | `44bc3e9`：Vitest 不接受独立农历字段，Chromium 切农历后仍显示 Gregorian `type=date`，合法闰二月二十九无法输入。 | `3c15f1a`：独立数字控件转换为既有 `birth_date` 合同；真实 UI 的闰二月二十九、非法三十日与普通非闰月旅程通过。 |
+| F2 农历错误映射 | `1aa621d`：`INVALID_LUNAR_DATE` 落入通用提示，缺少月份、日期、闰月指引。 | `e23825c`：安全中文提示覆盖并不回显内部 code/stack。 |
+| F2 集合防漂移 | `462b15c`：AST 提取发现 `INVALID_INPUT`、`INVALID_LUNAR_DATE`、`INTERNAL_SOLAR_TERM` 未映射。 | `e23825c`：核心 `_fail` 字符串集合与前端只读映射集合相等。 |
+| F4 键盘/a11y | `cab8779`：键盘提交后焦点未到错误摘要，摘要不可聚焦，字段没有 `aria-invalid`/`aria-describedby`。 | `159c7b4`：错误摘要可聚焦且为 alert；字段错误关联可设置和撤销；阳历/农历键盘旅程通过。 |
+| F5 冷启动传输 | `a83afdf`：冷启动测量观察到页面与 SW 对同一 Runtime 资产产生重复真实传输。 | `bd1f443`：先取得 SW control，再加载 Runtime；独立 server/CDP 收据中重复真实传输为 0。 |
+| F3/F6 安装与隐私 | `b4a04a`：收紧图标内容/尺寸、分层安装收据与全字段网络/CacheStorage 哨兵，旧实现不满足门禁。 | `c7d33df` 增加标准 PNG 图标；`f7c7f98` 用基线 cache 摘要消除静态资源误报并证明用户输入未改变 cache。 |
+| 失败注入隔离 | `b8487b9`、`2e77530`：禁用 SW cache 干扰，确保 Runtime 篡改与 manifest retry 测试命中预期失败路径。 | focused、全量 E2E 与 offline 均保持 GREEN。 |
 
-所有 checkpoint 均可从当前分支 HEAD 追溯，未 squash 或改写。
+所有 checkpoint 都位于当前分支从审查基线向前的线性历史中。
 
-## 固定运行时与构建证据
+## 整改代码候选绑定证据
 
 | 项目 | 结果 |
 | --- | --- |
 | host CPython | `3.11.15` |
-| Node / npm | `22.18.0` / `10.9.3` |
+| local Node / npm | `22.23.1` / `10.9.8`；CI 固定 `22.18.0` / `10.9.3` |
 | Pyodide / embedded Python | `0.25.1` / `3.11.3` |
 | tzdata | `2025.2` |
 | Playwright / Vite | `1.55.1` / `7.3.6` |
-| `ZoneInfo("Asia/Shanghai")` | `verified` |
-| validation SHA | `7bcee5bade7cc043243a32e21415492245caf8e6` |
-| app build ID | `90569ad1cc90cb513472` |
-| wheel SHA-256 | `4306ec2dbb1b7320b7d68d65642839d392e6310bcf58909d4546a30069feba08` |
-| first-load bytes | `13,947,405` |
-| parity / determinism | `154/154`, failures `0`; `100/100` |
-| measured timings | first load `141 ms`; first init `2722 ms`; first calc `142 ms`; second load `1843 ms`; second calc `88 ms` |
-| local artifact | `mingli-mobile-pwa-7bcee5bade7cc043243a32e21415492245caf8e6.tar.gz` |
-| local artifact SHA-256 | `4dc538bb57dc16ae7d14289f05ca3fa98086c66b60dbfd16f5a4f6c7bed76ed8`，两次独立打包一致 |
+| post-review code evidence SHA | `2e775306bcad25cda82331cb4e4ecc225ce51104` |
+| app build ID | `d27a1f76a943b609f37a` |
+| wheel SHA-256 | `a9725253b86f8e4f4397825d57b2bd40aa8fbf1440916531bdf20c58fa4c4199` |
+| first-load asset bytes | `13,947,405` |
+| first-load transfer bytes | `13,953,953` |
+| duplicate runtime network fetches | `0` |
+| cold-start environment | fresh Playwright Chromium context；无既有 SW/CacheStorage；CDP 清站点数据与 browser cache；`Cache-Control: no-store` 独立 loopback server；server socket 字节收据与页面请求关联 |
+| parity / determinism | `154/154`；`100/100` |
+| install receipts | manifest `PASS`；Chromium `PASS`；iOS/Android physical install `NOT_RUN` |
+
+以上绑定值属于整改代码候选。报告提交后的最终绑定值必须由最终 HEAD 构建、CI 与 artifact 重新取得，不能预填为同一个 SHA。
 
 ## 测试规格与证据映射
 
 | # | 保证 | 测试 | 结果 |
 | --- | --- | --- | --- |
-| 1 | 固定依赖与下载 SHA | `tests/test_pwa_runtime_build.py` | PASS |
-| 2 | corpus 至少 100 且覆盖成功/错误边界 | runtime-build test + generated reference | PASS，154 cases |
-| 3 | manifest 路径、排序、字节数、SHA 和 wheel/tzdata binding | Python + Vite + runtime | PASS |
-| 4 | wheel 使用 Git 派生 `SOURCE_DATE_EPOCH` | runtime-build test | PASS |
-| 5 | Pyodide bootstrap 未验证字节不得执行 | `parity.poc.spec.ts` | PASS，4 tamper cases |
-| 6 | 表单、闰月、坐标、时区、fold、中文错误 | unit + E2E | PASS |
-| 7 | 坐标修改必须重新确认 | `e2e.spec.ts` | RED→GREEN |
-| 8 | 表单修改失效旧结果 | `e2e.spec.ts` | RED→GREEN |
-| 9 | 清空后 pending clipboard 不得回写 | `e2e.spec.ts` | RED→GREEN |
-| 10 | 清空后 pending calculation 不得回写结果/错误 | `e2e.spec.ts` | RED→GREEN |
-| 11 | 结果字段、复制、下载、prompt、清空 | presentation unit + E2E | PASS |
-| 12 | 版本不一致失败关闭，waiting worker 被激活并重载 | version unit + E2E | PASS |
-| 13 | 旧 build cache 删除、当前 cache 保留 | `offline.spec.ts` | PASS |
-| 14 | CPython↔Pyodide PoC 完整相等 | `npm run test:parity` | PASS |
-| 15 | 154 outcomes 完全相等 | `parity.spec.ts` | PASS，154/154 |
-| 16 | 100× pillars/luck/hash 一致 | `parity.spec.ts` | PASS，100/100 |
-| 17 | 360×800、390×844、430×932 | `npm run test:e2e` | PASS |
-| 18 | 首次在线、第二次断网加载与离线排盘 | `npm run test:offline` | PASS |
-| 19 | 无上传/持久化/用户数据缓存 | E2E request/storage/cache audit | PASS |
-| 20 | `SOLAR_TERM_UNCERTAIN` 显示 `REVIEW_REQUIRED` 且无四柱 | `e2e.spec.ts` | PASS |
-| 21 | CI 干净重建、测试、确定性 tar.gz + SHA 收据，不部署 Pages | `.github/workflows/pwa.yml` | 静态审计 PASS；远端 run 在 push 后确认 |
-| 22 | `runner.temp` 仅在 runner 已分配的 step 中求值 | `test_workflow_defers_runner_temp_until_a_step_is_running` | RED→GREEN |
+| 1 | 农历控件没有 Gregorian date 语义，合法闰二月二十九真实 UI 成功 | `form.test.ts` + `e2e.spec.ts` | PASS |
+| 2 | 结构合法的农历三十日提交到引擎，由 `INVALID_LUNAR_DATE` 安全拒绝且无旧四柱 | `presentation.test.ts` + `e2e.spec.ts` | PASS |
+| 3 | 核心 `_fail` error code 与前端映射集合一致 | `test_pwa_runtime_build.py` | PASS |
+| 4 | 真实 Tab/Arrow/Space/Enter 完成阳历和农历旅程 | `e2e.spec.ts` keyboard group | PASS，3 tests |
+| 5 | manifest 内容、PNG 类型/实际尺寸与 Chromium 接受 | `offline.spec.ts` | PASS |
+| 6 | 冷启动固定 Runtime 资产无重复真实网络传输 | `offline.spec.ts` isolated cold-start test | PASS，duplicate `0` |
+| 7 | 所有敏感字段不进入网络/storage/cache/清空后 DOM | `offline.spec.ts` all-field privacy test | PASS |
+| 8 | manifest 路径、排序、bytes/SHA 与 wheel/tzdata binding | Python + Vite + Runtime | PASS |
+| 9 | Pyodide bootstrap 未验证字节不得执行 | `parity.poc.spec.ts` | PASS，4 tamper cases |
+| 10 | 154 outcomes 与 100× 确定性 | `parity.spec.ts` | PASS |
+| 11 | 360×800、390×844、430×932 | `npm run test:e2e` | PASS |
+| 12 | 首次在线、第二次断网加载与离线排盘 | `npm run test:offline` | PASS |
+| 13 | `SOLAR_TERM_UNCERTAIN` 显示 `REVIEW_REQUIRED` 且无确定四柱 | `e2e.spec.ts` | PASS |
+| 14 | workflow 干净重建并上传普通 CI artifact，不部署 Pages | `.github/workflows/pwa.yml` + Python contract test | PASS |
 
 ## 实际命令与结果
 
 | 命令 | 结果 |
 | --- | --- |
-| `python -m pytest -q tests/test_pwa_runtime_build.py tests/test_bazi_engine.py` | `10 passed, 2 subtests passed` |
-| `python -m pytest -q tests/test_pwa_runtime_build.py -k workflow_defers_runner_temp` | RED：`1 failed, 4 deselected`；GREEN：`1 passed, 4 deselected` |
-| CI 启动修复后重跑同一 focused suite | `11 passed, 2 subtests passed` |
-| `test-fast --timeout-seconds 300 ... -- -q` | `404 passed, 1 skipped, 151 deselected, 2 warnings, 16 subtests passed` |
-| 完整 `python -m pytest` | `555 passed, 1 skipped, 31 subtests passed, 2 warnings`；validation SHA 上实际运行 `1138.63s` |
+| `python -m pytest -q tests/test_pwa_runtime_build.py tests/test_bazi_engine.py` | 默认 pytest temp ACL 首次 `2 setup errors`；使用任务独占 `--basetemp` 后 `12 passed, 2 subtests passed` |
+| 仓库 `test-fast` 真实命令 | `406 passed, 1 skipped, 151 deselected, 16 subtests passed` |
+| `python -m pytest` | `557 passed, 1 skipped, 2 warnings`，`1483.30s` |
 | `python -m compileall -q src scripts` | PASS |
 | `python -m build` | PASS，sdist + wheel |
 | `python -m pip check` | PASS |
+| `npm ci` | PASS；本地 Node/npm 非 CI 固定版本，出现 engine warning |
 | `npm audit --audit-level=high` | `0 vulnerabilities` |
-| `python -m pip_audit` | `No known vulnerabilities`；本地 `mingli-agent` 按工具规则跳过 |
-| `npm test` | `39 passed` |
-| `npm run test:coverage` | statements/lines `96.38%`; branches `87.03%`; functions `100%` |
+| `npm test` | `46 passed` |
+| `npm run test:coverage` | statements/lines `96.75%`; branches `87.69%`; functions `100%` |
 | `npm run build` | PASS |
-| `npm run test:parity` | `8 passed`; 154/154; 100/100 |
-| `npm run test:e2e` | `17 passed, 22 intentional project skips` |
-| `npm run test:offline` | `3 passed` |
-| CI 参数本地重复打包 | artifact SHA-256 两次一致，determinism PASS |
-| 私人本地验收 | `MANUAL_PRIVATE_ACCEPTANCE=PASS` |
+| `npm run test:parity` | `8 passed`; `154/154`; `100/100` |
+| `npm run test:e2e` | `24 passed, 36 intentional project skips` |
+| `npm run test:offline` | `5 passed` |
+| `git diff --check` | PASS |
+| 私人资料人工验收 | `NOT_RUN_IN_THIS_REVIEW` |
 
 ## 解释与剩余边界
 
-- 移动 E2E 的 22 个 skip 是显式项目矩阵策略：运行时/状态测试仅在 canonical 390 项目执行；三个视口都执行 shell 与真实结果旅程，不是禁用测试。
-- 完整 pytest、Python focused 与 `test-fast` 均在 validation SHA 上实际通过；保护范围审计同时确认 Python 核心未改。
-- 首次远端 PWA run 在 job 创建前失败；新增合同测试复现并把 `runner.temp` 下移到 step，最终远端结论另行记录。
-- `controllerchange` 可早于 activate 事件 `waitUntil` 清理完成；旧 cache 测试有界轮询最终 CacheStorage 状态。
-- parity 证明同一确定性实现工程一致，不等于命理预测准确率；`prediction_validity=not_evaluated` 保留。
-- 离线缓存仍可能被浏览器或操作系统回收；固定 tzdata 未来修订需要新构建和重新 parity。
-- `web/pwa/public/runtime/` 与 `web/pwa/dist/` 是忽略生成物；GitHub Actions 不含 Pages 权限或部署步骤。
-- 远端 CI、artifact 名称/SHA、push、Draft PR 和 Issue 更新必须在最终 HEAD 上完成后在外部交付记录中填写。
+- project skip 是显式 Playwright 矩阵策略：需要完整 Runtime 的行为只在 canonical 390 项目执行，三个视口仍执行共同移动旅程；没有为本轮失败新增 skip。
+- `FIRST_LOAD_ASSET_BYTES` 是固定 Runtime 静态资产 body 总数；`FIRST_LOAD_TRANSFER_BYTES` 是独立 server/CDP 实测 encoded transfer 总数，两者不混写。
+- `PWA_MANIFEST_INSTALLABILITY=PASS` 与 `CHROMIUM_PWA_ACCEPTANCE=PASS` 不等于 iOS/Android 实机安装；两项 physical install 均为 `NOT_RUN`。
+- 完整 pytest、focused、fast、前端与浏览器门禁已在整改代码候选执行；文档提交后的最终 HEAD 会重新构建并复验。
+- parity 证明同一确定性实现工程一致，不代表命理预测准确率；`prediction_validity=not_evaluated` 保留。
+- 离线缓存可能被浏览器或操作系统回收；固定 tzdata 未来修订需要新构建和重新 parity。
+- `web/pwa/public/runtime/**` 与 `web/pwa/dist/**` 是忽略生成物；workflow 不含 Pages 权限或部署步骤。
