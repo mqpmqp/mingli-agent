@@ -38,10 +38,12 @@ export type ChartPresentationData = {
 };
 
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
+  INVALID_INPUT: "输入结构无效，请检查必填字段与选项后重新提交。",
   INVALID_DATE: "出生日期无效，请确认日期后重新填写。",
   INVALID_TIME: "出生时间无效，请按 24 小时制确认后重新填写。",
   INVALID_CALENDAR: "历法选项无效，请重新选择阳历或农历。",
   INVALID_GENDER: "性别选项无效，请重新选择。",
+  INVALID_LUNAR_DATE: "农历月份或日期无效，请检查月份、日期和闰月选项后重新提交。",
   MISSING_LONGITUDE: "启用真太阳时需要填写经度，请确认后重新提交。",
   INVALID_COORDINATE: "经度、纬度或坐标无效，请确认范围后重新填写。",
   INVALID_TIMEZONE: "时区无效，请确认 IANA 时区名称后重新填写。",
@@ -51,6 +53,8 @@ const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   UNSUPPORTED_YEAR: "年份超出支持范围（1901 至 2099 年），请确认后重新填写。",
   INVALID_LEAP_MONTH: "闰月信息无效，请确认农历月份后重新选择。",
   INVALID_FOLD: "重叠时间的 fold 无效，请确认夏令时情况并选择 0 或 1。",
+  INTERNAL_SOLAR_TERM:
+    "内部节气计算失败，请重新加载页面；若重复出现，请记录输入范围和版本信息后报告。",
 };
 
 export function mapChartCalculationError(code: string): string {
