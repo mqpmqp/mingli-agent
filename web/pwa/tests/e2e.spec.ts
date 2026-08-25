@@ -549,6 +549,16 @@ test.describe("runtime lifecycle", () => {
 
   test("shows an actionable retry when runtime initialization fails", async ({ page }, testInfo) => {
     useRuntimeProject(testInfo);
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "serviceWorker", {
+        configurable: true,
+        value: {
+          register: async () => {
+            throw new Error("service worker disabled for manifest-failure isolation");
+          },
+        },
+      });
+    });
     let attempts = 0;
     await page.route("**/runtime/runtime-manifest.json", async (route) => {
       attempts += 1;
