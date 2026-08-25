@@ -7,6 +7,7 @@ import re
 import subprocess
 from typing import Any
 
+from mingli.knowledge import render_gitattributes
 from scripts import build_pwa_runtime
 
 
@@ -130,6 +131,15 @@ def test_pwa_png_icons_are_regular_git_blobs_not_lfs_pointers() -> None:
             f"{icon_path} must be committed as a regular PNG blob; "
             "GitHub Actions checkout does not fetch Git LFS objects by default"
         )
+
+
+def test_pwa_icon_lfs_override_is_generated_from_asset_policy() -> None:
+    generated = render_gitattributes(ROOT / "knowledge")
+    override = "web/pwa/public/icons/*.png -filter -diff -merge -text"
+
+    assert override in generated.splitlines()
+    assert (ROOT / ".gitattributes").read_text(encoding="utf-8") == generated
+
 
 def test_runtime_file_manifest_is_safe_complete_and_byte_exact(tmp_path: Path) -> None:
     files = {
