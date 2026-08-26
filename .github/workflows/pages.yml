@@ -16,7 +16,7 @@ concurrency:
 jobs:
   prepare:
     name: Prepare verified Pages artifact
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -25,12 +25,20 @@ jobs:
       pages: read
 
     steps:
-      - name: Bind deployment to verified PWA run
+      - name: Check out current main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Bind deployment to verified main push
         shell: bash
         run: |
           set -euo pipefail
+          test "${{ github.event.workflow_run.event }}" = "push"
           test "${{ github.event.workflow_run.head_branch }}" = "main"
-          test -n "${{ github.event.workflow_run.head_sha }}"
+          test "${{ github.event.workflow_run.head_repository.full_name }}" = "${GITHUB_REPOSITORY}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.workflow_run.head_sha }}"
 
       - name: Download verified PWA artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -55,8 +63,18 @@ jobs:
             sha256sum -c "$(basename "${checksum}")"
           )
 
+          while IFS= read -r entry; do
+            case "${entry}" in
+              dist|dist/*) ;;
+              *) echo "unexpected archive path: ${entry}" >&2; exit 1 ;;
+            esac
+            case "/${entry}/" in
+              */../*|*/./*) echo "unsafe archive path: ${entry}" >&2; exit 1 ;;
+            esac
+          done < <(tar -tzf "${archive}")
+
           mkdir -p site
-          tar -xzf "${archive}" -C site
+          tar --extract --gzip --file "${archive}" --directory site --no-same-owner --no-same-permissions
 
           test -f site/dist/index.html
           test -f site/dist/sw.js
