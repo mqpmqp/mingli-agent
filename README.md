@@ -1,5 +1,9 @@
 # MingLi Agent Core Runtime
 
+## 手机离线八字 PWA
+
+`web/pwa/` 提供手机优先、具备标准 PWA manifest 且首次成功加载后可离线使用的八字排盘界面。浏览器通过固定版本 Pyodide 直接运行本仓库构建的 Python wheel；出生资料只在当前页面本地处理，应用不猜测经纬度，也不调用外部排盘、地图或 OpenAI API。自动化已覆盖 Chromium PWA 接受，iOS/Android 实机安装尚未执行；安装、隐私、版本绑定、开发测试与离线限制见 [手机离线八字 PWA 文档](docs/mobile-pwa.md)。
+
 ## HTTP/MCP 服务
 
 安装 API 依赖后，可将 Runtime 作为普通 JSON API 与 Streamable HTTP MCP 服务运行：
