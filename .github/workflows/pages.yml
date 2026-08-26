@@ -1,0 +1,113 @@
+name: Deploy Mobile Offline Bazi PWA to GitHub Pages
+
+on:
+  workflow_run:
+    workflows:
+      - Mobile Offline Bazi PWA
+    types:
+      - completed
+    branches:
+      - main
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare verified Pages artifact
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      pages: read
+
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Bind deployment to verified main push
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.event.workflow_run.event }}" = "push"
+          test "${{ github.event.workflow_run.head_branch }}" = "main"
+          test "${{ github.event.workflow_run.head_repository.full_name }}" = "${GITHUB_REPOSITORY}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.workflow_run.head_sha }}"
+
+      - name: Download verified PWA artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: mingli-mobile-pwa-${{ github.event.workflow_run.head_sha }}
+          path: verified-pwa
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Verify and extract static site
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="${{ github.event.workflow_run.head_sha }}"
+          archive="verified-pwa/mingli-mobile-pwa-${sha}.tar.gz"
+          checksum="${archive}.sha256"
+
+          test -f "${archive}"
+          test -f "${checksum}"
+          (
+            cd verified-pwa
+            sha256sum -c "$(basename "${checksum}")"
+          )
+
+          while IFS= read -r entry; do
+            case "${entry}" in
+              dist|dist/*) ;;
+              *) echo "unexpected archive path: ${entry}" >&2; exit 1 ;;
+            esac
+            case "/${entry}/" in
+              */../*|*/./*) echo "unsafe archive path: ${entry}" >&2; exit 1 ;;
+            esac
+          done < <(tar -tzf "${archive}")
+
+          mkdir -p site
+          tar --extract --gzip --file "${archive}" --directory site --no-same-owner --no-same-permissions
+
+          test -f site/dist/index.html
+          test -f site/dist/sw.js
+          test -f site/dist/manifest.webmanifest
+          test -f site/dist/pwa-assets.json
+          test -f site/dist/runtime/runtime-manifest.json
+          test -z "$(find site/dist -type l -print -quit)"
+
+          jq -e --arg sha "${sha}" '.appBinding.gitSha == $sha' site/dist/pwa-assets.json
+          jq -e --arg sha "${sha}" '.git_sha == $sha' site/dist/runtime/runtime-manifest.json
+          grep -F "${sha}" site/dist/index.html
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy GitHub Pages
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
