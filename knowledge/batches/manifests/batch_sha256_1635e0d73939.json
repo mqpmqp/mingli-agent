@@ -33,7 +33,7 @@
       "knowledge/concepts/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl": "904686622c99674ff2a2aaee488dcd2953764138f2bf006bdafbfe33fc8144a5",
       "knowledge/evidence/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl": "28f1e3650e008182eb2ab66073a52c9ef4046ca5a001331ea7b5a119ee67105e",
       "knowledge/rules/reviewed/yijing/zhouyi_yu_yucexue_ch01.jsonl": "ed3af8b26081576e38d6e35f2c34e966e535b058328080393841596f8d315238",
-      "knowledge/sources/registry.jsonl": "b5693e7bebe3b9ddb53ed48fe51b737d35b5ade84ce1af60197b29cdcd0ccd56"
+      "knowledge/sources/registry.jsonl": "818737cfd1d0512d5ef626e74358a8bf53f8f8b04f35f693ec696f525e337b6e"
     },
     "restore": {
       "knowledge/sources/registry.jsonl": {
