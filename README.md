@@ -212,6 +212,15 @@ Phase 23 提供单进程、无网络、无外部模型的端到端 Runtime，按
 
 `mingli.render_intent` 为已完成 Runtime artifact 提供受控的展示选择：`full_reading` 保持既有完整阅读，`focused_question`、`follow_up` 和 `comment` 只从已有 artifact 中选择受支持内容，不重算命盘、规则或阈值。已确认四柱同时区分 `image_confirmed` 与 `text_confirmed` 来源；两者共用已确认四柱引擎，但来源专属的 provenance 字段不得混用。实现与门禁记录见 `docs/testing/mingli-render-intent-v1.tdd.md`。
 
+`mingli.paid_delivery` 提供独立的新付费交付路径：统一 `CaseInput`、出生/图片/六爻输入校验、现实约束、四维置信度、九类 production-only 专题规则、结构化 `AdviceRule`、Comment/Private/Paid-699 渲染和待到期评测收据。默认仍为 `focused_question`；699 使用九项交付合同但不调用旧固定八段，续问只回答新增范围。称骨模块默认不计算也不出现在结果中，只有调用方确认用户明确点名并设置 `bone_weight_requested=true` 才能启用。六爻当前没有可靠引擎，因此只校验资料并显式降级。完整合同见 `MINGLI_V2_FULL_UPGRADE_SPEC.md`、`PAID_DELIVERY_CONTRACT.md`、`METAPHYSICAL_ADVICE_GOVERNANCE.md`、`CONFIDENCE_AND_COUNTEREVIDENCE.md` 和 `EVALUATION_AND_FORWARD_TEST_POLICY.md`。
+
+```python
+from mingli.paid_delivery import run_paid_delivery
+
+result = run_paid_delivery(case_payload)
+print(result.rendered_text)
+```
+
 ```bash
 python -m mingli.phase23_cli run --input runtime.json
 python -m mingli.phase23_cli benchmark
