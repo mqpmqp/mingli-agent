@@ -295,4 +295,3 @@ def test_same_input_has_deterministic_golden_contract() -> None:
         "action_confidence": "low",
         "reasons": list(left.confidence.reasons),
     }
-

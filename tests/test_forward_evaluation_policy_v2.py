@@ -107,4 +107,3 @@ def test_no_feedback_and_invalid_contracts_are_classified_without_accuracy_claim
     assert not no_feedback.counts_toward_accuracy
     assert not bad_input.counts_toward_accuracy
     assert not invalid_prediction.counts_toward_accuracy
-

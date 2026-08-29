@@ -110,4 +110,3 @@ def test_health_and_fengshui_advice_are_fail_closed() -> None:
     assert "医疗" in health.recommended_action
     assert "精确方位" not in fengshui.recommended_action
     assert "资料不足" in fengshui.recommended_action
-
