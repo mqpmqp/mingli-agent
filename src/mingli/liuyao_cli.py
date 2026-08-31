@@ -52,7 +52,8 @@ def _parser() -> argparse.ArgumentParser:
     settle.add_argument("--record", required=True, type=Path)
     settle.add_argument("--version-id", required=True)
     settle.add_argument("--outcome", required=True, choices=("hit", "miss", "partial", "indeterminate"))
-    settle.add_argument("--observed-at", required=True)
+    settle.add_argument("--occurred-at", help="成功标准实际成立时间；hit 省略时默认等于 observed-at")
+    settle.add_argument("--observed-at", required=True, help="取得并核验证据的时间")
     settle.add_argument("--source", required=True)
     settle.add_argument("--note", action="append", default=[])
 
@@ -103,6 +104,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     record,
                     args.version_id,
                     outcome=args.outcome,
+                    occurred_at=args.occurred_at,
                     observed_at=args.observed_at,
                     evidence_source=args.source,
                     notes=tuple(args.note),
