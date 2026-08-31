@@ -90,8 +90,11 @@ class LiuYaoCaseRecord:
                     raise LiuYaoError("INVALID_TRANSITION", "settlement.occurred_at 不能晚于 observed_at")
                 if _date_in_cast_timezone(self.settlement.occurred_at, self.cast.completed_at) > contract_deadline:
                     raise LiuYaoError("OUTSIDE_EVENT_WINDOW", "成功事件发生时间超过事件合同截止日")
-            elif _date_in_cast_timezone(self.settlement.observed_at, self.cast.completed_at) < contract_deadline:
-                raise LiuYaoError("PREMATURE_SETTLEMENT", "未到事件合同截止日，不能登记 miss/partial/indeterminate")
+            elif _date_in_cast_timezone(self.settlement.observed_at, self.cast.completed_at) <= contract_deadline:
+                raise LiuYaoError(
+                    "PREMATURE_SETTLEMENT",
+                    "事件合同截止日尚未完整结束，不能登记 miss/partial/indeterminate",
+                )
 
     @property
     def canonical_sha256(self) -> str:
@@ -272,8 +275,11 @@ def settle_prediction(
             raise LiuYaoError("INVALID_TRANSITION", "hit 结算必须记录成功事件发生时间")
         if _date_in_cast_timezone(settlement.occurred_at, record.cast.completed_at) > contract_deadline:
             raise LiuYaoError("OUTSIDE_EVENT_WINDOW", "成功事件发生时间超过事件合同截止日")
-    elif _date_in_cast_timezone(settlement.observed_at, record.cast.completed_at) < contract_deadline:
-        raise LiuYaoError("PREMATURE_SETTLEMENT", "未到事件合同截止日，不能登记 miss/partial/indeterminate")
+    elif _date_in_cast_timezone(settlement.observed_at, record.cast.completed_at) <= contract_deadline:
+        raise LiuYaoError(
+            "PREMATURE_SETTLEMENT",
+            "事件合同截止日尚未完整结束，不能登记 miss/partial/indeterminate",
+        )
     updated: list[PredictionVersion] = []
     found = False
     for version in record.predictions:
