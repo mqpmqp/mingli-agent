@@ -60,8 +60,10 @@ class PredictionVersion:
         if self.status == "invalid":
             object.__setattr__(self, "invalid_reason", _non_empty(self.invalid_reason, "invalid_reason"))
             object.__setattr__(self, "invalidated_at", _aware_datetime(self.invalidated_at, "invalidated_at"))
-            if datetime.fromisoformat(self.invalidated_at) < datetime.fromisoformat(self.created_at):
-                raise LiuYaoError("INVALID_TRANSITION", "invalidated_at 不能早于 created_at")
+            earliest = self.published_at or self.created_at
+            if datetime.fromisoformat(self.invalidated_at) < datetime.fromisoformat(earliest):
+                boundary = "published_at" if self.published_at is not None else "created_at"
+                raise LiuYaoError("INVALID_TRANSITION", f"invalidated_at 不能早于 {boundary}")
         elif self.invalid_reason is not None or self.invalidated_at is not None:
             raise LiuYaoError("INVALID_INPUT", "只有 invalid 版本可以填写 invalid_reason/invalidated_at")
 
