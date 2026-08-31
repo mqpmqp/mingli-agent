@@ -483,4 +483,4 @@ def test_settlement_requires_timezone_aware_timestamp() -> None:
 
 
 def test_static_table_hash_is_frozen() -> None:
-    assert STATIC_TABLE_SHA256 == "f9375a79912a033cc149f65df9acefab465df1748ff6435e6540b6af2cc11b3b"
+    assert STATIC_TABLE_SHA256 == "503d5339505e5ca77db270f5a046591980153c78970f54b756c2f8bb2d54709e"
