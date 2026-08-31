@@ -12,6 +12,14 @@ from .validation import LiuYaoError, LiuYaoInputConflictError, _aware_datetime, 
 
 _digest = digest
 
+
+def _date_in_cast_timezone(value: str, cast_completed_at: str) -> date:
+    cast_datetime = datetime.fromisoformat(cast_completed_at)
+    if cast_datetime.tzinfo is None:
+        raise RuntimeError("validated cast timestamp unexpectedly lacks timezone")
+    return datetime.fromisoformat(value).astimezone(cast_datetime.tzinfo).date()
+
+
 @dataclass(frozen=True, slots=True)
 class LiuYaoCaseRecord:
     cast: LiuYaoCastInput
@@ -39,13 +47,13 @@ class LiuYaoCaseRecord:
             created = datetime.fromisoformat(prediction.created_at)
             if created < cast_completed:
                 raise LiuYaoError("INVALID_TRANSITION", "预测版本 created_at 不能早于起卦完成时间")
-            if created.date() > contract_deadline:
+            if _date_in_cast_timezone(prediction.created_at, self.cast.completed_at) > contract_deadline:
                 raise LiuYaoError("INVALID_TRANSITION", "预测版本必须在事件合同截止日当天或之前创建")
             if prediction.published_at is not None:
                 published = datetime.fromisoformat(prediction.published_at)
                 if published < cast_completed:
                     raise LiuYaoError("INVALID_TRANSITION", "published_at 不能早于起卦完成时间")
-                if published.date() > contract_deadline:
+                if _date_in_cast_timezone(prediction.published_at, self.cast.completed_at) > contract_deadline:
                     raise LiuYaoError("INVALID_TRANSITION", "预测版本必须在事件合同截止日当天或之前发布")
         if self.current_version_id is not None:
             matches = [item for item in predictions if item.version_id == self.current_version_id]
@@ -69,8 +77,21 @@ class LiuYaoCaseRecord:
             if settled_version.published_at is None:
                 raise LiuYaoError("INVALID_TRANSITION", "settled 版本必须保留 published_at")
             observed = datetime.fromisoformat(self.settlement.observed_at)
-            if observed < datetime.fromisoformat(settled_version.published_at):
+            published = datetime.fromisoformat(settled_version.published_at)
+            if observed < published:
                 raise LiuYaoError("INVALID_TRANSITION", "settlement.observed_at 不能早于预测版本发布时间")
+            if self.settlement.outcome == "hit":
+                if self.settlement.occurred_at is None:
+                    raise LiuYaoError("INVALID_TRANSITION", "hit 结算必须记录成功事件发生时间")
+                occurred = datetime.fromisoformat(self.settlement.occurred_at)
+                if occurred < published:
+                    raise LiuYaoError("INVALID_TRANSITION", "settlement.occurred_at 不能早于预测版本发布时间")
+                if occurred > observed:
+                    raise LiuYaoError("INVALID_TRANSITION", "settlement.occurred_at 不能晚于 observed_at")
+                if _date_in_cast_timezone(self.settlement.occurred_at, self.cast.completed_at) > contract_deadline:
+                    raise LiuYaoError("OUTSIDE_EVENT_WINDOW", "成功事件发生时间超过事件合同截止日")
+            elif _date_in_cast_timezone(self.settlement.observed_at, self.cast.completed_at) < contract_deadline:
+                raise LiuYaoError("PREMATURE_SETTLEMENT", "未到事件合同截止日，不能登记 miss/partial/indeterminate")
 
     @property
     def canonical_sha256(self) -> str:
@@ -229,6 +250,7 @@ def settle_prediction(
     outcome: str,
     observed_at: str,
     evidence_source: str,
+    occurred_at: str | None = None,
     notes: Sequence[str] = (),
 ) -> LiuYaoCaseRecord:
     if record.settlement is not None:
@@ -239,11 +261,18 @@ def settle_prediction(
     settlement = SettlementRecord(
         version_id=target,
         outcome=outcome,
+        occurred_at=observed_at if outcome == "hit" and occurred_at is None else occurred_at,
         observed_at=observed_at,
         evidence_source=evidence_source,
         notes=tuple(notes),
     )
-    if outcome != "hit" and datetime.fromisoformat(settlement.observed_at).date() < date.fromisoformat(record.cast.event_contract.deadline):
+    contract_deadline = date.fromisoformat(record.cast.event_contract.deadline)
+    if outcome == "hit":
+        if settlement.occurred_at is None:
+            raise LiuYaoError("INVALID_TRANSITION", "hit 结算必须记录成功事件发生时间")
+        if _date_in_cast_timezone(settlement.occurred_at, record.cast.completed_at) > contract_deadline:
+            raise LiuYaoError("OUTSIDE_EVENT_WINDOW", "成功事件发生时间超过事件合同截止日")
+    elif _date_in_cast_timezone(settlement.observed_at, record.cast.completed_at) < contract_deadline:
         raise LiuYaoError("PREMATURE_SETTLEMENT", "未到事件合同截止日，不能登记 miss/partial/indeterminate")
     updated: list[PredictionVersion] = []
     found = False
