@@ -311,13 +311,32 @@ def test_prediction_registration_must_be_after_cast_and_before_deadline() -> Non
 
 
 def test_invalidation_cannot_predate_version_creation() -> None:
-    record = append_prediction(create_case_record(_cast()), _version())
-    with pytest.raises(LiuYaoError, match="invalidated_at 不能早于"):
+    record = append_prediction(create_case_record(_cast()), _version(status="draft"))
+    with pytest.raises(LiuYaoError, match="invalidated_at 不能早于 created_at"):
         invalidate_prediction(
             record,
             "V1",
             reason="测试",
             invalidated_at="2026-08-31T21:59:59+08:00",
+        )
+
+
+def test_invalidation_cannot_predate_publication() -> None:
+    published_later = PredictionVersion(
+        version_id="V1",
+        created_at="2026-08-31T22:00:00+08:00",
+        status="pending",
+        conclusion="待检验判断",
+        confidence="medium",
+        published_at="2026-08-31T22:05:00+08:00",
+    )
+    record = append_prediction(create_case_record(_cast()), published_later)
+    with pytest.raises(LiuYaoError, match="invalidated_at 不能早于 published_at"):
+        invalidate_prediction(
+            record,
+            "V1",
+            reason="测试",
+            invalidated_at="2026-08-31T22:02:00+08:00",
         )
 
 
