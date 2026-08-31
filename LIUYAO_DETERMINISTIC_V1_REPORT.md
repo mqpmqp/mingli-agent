@@ -16,7 +16,7 @@
   - 本卦、变卦、动爻、64 卦、八宫、宫五行、世应；
   - 京房纳甲固定表、六亲；
   - 调用方显式提供日柱时的六神与旬空；
-  - 输入、盘面、案例 canonical SHA-256 与静态表 SHA-256；
+  - 输入、盘面、案例 canonical SHA-256 与确定性表 SHA-256；
   - 同案输入/合同冲突门禁；
   - 事件合同、预测版本、作废与结算状态机。
 - `src/mingli/liuyao_cli.py`
@@ -25,9 +25,10 @@
   - 已知本卦/变卦结构；
   - 64 卦、八宫、世应、纳甲外部冻结夹具差分；
   - 4096 种六爻动静组合；
-  - 输入冲突、记录篡改、版本与结算状态机。
+  - 输入冲突、记录篡改、版本与结算状态机；
+  - 确定性表摘要冻结。
 - `tests/test_liuyao_temporal_integrity.py`
-  - 跨时区截止日、成功事件发生时间与取证时间的完整性回归。
+  - 跨时区截止日、截止日整日边界、成功事件发生时间与取证时间的完整性回归。
 - `tests/fixtures/liuyao_structure_oracle_v1.json`
   - 固定外部 commit/blob 的次级结构差分夹具。
 - `docs/liuyao/README.md`
@@ -53,10 +54,11 @@
 6. `draft` 与正式发布的 `pending` 分离；只有带 `published_at` 的 pending 版本进入前瞻结算口径。
 7. 预测创建和发布不得早于起卦完成时间，也不得晚于事件合同截止日。
 8. 所有截止日判断统一换算到起卦完成时间 `completed_at` 的时区，不能通过更换 UTC 偏移绕过。
-9. `hit` 必须区分成功标准实际成立时间 `occurred_at` 与证据核验时间 `observed_at`；事件发生不得早于预测发布、晚于取证或超过合同截止日。
-10. `miss`、`partial`、`indeterminate` 在合同截止日前禁止登记。
+9. 事件合同 `deadline` 包含截止日整日；`miss`、`partial`、`indeterminate` 最早只能在起卦时区的下一当地日期登记。
+10. `hit` 必须区分成功标准实际成立时间 `occurred_at` 与证据核验时间 `observed_at`；事件发生不得早于预测发布、晚于取证或超过合同截止日。
 11. 只有 current `pending` 版本可结算；结算记录 append-only，结算后禁止保留开放版本或重开案例。
 12. 日柱和月支不由本模块推算，避免引入未经独立验证的历法实现。
+13. `static_table_sha256` 覆盖爻值语义、卦表、八宫世应、纳甲、五行生克、六神和旬空等全部确定性排盘表。
 
 ## Audit findings fixed
 
@@ -66,45 +68,35 @@ PR 审查期间发现并修复以下真实问题：
 2. **截止日后事件误记为命中**：原结算只记录取证时间，无法证明目标事件在合同窗口内发生。现为 `hit` 增加 `occurred_at`，并验证其位于预测发布后、合同截止日前且不晚于 `observed_at`。
 3. **迟到证据语义不清**：现允许截止日后取得证据，但只在证据明确证明事件于截止日前发生时登记为 `hit`。
 4. **校验和边界表述过强**：文档明确 SHA-256 用于发现自洽性差异，不是数字签名；能修改全部内容并重算哈希的主体仍可生成另一份自洽记录。
+5. **截止日当天提前判负**：原实现允许在截止日 `00:00` 后登记 `miss/partial/indeterminate`，实际事件窗口尚未结束。现截止日整日均保持 pending，最早于次日登记负向结果。
+6. **静态摘要覆盖不完整**：原摘要未覆盖爻值语义、五行关系、六神和旬空等输出相关表。现统一纳入摘要，并补充表完整性启动校验。
 
-以上问题均增加专门回归测试。
+以上问题均有专门回归测试或冻结摘要测试。
 
-## Verification
+## Verification contract
 
-功能代码审计基线：
-
-```text
-78b953924ce93c68825d71864a734444709590eb
-```
-
-GitHub Actions：
+最终验收必须绑定 PR 当前 head，不接受历史 head 的绿色结果替代。最低验证集合：
 
 ```text
-Core Runtime Verification: 33432898276
-Mobile Offline Bazi PWA:   33432898280
+python -m compileall -q src tests
+python -m pytest -q -m "not benchmark and not real_case"
+python -m pytest -q -m benchmark
+python -m pytest -q -m real_case
+python -m build
+python -m mingli.liuyao_cli benchmark
 ```
 
-结果：
+仓库 GitHub Actions 还必须完成：
 
-| Verification | Result |
-| --- | --- |
-| Python compile | PASS |
-| Fast gate | PASS：444 passed，152 deselected，16 subtests passed |
-| Real-case gate | PASS：26 passed，570 deselected；隐私与打包边界通过 |
-| Benchmark gate | PASS：40 passed，556 deselected，15 subtests passed |
-| 六爻结构覆盖 | PASS：64 卦、八宫、世应、纳甲差分及 4096 种动静组合 |
-| 六爻时序完整性 | PASS：7 个跨时区/事件窗口新增回归用例纳入 fast gate |
-| Spec/rule validation | PASS：36 条规则 ID 唯一，状态未修改 |
-| Static benchmark | PASS：黄金案例 40/40，实战结构 24/24 |
-| Knowledge validation | PASS；导入/回滚 smoke 通过 |
-| Deterministic Bazi verification | PASS |
-| Phase 12-24 source/wheel parity | PASS；源代码与隔离 wheel 哈希一致 |
-| PEP 517 build/install | PASS；sdist、wheel、隔离安装通过 |
-| Patch whitespace | PASS：`git diff --check` |
-| Protected scope checks | PASS：`spec/`、`knowledge/` 无变更 |
-| PWA regression | PASS：89 个 Python 测试、11 个前端测试、浏览器 parity、Playwright E2E、离线升级与 artifact 发布通过 |
+- `Core Runtime Verification / fast_tests`；
+- `Core Runtime Verification / benchmark_tests`；
+- `Core Runtime Verification / real_case_tests`；
+- `Mobile Offline Bazi PWA / Verify offline mobile PWA`；
+- spec、knowledge 保护范围检查；
+- Python 构建与隔离 wheel 校验；
+- 前端单测、浏览器 parity、移动端 E2E 和离线 PWA 回归。
 
-完整 CI 仅出现一项非阻塞告警：Starlette TestClient 对现有 `httpx` 用法的弃用提示；与本次六爻变更无直接关系，未扩大范围处理。
+本报告不硬编码易失效的 workflow run ID 或中间 head SHA。最终 head、run ID、测试计数和结论应记录在 PR 对话或合并收据中，避免文档提交再次触发 CI 后造成“报告引用旧运行”的循环。
 
 外部结构夹具 SHA-256：
 
@@ -112,10 +104,10 @@ Mobile Offline Bazi PWA:   33432898280
 2d53b63751f7aba92abba68f881ed69cde2957fbd6c4b15dca78ecbf751775f8
 ```
 
-运行时静态表 SHA-256：
+运行时确定性表 SHA-256：
 
 ```text
-f9375a79912a033cc149f65df9acefab465df1748ff6435e6540b6af2cc11b3b
+503d5339505e5ca77db270f5a046591980153c78970f54b756c2f8bb2d54709e
 ```
 
 ## Known limits
@@ -129,7 +121,7 @@ f9375a79912a033cc149f65df9acefab465df1748ff6435e6540b6af2cc11b3b
 
 ## Release boundary
 
-本 PR 达到的是：
+本 PR 的目标状态是：
 
 ```text
 TECHNICAL_REVIEW_READY
