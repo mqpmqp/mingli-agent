@@ -21,6 +21,7 @@ api = ["mcp[cli]>=1.28,<2"]
 
 [project.scripts]
 mingli = "mingli.cli:main"
+mingli-liuyao = "mingli.liuyao_cli:main"
 mingli-phase8 = "mingli.phase8_cli:main"
 mingli-phase9 = "mingli.phase9_cli:main"
 mingli-phase10 = "mingli.phase10_cli:main"
