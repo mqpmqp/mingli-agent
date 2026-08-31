@@ -8,6 +8,7 @@ from typing import Any, Mapping, Sequence
 from .tables import CONFIDENCE_LEVELS, PREDICTION_STATUSES, PREDICTION_VALIDITY, SETTLEMENT_OUTCOMES
 from .validation import LiuYaoError, _aware_datetime, _non_empty, _reject_unknown, _string_tuple
 
+
 @dataclass(frozen=True, slots=True)
 class PredictionVersion:
     version_id: str
@@ -120,6 +121,7 @@ class SettlementRecord:
     outcome: str
     observed_at: str
     evidence_source: str
+    occurred_at: str | None = None
     notes: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -128,12 +130,19 @@ class SettlementRecord:
             raise LiuYaoError("INVALID_INPUT", f"outcome 必须是：{', '.join(sorted(SETTLEMENT_OUTCOMES))}")
         object.__setattr__(self, "observed_at", _aware_datetime(self.observed_at, "settlement.observed_at"))
         object.__setattr__(self, "evidence_source", _non_empty(self.evidence_source, "settlement.evidence_source"))
+        if self.outcome == "hit":
+            object.__setattr__(self, "occurred_at", _aware_datetime(self.occurred_at, "settlement.occurred_at"))
+            if datetime.fromisoformat(self.occurred_at) > datetime.fromisoformat(self.observed_at):
+                raise LiuYaoError("INVALID_TRANSITION", "settlement.occurred_at 不能晚于 observed_at")
+        elif self.occurred_at is not None:
+            raise LiuYaoError("INVALID_INPUT", "只有 hit 结算可以填写 settlement.occurred_at")
         object.__setattr__(self, "notes", _string_tuple(self.notes, "settlement.notes"))
 
     def to_dict(self) -> dict[str, object]:
         return {
             "version_id": self.version_id,
             "outcome": self.outcome,
+            "occurred_at": self.occurred_at,
             "observed_at": self.observed_at,
             "evidence_source": self.evidence_source,
             "notes": list(self.notes),
@@ -141,7 +150,7 @@ class SettlementRecord:
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "SettlementRecord":
-        allowed = {"version_id", "outcome", "observed_at", "evidence_source", "notes"}
+        allowed = {"version_id", "outcome", "occurred_at", "observed_at", "evidence_source", "notes"}
         _reject_unknown(value, allowed, "settlement")
         required = {"version_id", "outcome", "observed_at", "evidence_source"}
         missing = required - set(value)
@@ -150,6 +159,7 @@ class SettlementRecord:
         return cls(
             version_id=value["version_id"],
             outcome=value["outcome"],
+            occurred_at=value.get("occurred_at"),
             observed_at=value["observed_at"],
             evidence_source=value["evidence_source"],
             notes=_string_tuple(value.get("notes", ()), "settlement.notes"),
