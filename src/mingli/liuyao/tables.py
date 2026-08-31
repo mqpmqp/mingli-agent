@@ -119,6 +119,8 @@ SEXAGENARY_CYCLE = tuple(STEMS[index % 10] + BRANCHES[index % 12] for index in r
 
 
 def _validate_static_tables() -> None:
+    if set(_LINE_TYPES) != {6, 7, 8, 9} or set(_ORIGINAL_YANG) != {6, 7, 8, 9}:
+        raise RuntimeError("line value tables must cover 6, 7, 8 and 9")
     if len(TRIGRAM_BITS) != 8 or len(set(TRIGRAM_BITS.values())) != 8:
         raise RuntimeError("trigram table must contain eight unique entries")
     if len(HEXAGRAM_NAMES) != 64 or len(set(HEXAGRAM_NAMES.values())) != 64:
@@ -126,11 +128,27 @@ def _validate_static_tables() -> None:
     palace_names = [name for sequence in PALACE_SEQUENCES.values() for name in sequence]
     if len(palace_names) != 64 or set(palace_names) != set(HEXAGRAM_NAMES.values()):
         raise RuntimeError("eight-palace table must cover each hexagram exactly once")
+    if len(PALACE_STAGES) != 8 or len(SHI_YING_BY_STAGE) != 8:
+        raise RuntimeError("palace stages and shi-ying table must contain eight entries")
+    if set(PALACE_ELEMENTS) != set(TRIGRAM_BITS):
+        raise RuntimeError("palace element table must cover all palaces")
     if set(NAJIA_TABLE) != set(TRIGRAM_BITS):
         raise RuntimeError("najia table must cover all trigrams")
     for trigram, sections in NAJIA_TABLE.items():
         if set(sections) != {"inner", "outer"} or any(len(entries) != 3 for entries in sections.values()):
             raise RuntimeError(f"invalid najia table for {trigram}")
+        if any(stem not in STEMS or branch not in BRANCHES for entries in sections.values() for stem, branch in entries):
+            raise RuntimeError(f"invalid najia stem or branch for {trigram}")
+    if set(BRANCH_ELEMENTS) != set(BRANCHES):
+        raise RuntimeError("branch element table must cover all branches")
+    if set(GENERATES) != set(ELEMENTS) or set(CONTROLS) != set(ELEMENTS):
+        raise RuntimeError("five-element relation tables must cover all elements")
+    if len(SIX_SPIRIT_CYCLE) != 6 or set(SIX_SPIRIT_START) != set(STEMS):
+        raise RuntimeError("six-spirit tables are incomplete")
+    if len(VOID_BRANCHES_BY_XUN) != 6 or any(len(pair) != 2 for pair in VOID_BRANCHES_BY_XUN):
+        raise RuntimeError("void branch table must contain six pairs")
+    if len(SEXAGENARY_CYCLE) != 60 or len(set(SEXAGENARY_CYCLE)) != 60:
+        raise RuntimeError("sexagenary cycle must contain 60 unique entries")
 
 
 _validate_static_tables()
@@ -140,8 +158,11 @@ def digest(value: object) -> str:
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
+
 STATIC_TABLE_SHA256 = digest(
     {
+        "line_types": {str(value): name for value, name in sorted(_LINE_TYPES.items())},
+        "original_yang": {str(value): int(is_yang) for value, is_yang in sorted(_ORIGINAL_YANG.items())},
         "trigram_bits": {name: [int(bit) for bit in bits] for name, bits in sorted(TRIGRAM_BITS.items())},
         "hexagrams": [
             {"upper": upper, "lower": lower, "name": name}
@@ -149,6 +170,7 @@ STATIC_TABLE_SHA256 = digest(
         ],
         "palaces": {name: list(sequence) for name, sequence in sorted(PALACE_SEQUENCES.items())},
         "palace_elements": dict(sorted(PALACE_ELEMENTS.items())),
+        "palace_stages": list(PALACE_STAGES),
         "shi_ying_by_stage": [list(value) for value in SHI_YING_BY_STAGE],
         "najia": {
             trigram: {
@@ -157,5 +179,12 @@ STATIC_TABLE_SHA256 = digest(
             }
             for trigram, sections in sorted(NAJIA_TABLE.items())
         },
+        "branch_elements": dict(sorted(BRANCH_ELEMENTS.items())),
+        "generates": dict(sorted(GENERATES.items())),
+        "controls": dict(sorted(CONTROLS.items())),
+        "six_spirit_cycle": list(SIX_SPIRIT_CYCLE),
+        "six_spirit_start": dict(sorted(SIX_SPIRIT_START.items())),
+        "void_branches_by_xun": [list(value) for value in VOID_BRANCHES_BY_XUN],
+        "sexagenary_cycle": list(SEXAGENARY_CYCLE),
     }
 )
