@@ -72,6 +72,36 @@ def test_negative_settlement_cannot_use_foreign_offset_to_bypass_deadline() -> N
     assert raised.value.code == "PREMATURE_SETTLEMENT"
 
 
+@pytest.mark.parametrize("outcome", ("miss", "partial", "indeterminate"))
+def test_non_hit_is_blocked_through_entire_deadline_day(outcome: str) -> None:
+    record = _record()
+
+    with pytest.raises(LiuYaoError) as raised:
+        settle_prediction(
+            record,
+            "V1",
+            outcome=outcome,
+            observed_at="2026-12-31T23:59:59+08:00",
+            evidence_source="测试证据",
+        )
+
+    assert raised.value.code == "PREMATURE_SETTLEMENT"
+
+
+def test_non_hit_can_settle_after_deadline_day() -> None:
+    settled = settle_prediction(
+        _record(),
+        "V1",
+        outcome="miss",
+        observed_at="2027-01-01T00:00:00+08:00",
+        evidence_source="正式记录",
+    )
+
+    assert settled.settlement is not None
+    assert settled.settlement.outcome == "miss"
+    assert settled.settlement.observed_at == "2027-01-01T00:00:00+08:00"
+
+
 def test_hit_after_contract_deadline_is_not_counted() -> None:
     record = _record()
 
