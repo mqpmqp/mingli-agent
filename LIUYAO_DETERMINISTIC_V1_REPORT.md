@@ -83,6 +83,7 @@ python -m pip wheel . --no-deps --no-build-isolation -w dist
 | isolated fast-gate compatibility | 0 | 28 passed，1 benchmark test deselected |
 | isolated benchmark-gate compatibility | 0 | 1 passed，28 tests deselected |
 | PEP 517 wheel via `pip wheel` | 0 | PASS；wheel 内容检查、隔离安装、入口命令与排盘 smoke 均通过 |
+| reconstructed patch `git diff --check` | 0 | PASS；14 个变更文件，1995 行新增，无空白错误 |
 
 外部结构夹具 SHA-256：`2d53b63751f7aba92abba68f881ed69cde2957fbd6c4b15dca78ecbf751775f8`。运行时静态表 SHA-256：`f9375a79912a033cc149f65df9acefab465df1748ff6435e6540b6af2cc11b3b`。
 本次最小集成构建 wheel SHA-256：`426bcee11277cdd72e0e05e739260669fd09b502b738bbe66ae2b2265e2caf0c`；该值是本次环境收据，不作为跨环境固定常量。
