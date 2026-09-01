@@ -4,6 +4,19 @@ from .case_record import (
     invalidate_prediction, register_cast, settle_prediction,
 )
 from .chart import build_liuyao_chart
+from .interpretation import (
+    INTERPRETATION_METHOD_ID,
+    INTERPRETATION_STATUS,
+    PRODUCTION_ALLOWED,
+    InterpretationConflict,
+    InterpretationEvidence,
+    InterpretationRequest,
+    InterpretationResult,
+    UseActor,
+    UseLineSelection,
+    interpret_case,
+)
+from .interpretation_benchmark import benchmark_liuyao_interpretation
 from .models import EventContract, HexagramIdentity, LiuYaoCastInput, LiuYaoChart, LiuYaoLine
 from .prediction import PredictionVersion, SettlementRecord
 from .tables import (
@@ -15,12 +28,16 @@ from .validation import LiuYaoError, LiuYaoInputConflictError, normalize_line_va
 
 __all__ = [
     "COIN_CONVENTION", "EventContract", "HEXAGRAM_NAMES", "HexagramIdentity",
-    "INPUT_ORDER", "LiuYaoCaseRecord", "LiuYaoCastInput", "LiuYaoChart",
+    "INPUT_ORDER", "INTERPRETATION_METHOD_ID", "INTERPRETATION_STATUS",
+    "InterpretationConflict", "InterpretationEvidence", "InterpretationRequest",
+    "InterpretationResult", "LiuYaoCaseRecord", "LiuYaoCastInput", "LiuYaoChart",
     "LiuYaoError", "LiuYaoInputConflictError", "LiuYaoLine", "METHOD_ID",
     "NAJIA_TABLE", "PALACE_ELEMENTS", "PALACE_SEQUENCES", "PREDICTION_VALIDITY",
-    "PredictionVersion", "STATIC_TABLE_SHA256", "SettlementRecord", "TRIGRAM_BITS",
+    "PRODUCTION_ALLOWED", "PredictionVersion", "STATIC_TABLE_SHA256",
+    "SettlementRecord", "TRIGRAM_BITS", "UseActor", "UseLineSelection",
     "activate_prediction", "append_prediction", "benchmark_liuyao",
-    "build_liuyao_chart", "create_case_record", "invalidate_prediction",
+    "benchmark_liuyao_interpretation", "build_liuyao_chart",
+    "create_case_record", "interpret_case", "invalidate_prediction",
     "normalize_line_value", "normalize_line_values", "register_cast",
     "settle_prediction",
 ]
