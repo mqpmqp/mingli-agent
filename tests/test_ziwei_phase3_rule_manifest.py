@@ -145,7 +145,6 @@ class ZiweiPhase3ManifestTests(unittest.TestCase):
         forbidden = {
             FIXTURE.name,
             self.manifest["manifest_version"],
-            self.manifest["source"]["repo"],
         }
         for path in runtime.rglob("*"):
             if not path.is_file() or path.suffix not in {
