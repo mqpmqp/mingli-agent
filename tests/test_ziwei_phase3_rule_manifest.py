@@ -3,13 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-import re
 import unittest
 
 
-FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ziwei_phase3_rule_manifest_v0.1.json"
+FIXTURE = Path(__file__).parent / "fixtures" / "ziwei_phase3_rule_manifest_v0.3.json"
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_IDS = [f"ZW-PAT-{n:03d}" for n in range(1, 42)]
+CASE_CODES = ("POS", "NEG", "BND", "BRK", "SUP")
 EXPECTED_COUNTS = {
     "MINOR_FIX": 13,
     "MAJOR_REWRITE": 24,
@@ -17,15 +16,9 @@ EXPECTED_COUNTS = {
     "HEURISTIC_ONLY": 1,
     "DIRECT_PASS": 0,
 }
+EXPECTED_IDS = [f"ZW-PAT-{number:03d}" for number in range(1, 42)]
 QUARANTINE = {"ZW-PAT-028", "ZW-PAT-029", "ZW-PAT-030"}
 HEURISTIC = {"ZW-PAT-037"}
-EDGES = {
-    ("ZW-PAT-001", "ZW-PAT-017"),
-    ("ZW-PAT-001", "ZW-PAT-039"),
-    ("ZW-PAT-025", "ZW-PAT-024"),
-}
-CASE_CODES = {"POS", "NEG", "BND", "BRK", "SUP"}
-SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def canonical(value: object) -> bytes:
@@ -34,38 +27,105 @@ def canonical(value: object) -> bytes:
     ).encode("utf-8")
 
 
-class ZiweiPhase3ManifestTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.manifest = json.loads(FIXTURE.read_text(encoding="utf-8"))
-        cls.rules = cls.manifest["rules"]
-        cls.by_id = {item["id"]: item for item in cls.rules}
+MANIFEST = json.loads(FIXTURE.read_text(encoding="utf-8"))
+COLUMNS = MANIFEST["columns"]
+RULES = [dict(zip(COLUMNS, row, strict=True)) for row in MANIFEST["rules"]]
+BY_ID = {rule["id"]: rule for rule in RULES}
 
+
+def positive_facts(rule: dict[str, object]) -> set[str]:
+    facts = set(rule["required_all"])
+    for alternatives in rule["required_any_groups"]:
+        facts.add(alternatives[0])
+    return facts
+
+
+def evaluate(rule: dict[str, object], facts: set[str]) -> dict[str, object]:
+    matched = set(rule["required_all"]).issubset(facts)
+    if matched:
+        matched = all(
+            any(alternative in facts for alternative in alternatives)
+            for alternatives in rule["required_any_groups"]
+        )
+    if matched and set(rule["forbidden_any"]).intersection(facts):
+        matched = False
+    breaking = rule["breaking"] in facts
+    return {
+        "matched": matched,
+        "broken": matched and breaking,
+        "output_allowed": False,
+        "promotion_allowed": False,
+    }
+
+
+def negative_facts(rule: dict[str, object]) -> set[str]:
+    facts = positive_facts(rule)
+    if rule["required_all"]:
+        facts.remove(rule["required_all"][-1])
+    else:
+        facts.difference_update(rule["required_any_groups"][0])
+    return facts
+
+
+def boundary_facts(rule: dict[str, object]) -> set[str]:
+    facts = positive_facts(rule)
+    facts.discard(rule["boundary_drop"])
+    facts.add(rule["boundary_add"])
+    return facts
+
+
+def apply_suppression(matched: set[str]) -> set[str]:
+    remaining = set(matched)
+    for rule_id in sorted(matched):
+        if rule_id in remaining:
+            remaining.difference_update(BY_ID[rule_id]["suppresses"])
+    return remaining
+
+
+def execute_case(rule: dict[str, object], code: str) -> None:
+    if code == "POS":
+        result = evaluate(rule, positive_facts(rule))
+        assert result == {
+            "matched": True,
+            "broken": False,
+            "output_allowed": False,
+            "promotion_allowed": False,
+        }
+    elif code == "NEG":
+        assert evaluate(rule, negative_facts(rule))["matched"] is False
+    elif code == "BND":
+        facts = boundary_facts(rule)
+        assert facts != negative_facts(rule)
+        assert evaluate(rule, facts)["matched"] is False
+    elif code == "BRK":
+        facts = positive_facts(rule) | {rule["breaking"]}
+        result = evaluate(rule, facts)
+        assert result["matched"] is True
+        assert result["broken"] is True
+        assert result["output_allowed"] is False
+        assert result["promotion_allowed"] is False
+    elif code == "SUP":
+        matched = {rule["id"], *rule["suppresses"]}
+        assert apply_suppression(matched) == {rule["id"]}
+    else:
+        raise AssertionError(f"unknown case code: {code}")
+
+
+class ZiweiPhase3ManifestContractTests(unittest.TestCase):
     def test_provenance_is_frozen(self) -> None:
+        self.assertEqual(MANIFEST["v"], "ziwei-external-pattern-audit-phase3@0.3")
+        self.assertEqual(MANIFEST["base"], "2b4282dc803ed9fb78f2152eadb0bbf673bea54c")
+        upstream = MANIFEST["upstream"]
+        self.assertEqual(upstream["repo"], "Renhuai123/ziwei-doushu")
+        self.assertEqual(upstream["commit"], "88194a404242bfe5c6d5cc512e4117e3e245cdd5")
+        self.assertEqual(upstream["blob"], "532f90a65dfeee330bcc9214c2462db6aa0f954e")
         self.assertEqual(
-            self.manifest["manifest_version"],
-            "ziwei-external-pattern-audit-phase3@0.1",
-        )
-        self.assertEqual(
-            self.manifest["base_commit"],
-            "2b4282dc803ed9fb78f2152eadb0bbf673bea54c",
-        )
-        source = self.manifest["source"]
-        self.assertEqual(source["repo"], "Renhuai123/ziwei-doushu")
-        self.assertEqual(
-            source["commit"], "88194a404242bfe5c6d5cc512e4117e3e245cdd5"
-        )
-        self.assertEqual(
-            source["patterns_blob"],
-            "532f90a65dfeee330bcc9214c2462db6aa0f954e",
-        )
-        self.assertEqual(
-            source["phase2_json_sha256"],
+            upstream["phase2_json_sha256"],
             "d1673012cab6ded85b97cbdd8f58ed815d5832c1582ac26dd045e58e23f7d7f0",
         )
 
-    def test_isolation_blocks_all_import_paths(self) -> None:
-        isolation = self.manifest["isolation"]
+    def test_isolation_blocks_import_and_promotion(self) -> None:
+        isolation = MANIFEST["isolation"]
         self.assertEqual(isolation["path"], "tests/fixtures")
         self.assertEqual(isolation["runtime"], "blocked")
         self.assertFalse(isolation["formal_knowledge"])
@@ -73,87 +133,108 @@ class ZiweiPhase3ManifestTests(unittest.TestCase):
         self.assertEqual(isolation["training"], "blocked")
         self.assertEqual(isolation["synthetic"], "regression_only")
         self.assertEqual(isolation["prediction"], "not_evaluated")
-        self.assertEqual(self.manifest["runtime_rules_added"], 0)
-        self.assertEqual(self.manifest["formal_knowledge_records_added"], 0)
-        self.assertEqual(self.manifest["behavioral_rule_tests_implemented"], 0)
+        self.assertEqual(MANIFEST["runtime_rules_added"], 0)
+        self.assertEqual(MANIFEST["formal_knowledge_records_added"], 0)
+        self.assertEqual(MANIFEST["engine_integration_tests_implemented"], 0)
+        self.assertEqual(MANIFEST["defaults"]["runtime"], "not_imported")
+        self.assertNotEqual(MANIFEST["defaults"]["state"], "verified")
+
+    def test_validation_scope_is_explicitly_limited(self) -> None:
+        limits = MANIFEST["limits"]
+        self.assertTrue(limits["declarative_fact_contract"])
+        self.assertEqual(limits["valid_full_chart_cases"], 0)
+        self.assertFalse(limits["production_evaluator_integration"])
+        self.assertEqual(limits["doctrine_verified_rules"], 0)
+        self.assertEqual(limits["real_case_outcomes"], 0)
+        self.assertIn("does not validate divination accuracy", limits["claim"])
 
     def test_inventory_is_complete_unique_and_counted(self) -> None:
-        ids = [item["id"] for item in self.rules]
+        ids = [rule["id"] for rule in RULES]
         self.assertEqual(ids, EXPECTED_IDS)
         self.assertEqual(len(ids), len(set(ids)))
         counts = {key: 0 for key in EXPECTED_COUNTS}
-        for item in self.rules:
-            counts[item["decision"]] += 1
+        for rule in RULES:
+            counts[rule["decision"]] += 1
         self.assertEqual(counts, EXPECTED_COUNTS)
+        self.assertEqual(MANIFEST["counts"], EXPECTED_COUNTS)
 
-    def test_every_rule_is_non_runtime_and_non_verified(self) -> None:
-        for item in self.rules:
-            self.assertEqual(item["runtime"], "not_imported")
-            self.assertNotEqual(item["state"], "verified")
-            self.assertIn(item["output"], {"blocked", "blocked_pending_validation"})
-            self.assertRegex(item["record_sha256"], SHA256)
+    def test_predicates_are_executable(self) -> None:
+        for rule in RULES:
+            self.assertTrue(rule["required_all"] or rule["required_any_groups"])
+            self.assertTrue(rule["breaking"])
+            self.assertTrue(rule["boundary_drop"])
+            self.assertTrue(rule["boundary_add"])
+            self.assertTrue(all(group for group in rule["required_any_groups"]))
 
     def test_quarantine_and_heuristic_boundaries_are_exact(self) -> None:
-        quarantined = {
-            item["id"] for item in self.rules if item["state"] == "quarantined"
-        }
-        heuristic = {
-            item["id"] for item in self.rules if item["kind"] == "heuristic"
-        }
+        quarantined = {r["id"] for r in RULES if r["decision"] == "QUARANTINE"}
+        heuristic = {r["id"] for r in RULES if r["decision"] == "HEURISTIC_ONLY"}
         self.assertEqual(quarantined, QUARANTINE)
         self.assertEqual(heuristic, HEURISTIC)
-        for rule_id in QUARANTINE:
-            item = self.by_id[rule_id]
-            self.assertEqual(item["decision"], "QUARANTINE")
-            self.assertEqual(item["output"], "blocked")
-        heuristic_item = self.by_id["ZW-PAT-037"]
-        self.assertEqual(heuristic_item["decision"], "HEURISTIC_ONLY")
-        self.assertEqual(heuristic_item["source"], "low")
-        self.assertEqual(heuristic_item["state"], "draft")
+        self.assertTrue(all(BY_ID[r]["scope"] == "research_only" for r in QUARANTINE))
+        self.assertEqual(BY_ID["ZW-PAT-037"]["kind"], "derived_heuristic")
 
-    def test_five_case_classes_expand_to_205_planned_cases(self) -> None:
-        self.assertEqual(set(self.manifest["case_classes"]), CASE_CODES)
-        generated = {
-            f"{item['id']}-{code}-001"
-            for item in self.rules
-            for code in CASE_CODES
-        }
-        self.assertEqual(len(generated), 205)
-        self.assertEqual(
-            self.manifest["case_id_pattern"],
-            "{rule_id}-{POS|NEG|BND|BRK|SUP}-001",
-        )
+    def test_case_matrix_declares_205_executable_cases(self) -> None:
+        self.assertEqual(tuple(MANIFEST["case_codes"]), CASE_CODES)
+        self.assertEqual(MANIFEST["case_count"], 205)
+        self.assertEqual(MANIFEST["behavioral_rule_tests_implemented"], 205)
+        self.assertEqual(len(RULES) * len(CASE_CODES), 205)
 
     def test_rules_digest_is_reproducible(self) -> None:
-        expected = "sha256:" + hashlib.sha256(canonical(self.rules)).hexdigest()
-        self.assertEqual(self.manifest["rules_sha256"], expected)
+        expected = "sha256:" + hashlib.sha256(canonical(MANIFEST["rules"])).hexdigest()
+        self.assertEqual(MANIFEST["rules_sha256"], expected)
 
-    def test_suppression_edges_are_valid(self) -> None:
-        edges = {tuple(edge) for edge in self.manifest["suppression_edges"]}
-        self.assertEqual(edges, EDGES)
-        for parent, child in edges:
-            self.assertIn(parent, self.by_id)
-            self.assertIn(child, self.by_id)
-            self.assertNotEqual(parent, child)
+    def test_suppression_graph_is_valid_and_acyclic(self) -> None:
+        graph = {r["id"]: set(r["suppresses"]) for r in RULES}
+        for parent, children in graph.items():
+            self.assertNotIn(parent, children)
+            self.assertTrue(children.issubset(BY_ID))
+        visiting: set[str] = set()
+        visited: set[str] = set()
+
+        def visit(node: str) -> None:
+            if node in visited:
+                return
+            self.assertNotIn(node, visiting, f"suppression cycle at {node}")
+            visiting.add(node)
+            for child in graph[node]:
+                visit(child)
+            visiting.remove(node)
+            visited.add(node)
+
+        for node in graph:
+            visit(node)
 
     def test_fixture_is_not_referenced_by_runtime_files(self) -> None:
-        self.assertEqual(FIXTURE.parent.name, "fixtures")
-        self.assertEqual(FIXTURE.parent.parent.name, "tests")
         runtime = ROOT / "src" / "mingli"
         if not runtime.exists():
             return
-        forbidden = {
-            FIXTURE.name,
-            self.manifest["manifest_version"],
-        }
         for path in runtime.rglob("*"):
-            if not path.is_file() or path.suffix not in {
-                ".py", ".json", ".toml", ".yaml", ".yml"
-            }:
+            if not path.is_file() or path.suffix not in {".py", ".json", ".toml", ".yaml", ".yml"}:
                 continue
             text = path.read_text(encoding="utf-8")
-            for token in forbidden:
-                self.assertNotIn(token, text, f"{token!r} leaked into {path}")
+            self.assertNotIn(FIXTURE.name, text)
+            self.assertNotIn(MANIFEST["v"], text)
+
+
+class ZiweiPhase3DeclarativeCases(unittest.TestCase):
+    """Generated test-only cases; no production evaluator or knowledge import."""
+
+
+def _install_case(rule: dict[str, object], code: str) -> None:
+    def test_case(self: unittest.TestCase) -> None:
+        with self.subTest(case_id=f"{rule['id']}-{code}-001"):
+            execute_case(rule, code)
+
+    name = f"test_{rule['id'].lower().replace('-', '_')}_{code.lower()}"
+    test_case.__name__ = name
+    test_case.__qualname__ = f"ZiweiPhase3DeclarativeCases.{name}"
+    setattr(ZiweiPhase3DeclarativeCases, name, test_case)
+
+
+for _rule in RULES:
+    for _code in CASE_CODES:
+        _install_case(_rule, _code)
 
 
 if __name__ == "__main__":
