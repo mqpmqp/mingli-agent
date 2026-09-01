@@ -43,6 +43,14 @@ class LiuYaoCaseRecord:
         object.__setattr__(self, "predictions", predictions)
         cast_completed = datetime.fromisoformat(self.cast.completed_at)
         contract_deadline = date.fromisoformat(self.cast.event_contract.deadline)
+        latest_invalidated = max(
+            (
+                datetime.fromisoformat(prediction.invalidated_at)
+                for prediction in predictions
+                if prediction.invalidated_at is not None
+            ),
+            default=None,
+        )
         for prediction in predictions:
             created = datetime.fromisoformat(prediction.created_at)
             if created < cast_completed:
@@ -51,6 +59,15 @@ class LiuYaoCaseRecord:
                 raise LiuYaoError("INVALID_TRANSITION", "预测版本必须在事件合同截止日当天或之前创建")
             if prediction.published_at is not None:
                 published = datetime.fromisoformat(prediction.published_at)
+                if (
+                    prediction.status in {"pending", "settled"}
+                    and latest_invalidated is not None
+                    and published < latest_invalidated
+                ):
+                    raise LiuYaoError(
+                        "INVALID_TRANSITION",
+                        "published_at 不能早于既有版本的 invalidated_at",
+                    )
                 if published < cast_completed:
                     raise LiuYaoError("INVALID_TRANSITION", "published_at 不能早于起卦完成时间")
                 if _date_in_cast_timezone(prediction.published_at, self.cast.completed_at) > contract_deadline:

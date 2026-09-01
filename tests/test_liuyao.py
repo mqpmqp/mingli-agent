@@ -48,14 +48,19 @@ def _cast(case_id: str = "CASE-1", lines: tuple[int, ...] = (6, 7, 7, 8, 7, 7), 
     return LiuYaoCastInput(**values)  # type: ignore[arg-type]
 
 
-def _version(version_id: str = "V1", status: str = "pending") -> PredictionVersion:
+def _version(
+    version_id: str = "V1",
+    status: str = "pending",
+    *,
+    created_at: str = "2026-08-31T22:00:00+08:00",
+) -> PredictionVersion:
     return PredictionVersion(
         version_id=version_id,
-        created_at="2026-08-31T22:00:00+08:00",
+        created_at=created_at,
         status=status,
         conclusion="保留机会，等待合同截止后结算",
         confidence="medium",
-        published_at="2026-08-31T22:00:00+08:00" if status == "pending" else None,
+        published_at=created_at if status == "pending" else None,
         probability_range=(50, 65),
         time_windows=("2026-09",),
         conditions=("实际参加该批次",),
@@ -138,7 +143,7 @@ def test_contract_change_blocks_same_case_id() -> None:
 def test_prediction_correction_preserves_invalid_history() -> None:
     record = append_prediction(create_case_record(_cast()), _version("V1"))
     record = invalidate_prediction(record, "V1", reason="纳甲表错误", invalidated_at="2026-09-01T08:00:00+08:00")
-    record = append_prediction(record, _version("V2"))
+    record = append_prediction(record, _version("V2", created_at="2026-09-01T08:01:00+08:00"))
 
     assert [version.status for version in record.predictions] == ["invalid", "pending"]
     assert record.predictions[0].invalid_reason == "纳甲表错误"

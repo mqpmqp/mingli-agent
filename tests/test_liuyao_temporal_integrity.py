@@ -10,8 +10,10 @@ from mingli.liuyao import (
     LiuYaoCastInput,
     LiuYaoError,
     PredictionVersion,
+    activate_prediction,
     append_prediction,
     create_case_record,
+    invalidate_prediction,
     settle_prediction,
 )
 from mingli.liuyao_cli import main
@@ -40,6 +42,74 @@ def _record():
         published_at="2026-09-01T08:00:00+08:00",
     )
     return append_prediction(create_case_record(cast), version)
+
+
+def _replacement(*, status: str, published_at: str | None = None) -> PredictionVersion:
+    return PredictionVersion(
+        version_id="V2",
+        created_at="2026-09-01T08:30:00+08:00",
+        status=status,
+        conclusion="替代旧版本，等待截止日结算",
+        confidence="medium",
+        published_at=published_at,
+    )
+
+
+def _invalidated_record():
+    return invalidate_prediction(
+        _record(),
+        "V1",
+        reason="旧版本依据错误",
+        invalidated_at="2026-09-01T09:00:00+08:00",
+    )
+
+
+def test_replacement_publication_cannot_predate_prior_invalidation() -> None:
+    replacement = _replacement(status="pending", published_at="2026-09-01T08:30:00+08:00")
+
+    with pytest.raises(LiuYaoError, match="published_at 不能早于既有版本的 invalidated_at") as raised:
+        append_prediction(_invalidated_record(), replacement)
+
+    assert raised.value.code == "INVALID_TRANSITION"
+
+
+def test_existing_draft_activation_cannot_backdate_prior_invalidation() -> None:
+    record = append_prediction(_record(), _replacement(status="draft"), make_current=False)
+    record = invalidate_prediction(
+        record,
+        "V1",
+        reason="旧版本依据错误",
+        invalidated_at="2026-09-01T09:00:00+08:00",
+    )
+
+    with pytest.raises(LiuYaoError, match="published_at 不能早于既有版本的 invalidated_at") as raised:
+        activate_prediction(record, "V2", published_at="2026-09-01T08:30:00+08:00")
+
+    assert raised.value.code == "INVALID_TRANSITION"
+
+
+def test_replacement_publication_may_equal_prior_invalidation() -> None:
+    replacement = _replacement(status="pending", published_at="2026-09-01T09:00:00+08:00")
+
+    updated = append_prediction(_invalidated_record(), replacement)
+
+    assert updated.current_version_id == "V2"
+    assert updated.predictions[-1].published_at == "2026-09-01T09:00:00+08:00"
+
+
+def test_case_mapping_cannot_bypass_replacement_publication_barrier() -> None:
+    record = _invalidated_record()
+    payload = record.to_dict()
+    payload.pop("canonical_sha256")
+    payload["predictions"].append(
+        _replacement(status="pending", published_at="2026-09-01T08:30:00+08:00").to_dict()
+    )
+    payload["current_version_id"] = "V2"
+
+    with pytest.raises(LiuYaoError, match="published_at 不能早于既有版本的 invalidated_at") as raised:
+        type(record).from_mapping(payload)
+
+    assert raised.value.code == "INVALID_TRANSITION"
 
 
 def test_prediction_deadline_is_evaluated_in_cast_timezone() -> None:
