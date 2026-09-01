@@ -32,18 +32,18 @@ jobs:
           test -f .phase3/trigger || exit 0
           test "$(cat .phase3/trigger)" = "APPLY_LIUYAO_PHASE3_V1"
 
-          echo "b369506663dcf6a92b2a7e306635163e50325753903d84ff05bb25c2930b9526  .phase3/payload.part00" | sha256sum -c -
-          echo "e32cc33709723feac2c31a0dc7529478f1c3ab9e2785ac39443c2c6f45591893  .phase3/payload.part01" | sha256sum -c -
+          echo "2c5116afc58665182b8c8e5bdf535525e54ab8ae7a6c375659c362c5bbbfefce  .phase3/payload.part00" | sha256sum -c -
+          echo "5743536ba4fcdd4fc1d5b4e13f397d5746bc053f6a7085a91837ee4d228a99f4  .phase3/payload.part01" | sha256sum -c -
           echo "116105e8ca3e4008aecd7400482780f0d2184e54c1996e55c18c19a427ad4f70  .phase3/payload.part02a" | sha256sum -c -
           echo "160f4f48dcf809429dd88b1d39b08620e9187a6935b150db0eb6301f9d19060d  .phase3/payload.part02b" | sha256sum -c -
           echo "3ce5958955088e7902acc68b6e3b4db31cce46ab855cf52b3ae9414c1853f356  .phase3/payload.part02c" | sha256sum -c -
           echo "4f2f01e193e8ec32667bdb9231dc32c85bf62e87a710f1ba9563a8a15cc608ef  .phase3/payload.part02d" | sha256sum -c -
-          echo "c775a2958f8f5dde789423124a345c2706a651029014294d949e75469584ed37  .phase3/payload.part03" | sha256sum -c -
+          echo "a6b540d078bf7c10797fcbdd4b39c07684c9c5b1c490d67d4000f0a7bd373dd9  .phase3/payload.part03" | sha256sum -c -
 
           cat .phase3/payload.part* > /tmp/phase3-payload.b64
-          echo "b657548b161f2f52cedf8d36662749e431ba7121188083f8a187a8180697df66  /tmp/phase3-payload.b64" | sha256sum -c -
+          echo "c34537262404723dc92e06b02a62ce94301eaf3c330007c9a880f2433d278898  /tmp/phase3-payload.b64" | sha256sum -c -
           base64 --decode /tmp/phase3-payload.b64 > /tmp/phase3-payload.tar.gz
-          echo "83d7241e624065020d5640ae87d99fa7963ed55f9efb29cf132b45d5e7bcf5b1  /tmp/phase3-payload.tar.gz" | sha256sum -c -
+          echo "dc775dab1ff6183aae8b4dbdf1cfdc341391838314996cec3beb8d872d0bcbf8  /tmp/phase3-payload.tar.gz" | sha256sum -c -
 
           mkdir -p /tmp/phase3-unpack
           while IFS= read -r entry; do
