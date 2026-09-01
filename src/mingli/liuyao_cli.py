@@ -15,8 +15,11 @@ from .liuyao import (
     activate_prediction,
     append_prediction,
     benchmark_liuyao,
+    benchmark_liuyao_advanced_structure,
     benchmark_liuyao_interpretation,
+    build_advanced_structure,
     build_liuyao_chart,
+    derive_calendar_context,
     interpret_case,
     invalidate_prediction,
     register_cast,
@@ -38,6 +41,13 @@ def _parser() -> argparse.ArgumentParser:
     interpret = commands.add_parser("interpret", help="基于已冻结案例生成保守的结构化解释证据")
     interpret.add_argument("--record", required=True, type=Path)
     interpret.add_argument("--request", required=True, type=Path)
+
+    calendar_context = commands.add_parser("calendar-context", help="从起卦时间确定性计算月建、日辰与旬空")
+    calendar_context.add_argument("--record", required=True, type=Path)
+
+    advanced = commands.add_parser("advanced-interpret", help="生成伏神、长生、进退、反伏吟、关系图和用神候选排序")
+    advanced.add_argument("--record", required=True, type=Path)
+    advanced.add_argument("--request", required=True, type=Path)
 
     add_version = commands.add_parser("add-version", help="向案例追加 draft/pending 预测版本")
     add_version.add_argument("--record", required=True, type=Path)
@@ -66,6 +76,7 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("benchmark", help="运行六爻确定性排盘内置基准")
     commands.add_parser("interpret-benchmark", help="运行六爻结构解释层内置基准")
+    commands.add_parser("advanced-benchmark", help="运行六爻高级结构层内置基准")
     return parser
 
 
@@ -97,6 +108,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             request = InterpretationRequest.from_mapping(_read_object(args.request, "request"))
             _print(interpret_case(record, request).to_dict())
             return 0
+        if args.command == "calendar-context":
+            record = LiuYaoCaseRecord.from_mapping(_read_object(args.record, "record"))
+            _print(derive_calendar_context(record).to_dict())
+            return 0
+        if args.command == "advanced-interpret":
+            record = LiuYaoCaseRecord.from_mapping(_read_object(args.record, "record"))
+            request = InterpretationRequest.from_mapping(_read_object(args.request, "request"))
+            _print(build_advanced_structure(record, request).to_dict())
+            return 0
         if args.command == "add-version":
             record = LiuYaoCaseRecord.from_mapping(_read_object(args.record, "record"))
             version = PredictionVersion.from_mapping(_read_object(args.version, "version"))
@@ -126,6 +146,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "interpret-benchmark":
             result = benchmark_liuyao_interpretation()
+        elif args.command == "advanced-benchmark":
+            result = benchmark_liuyao_advanced_structure()
         else:
             result = benchmark_liuyao()
         _print(result)
