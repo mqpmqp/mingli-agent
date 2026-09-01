@@ -2,12 +2,15 @@
 
 ## 目标
 
-本模块把六爻工作流拆成两个互不混淆的层次：
+本模块把六爻工作流拆成三个互不混淆的层次：
 
 1. **确定性结构层**：只负责六摇归一化、本卦、变卦、八宫、宫五行、世应、纳甲、六亲、六神和旬空。
-2. **预测治理层**：冻结事件合同，保留每个预测版本，禁止覆盖旧版，并在可核验证据出现后结算。
+2. **结构解释层**：把经确认的用神候选、月建日辰、动变、生克、冲合和旬空整理为结构化证据；有条件分歧时保留歧义，不直接生成吉凶断语。
+3. **预测治理层**：冻结事件合同，保留每个预测版本，禁止覆盖旧版，并在可核验证据出现后结算。
 
-它不解释旺衰、生克、合冲、空破、墓绝、用神或应期，也不声称传统六爻具有已经验证的现实预测准确率。所有结构结果和预测版本固定携带 `prediction_validity=not_evaluated`。
+确定性结构层已经通过工程验证。结构解释层固定为 `review_only`、`production_allowed=false`。整个六爻模块仍不声称传统六爻具有已经验证的现实预测准确率，所有结构结果和预测版本固定携带 `prediction_validity=not_evaluated`。
+
+结构解释层的规则、证据权重、主题边界和未实现清单见 [INTERPRETATION_V1.md](INTERPRETATION_V1.md)。
 
 ## 固定约定
 
@@ -60,6 +63,14 @@ mingli-liuyao register --input cast.json > case.json
 # 对同一 case_id 做幂等登记或冲突检查
 mingli-liuyao register --existing case.json --input cast.json
 
+# 结构解释：必须显式提供 topic、focus_dimension、use_relation，候选不唯一时还需 primary_position
+mingli-liuyao interpret \
+  --record case.json \
+  --request interpretation-request.json > interpretation.json
+
+# 结构解释层内置基准
+mingli-liuyao interpret-benchmark
+
 # 新增冻结草稿；草稿尚不进入前瞻结算
 mingli-liuyao add-version --record case.json --version version-draft.json --not-current > case-draft.json
 
@@ -89,11 +100,22 @@ mingli-liuyao settle \
   --observed-at "2026-10-01T10:00:00+08:00" \
   --source "官方公示" > case-settled.json
 
-# 内置确定性基准
+# 内置确定性排盘基准
 mingli-liuyao benchmark
 ```
 
 冲突类错误返回退出码 `2`；其他输入、篡改或状态迁移错误返回退出码 `1`。
+
+## 结构解释约束
+
+- 解释只能消费已经冻结并可重算的案例记录，不能直接接受一张手工拼接的盘。
+- `use_relation` 必须明确；同一六亲存在多个候选爻时返回 `needs_confirmation`，不能自动挑选最符合预期的一爻。
+- 月建和日柱只有在 `calendar_context_confirmed=true` 时参与解释；否则即使字段存在也会跳过。
+- 六合、日冲和旬空等需要附加条件的结构固定为 `ambiguous` 且权重为零，不自动解释为合起、合绊、冲起、冲散或无效。
+- 月破、月日生克、动爻生克、回头生和回头克可以进入支持/约束证据，但评分只是稳定排序，不是事件概率。
+- 结果最高置信度为 `medium`，不会输出成功概率、应期或“必成/必败”。
+- 已确认现实阻断使结果进入 `reality_blocked`；盘面支持因素不能覆盖资格、医学、法律、关系现状等客观条件。
+- 考公考编固定拆成体制适配度、本次考试、岗位方向、备考策略；感情复合固定拆成缘分牵引、复联、复合、稳定；求孕把传统机会、医学确认、稳定性和医学因素分开。
 
 ## 版本与结算约束
 
@@ -115,8 +137,9 @@ mingli-liuyao benchmark
 
 - 从公历时间自动计算月建、日辰；
 - 伏神、进退神、反吟、伏吟；
-- 月破、日破、入墓、绝、六合、六冲及旺衰优先级；
-- 用神自动选取、应期推断和自然语言断卦；
+- 合化、三合局、墓绝和复杂旺衰优先级；
+- 多动爻跨位变爻作用；
+- 应期推断、事件概率和自动自然语言吉凶预测；
 - 真实案例存储、身份信息处理、命中率统计和产品准确率声明。
 
 下一阶段只能在独立规则审查、冲突表和前瞻结算样本建立后推进，不能把 `draft` 候选规则直接升级为生产规则。
