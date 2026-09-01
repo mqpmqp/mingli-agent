@@ -57,7 +57,7 @@ _TOPIC_DIMENSIONS: Mapping[str, tuple[tuple[str, str, str], ...]] = {
         ("career_fit", "reality_required", "长期职业适配需要履历、能力、行业和岗位约束。"),
     ),
     "exam": (
-        ("system_fit", "outside_single_cast", "体制适配度不能由一次六爻单独推出。"),
+        ("system_fit", "outside_single_cast", "体制适配度不能由单次六爻单独推出。"),
         ("current_exam", "structural", "仅对应事件合同中冻结的本次考试或录用结果。"),
         ("position_direction", "reality_required", "岗位方向必须结合专业、地区、资格和竞争数据。"),
         ("preparation_strategy", "reality_required", "备考策略必须结合真实成绩、剩余时间和薄弱科目。"),
