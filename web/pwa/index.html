@@ -74,16 +74,33 @@
           </div>
         </fieldset>
 
-        <div class="form-grid">
-          <label class="field" data-testid="solar-date-row">
-            <span>出生日期 <b aria-hidden="true">*</b></span>
+        <fieldset class="solar-date-fields" data-testid="solar-date-row">
+          <legend>阳历出生日期 <b aria-hidden="true">*</b></legend>
+          <div class="lunar-date-grid">
+            <label class="field">
+              <span>年</span>
+              <input data-testid="solar-year" type="number" name="solar_year" min="1901" max="2099" step="1" inputmode="numeric" autocomplete="off" placeholder="例如 1980" />
+            </label>
+            <label class="field">
+              <span>月</span>
+              <input data-testid="solar-month" type="number" name="solar_month" min="1" max="12" step="1" inputmode="numeric" autocomplete="off" placeholder="1-12" />
+            </label>
+            <label class="field">
+              <span>日</span>
+              <input data-testid="solar-day" type="number" name="solar_day" min="1" max="31" step="1" inputmode="numeric" autocomplete="off" placeholder="1-31" />
+            </label>
+          </div>
+          <small>年份可直接输入，例如 1980；不需要在手机日历里逐月翻几十次。也可以使用下方系统日期选择器。</small>
+          <label class="field">
+            <span>系统日期选择器（可选）</span>
             <input data-testid="birth-date" type="date" name="birth_date" min="1901-01-01" max="2099-12-31" autocomplete="off" required />
           </label>
-          <label class="field">
-            <span>出生时间 <b aria-hidden="true">*</b></span>
-            <input data-testid="birth-time" type="time" name="birth_time" step="60" autocomplete="off" required />
-          </label>
-        </div>
+        </fieldset>
+
+        <label class="field">
+          <span>出生时间 <b aria-hidden="true">*</b></span>
+          <input data-testid="birth-time" type="time" name="birth_time" step="60" autocomplete="off" required />
+        </label>
 
         <fieldset class="lunar-date-fields" data-testid="lunar-date-fields" hidden>
           <legend>农历出生日期 <b aria-hidden="true">*</b></legend>
@@ -214,6 +231,7 @@
         <p>本工具只负责确定性排盘与结果导出；命理内容仅供传统文化研究与娱乐参考。</p>
       </footer>
     </main>
+    <script type="module" src="/src/solar-date-controls.ts"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
