@@ -6,7 +6,8 @@ import logging
 import pytest
 from starlette.testclient import TestClient
 
-from mingli.service_app import MAX_REQUEST_BYTES, create_app, create_mcp
+from mingli.service_app import MAX_REQUEST_BYTES, create_mcp
+from mingli.service_gateway import create_gateway_app
 
 MCP_HEADERS = {
     "accept": "application/json, text/event-stream",
@@ -47,7 +48,7 @@ def mingli_payload() -> dict[str, object]:
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(create_app(), base_url="http://127.0.0.1:8000") as value:
+    with TestClient(create_gateway_app(), base_url="http://127.0.0.1:8000") as value:
         yield value
 
 
@@ -169,6 +170,98 @@ def test_mcp_lists_precise_read_only_tools_and_calls_real_coverage(client) -> No
     assert result["structuredContent"]["release_gate"] == "REVIEW_REQUIRED"
 
 
+def test_mcp_end_to_end_calls_all_tools_and_preserves_frozen_contracts(client) -> None:
+    initialized = _mcp_request(
+        client,
+        "initialize",
+        {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "mingli-e2e-tests", "version": "1.0.0"},
+        },
+        10,
+    )
+    tools = _mcp_request(client, "tools/list", {}, 11)
+    analyzed = _mcp_request(
+        client,
+        "tools/call",
+        {
+            "name": "analyze_mingli",
+            "arguments": {
+                "calendar": "solar",
+                "birth_date": "1990-03-15",
+                "birth_time": "10:30",
+                "timezone": "Asia/Shanghai",
+                "gender": "male",
+                "longitude": 121.47,
+                "latitude": 31.23,
+                "anchor_year": 2028,
+            },
+        },
+        12,
+    )
+    charted = _mcp_request(
+        client,
+        "tools/call",
+        {"name": "create_ziwei_chart", "arguments": ziwei_birth_payload()},
+        13,
+    )
+    chart = charted.json()["result"]["structuredContent"]
+    evaluated = _mcp_request(
+        client,
+        "tools/call",
+        {"name": "evaluate_ziwei_chart", "arguments": {"chart": chart}},
+        14,
+    )
+    coverage = _mcp_request(
+        client,
+        "tools/call",
+        {"name": "get_ziwei_rule_coverage", "arguments": {}},
+        15,
+    )
+
+    for response in (initialized, tools, analyzed, charted, evaluated, coverage):
+        assert response.status_code == 200
+        assert "result" in response.json()
+    descriptors = tools.json()["result"]["tools"]
+    assert {item["name"] for item in descriptors} == {
+        "analyze_mingli",
+        "create_ziwei_chart",
+        "evaluate_ziwei_chart",
+        "get_ziwei_rule_coverage",
+    }
+    assert all(
+        item["annotations"]
+        == {
+            "title": item["annotations"]["title"],
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        }
+        for item in descriptors
+    )
+    results = [
+        response.json()["result"]
+        for response in (analyzed, charted, evaluated, coverage)
+    ]
+    assert all(result["isError"] is False for result in results)
+    assert all(isinstance(result.get("structuredContent"), dict) for result in results)
+    assert all(
+        result["structuredContent"]["prediction_validity"] == "not_evaluated"
+        for result in results
+    )
+    assert evaluated.json()["result"]["structuredContent"]["rule_content_hold"] == (
+        "ACTIVE"
+    )
+    assert coverage.json()["result"]["structuredContent"]["rule_content_hold"] == (
+        "ACTIVE"
+    )
+    assert client.get("/v1/capabilities").json()["commercial_release_hold"] == (
+        "ACTIVE"
+    )
+
+
 def test_mcp_analyze_tool_has_explicit_machine_friendly_input_schema(client) -> None:
     _mcp_request(
         client,
@@ -200,7 +293,7 @@ def test_mcp_analyze_tool_has_explicit_machine_friendly_input_schema(client) -> 
 
 
 def test_mcp_transport_allows_only_configured_public_host_and_origin() -> None:
-    public_app = create_app(
+    public_app = create_gateway_app(
         create_mcp(
             host="0.0.0.0",
             allowed_hosts=["runtime.example.com"],
@@ -270,3 +363,47 @@ def test_request_policy_logs_sanitized_request_metadata(client, caplog) -> None:
     assert record.http_path == "/healthz"
     assert record.http_status == 200
     assert record.duration_ms >= 0
+
+
+def test_service_exceptions_do_not_leak_birth_data_or_tracebacks(
+    client, monkeypatch, caplog
+) -> None:
+    synthetic_birth_marker = "synthetic-birth-marker-1990-03-15"
+
+    def fail_with_sensitive_exception(_payload: object) -> dict[str, object]:
+        raise RuntimeError(synthetic_birth_marker)
+
+    monkeypatch.setattr(
+        "mingli.service_app.analyze_mingli_payload",
+        fail_with_sensitive_exception,
+    )
+    with caplog.at_level(logging.ERROR):
+        http_response = client.post("/v1/mingli/analyze", json=mingli_payload())
+        mcp_response = _mcp_request(
+            client,
+            "tools/call",
+            {
+                "name": "analyze_mingli",
+                "arguments": {
+                    "calendar": "solar",
+                    "birth_date": "1990-03-15",
+                    "birth_time": "10:30",
+                    "timezone": "Asia/Shanghai",
+                    "gender": "male",
+                    "longitude": 121.47,
+                    "latitude": 31.23,
+                    "anchor_year": 2028,
+                },
+            },
+            20,
+        )
+
+    assert http_response.status_code == 500
+    assert http_response.json() == {
+        "error": {"code": "internal_error", "message": "Internal service error"}
+    }
+    assert mcp_response.status_code == 200
+    assert mcp_response.json()["result"]["isError"] is True
+    combined_output = http_response.text + mcp_response.text + caplog.text
+    assert synthetic_birth_marker not in combined_output
+    assert "Traceback (most recent call last)" not in combined_output

@@ -1,0 +1,13 @@
+# Persistent HTTPS endpoint for the read-only MingLi MCP Runtime.
+# The container binds only to 127.0.0.1:8000; Caddy preserves the public Host
+# so the Runtime's exact Host/Origin allowlists remain authoritative.
+mingli.43-203-122-160.sslip.io {
+	log {
+		output stdout
+		format console
+	}
+
+	reverse_proxy 127.0.0.1:8000 {
+		flush_interval -1
+	}
+}
