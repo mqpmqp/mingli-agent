@@ -158,7 +158,12 @@ class BatchTests(unittest.TestCase):
             }
             self.assertEqual(
                 remaining,
-                {"src_sha256_1d4a97526c60", "src_sha256_c7ac90538958", "src_sha256_e3fa415da369"},
+                {
+                    "src_sha256_1d4a97526c60",
+                    "src_sha256_c7ac90538958",
+                    "src_sha256_e3fa415da369",
+                    "src_sha256_329b2b954278",
+                },
             )
 
     def test_modified_file_refuses_rollback(self) -> None:
