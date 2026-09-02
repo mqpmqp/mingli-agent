@@ -1,0 +1,56 @@
+{
+  "protocol_version": "release-hold-attack@1.0.0",
+  "source_commit_sha": "b03af9f1a7ee5199f64cdd627dd47f348c761d6e",
+  "frozen_at": "2026-07-17T17:50:29Z",
+  "data_boundary": {
+    "case_storage": "controlled_off_git",
+    "git_case_data_allowed": false,
+    "allowed_case_classification": "authorized_real_case"
+  },
+  "prediction_freeze": {
+    "freeze_before_prior_confirmation": true,
+    "freeze_before_future_feedback": true,
+    "post_hoc_prediction_mutation_allowed": false
+  },
+  "temporal_separation": {
+    "prior_event_must_precede_prediction": true,
+    "future_outcome_must_follow_prediction_freeze": true,
+    "train_test_partition_basis": "event_and_observation_time"
+  },
+  "review": {
+    "blind_mode": "double_blind",
+    "minimum_independent_human_reviewers": 2,
+    "disagreement_requires_independent_adjudicator": true
+  },
+  "metrics": {
+    "rule_attribution_coverage": "observable claims with one or more preregistered rule ids divided by observable claims",
+    "reality_evidence_coverage": "observable claims with scope-matched reality evidence divided by observable claims",
+    "unverifiable_rate": "insufficient_evidence plus not_comparable divided by observable claims",
+    "calibration": ["brier_score", "expected_calibration_error"]
+  },
+  "hold_reassessment": {
+    "automatic_release": false,
+    "thresholds": {
+      "minimum_unique_persons": 30,
+      "minimum_gold_persons": 10,
+      "maximum_silver_persons": 20,
+      "minimum_comparable_claims": 100,
+      "minimum_scenarios": 3,
+      "minimum_rule_attribution_coverage": 0.8,
+      "minimum_reality_evidence_coverage": 0.8,
+      "maximum_unverifiable_rate": 0.2,
+      "minimum_calibration_sample_size": 100,
+      "maximum_brier_score": 0.25,
+      "maximum_expected_calibration_error": 0.1,
+      "minimum_double_human_review_coverage": 1.0
+    },
+    "requires_independent_product_authorization": true
+  },
+  "disallowed": [
+    "synthetic_or_fictional_case_accuracy_evidence",
+    "post_hoc_prediction_rewrite",
+    "automatic_rule_promotion_or_demotion",
+    "automatic_release_hold_removal"
+  ],
+  "canonical_hash": "sha256:a9e523ef8680b73407e36d89656bcdf12aee808cb696a8a54ff1736f2171d934"
+}

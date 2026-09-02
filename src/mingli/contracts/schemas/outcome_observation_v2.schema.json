@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/outcome_observation_v2.schema.json",
+  "title": "OutcomeObservationV2",
+  "type": "object",
+  "required": ["outcome_id", "case_id", "run_id", "event_type", "event_time", "observed_at", "source_type", "source_reliability", "relation_to_prior_claim", "notes", "preregistered_claim_id", "commercial_validation_eligible", "eligibility_reason", "valid"],
+  "properties": {
+    "outcome_id": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+    "run_id": {"type": "string", "minLength": 1},
+    "event_type": {"type": "string", "minLength": 1},
+    "event_time": {"type": "string", "format": "date-time"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "source_type": {"type": "string", "minLength": 1},
+    "source_reliability": {"enum": ["unverified", "self_reported", "independently_verified"]},
+    "relation_to_prior_claim": {"enum": ["unrelated", "historical_correction", "later_outcome", "preregistered_claim_outcome"]},
+    "notes": {"type": ["string", "null"]},
+    "preregistered_claim_id": {"type": ["string", "null"]},
+    "commercial_validation_eligible": {"const": false},
+    "eligibility_reason": {"const": "REAL_CASE_V2_ADJUDICATION_REQUIRED"},
+    "valid": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}
