@@ -184,7 +184,7 @@ PYTHONPATH=src /workspace/scratch/291516038b5a/mingli-agent-test-venv/bin/python
 
 标准隔离构建和依赖隔离构建的 4 个全仓打包测试在当前受限网络环境中无法取得 `setuptools>=68`，因此未通过；同一失败已在未改动的 `21864a4` 基线以 `PIP_NO_INDEX=1` 复现，而当前树和基线的 `python -m build --no-isolation` 均通过。该结论只排除了本批代码回归，不能替代可访问构建依赖环境中的标准隔离构建。
 
-当前分支没有获得外部写入授权，未推送、未创建 PR，因此也没有当前 Head CI 结果。推送后必须以当前 Head 重新运行仓库要求的标准隔离构建和 CI；第一批基线的绿色结果不能替代本批 Head。
+当前分支已获外部写入授权并推送，堆叠 PR #58 以第一批 PR #57 的冻结审查分支为基底创建。当前 Head 的标准隔离构建和 CI 结果必须以 GitHub checks 为准；第一批基线的绿色结果不能替代本批 Head，本文档也不预填尚未完成的远端结果。
 
 ## Protected scope
 
