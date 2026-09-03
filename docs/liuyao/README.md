@@ -12,6 +12,8 @@
 
 结构解释层的规则、证据权重、主题边界和未实现清单见 [INTERPRETATION_V1.md](INTERPRETATION_V1.md)。
 
+第三阶段按 [PHASE3_SCOPE.md](PHASE3_SCOPE.md) 的四个切片推进。第一批高级结构事实及月日来源门禁见 [ADVANCED_FACTS_V1.md](ADVANCED_FACTS_V1.md) 和 [ADVANCED_RUNTIME_V1.md](ADVANCED_RUNTIME_V1.md)；第二批空破墓绝、飞伏与多动爻审查矩阵见 [VALIDITY_MATRIX_V1.md](VALIDITY_MATRIX_V1.md)，逐页证据边界见 [VALIDITY_SOURCE_AUDIT_V1.md](VALIDITY_SOURCE_AUDIT_V1.md)，工程决策与验收口径见 [LIUYAO_PHASE3_VALIDITY_MATRIX_V1_REPORT.md](../../LIUYAO_PHASE3_VALIDITY_MATRIX_V1_REPORT.md)。第二批仍固定为 `review_only`、`production_allowed=false`、`source_only`、`human_reviewed=false`，不评估预测有效性。
+
 ## 固定约定
 
 - 六次输入顺序固定为 `bottom_to_top`：第一次是初爻，第六次是上爻。
@@ -71,6 +73,14 @@ mingli-liuyao interpret \
 # 结构解释层内置基准
 mingli-liuyao interpret-benchmark
 
+# 第三阶段第二批：严格校验冻结摘要并生成 review-only 有效性矩阵
+python -m mingli.liuyao.validity_cli evaluate \
+  --record case.json \
+  --request validity-request.json > validity-matrix.json
+
+# 有效性、冲突与两边路径裁剪合成基准
+python -m mingli.liuyao.validity_cli benchmark
+
 # 新增冻结草稿；草稿尚不进入前瞻结算
 mingli-liuyao add-version --record case.json --version version-draft.json --not-current > case-draft.json
 
@@ -104,7 +114,7 @@ mingli-liuyao settle \
 mingli-liuyao benchmark
 ```
 
-冲突类错误返回退出码 `2`；其他输入、篡改或状态迁移错误返回退出码 `1`。
+`mingli-liuyao` 主 CLI 的冲突类错误返回退出码 `2`，其他输入、篡改或状态迁移错误返回 `1`。第二批 `python -m mingli.liuyao.validity_cli` 单独遵循 `0=成功、1=输入/哈希/领域失败、2=命令行用法错误`。
 
 ## 结构解释约束
 
@@ -133,12 +143,18 @@ mingli-liuyao benchmark
 
 ## 当前边界
 
+已进入第三阶段审查层但仍不属于生产能力的部分：
+
+- 伏神/飞神候选、十二长生、进退神、反吟伏吟和多动爻关系图；
+- 空、破、墓、绝和飞伏自身资格的条件矩阵；
+- 围绕已确认用神的多动爻候选路径与可审计裁剪。
+
 尚未实现并明确拒绝假装实现的部分：
 
 - 从公历时间自动计算月建、日辰；
-- 伏神、进退神、反吟、伏吟；
-- 合化、三合局、墓绝和复杂旺衰优先级；
-- 多动爻跨位变爻作用；
+- 伏神自动出伏、自动取用和最终飞伏作用裁决；
+- 合化、三合局、暗动、真破、完整墓绝条件树和复杂旺衰；
+- 多动爻能量合成与跨位变爻作用；
 - 应期推断、事件概率和自动自然语言吉凶预测；
 - 真实案例存储、身份信息处理、命中率统计和产品准确率声明。
 
