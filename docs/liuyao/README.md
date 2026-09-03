@@ -12,7 +12,7 @@
 
 结构解释层的规则、证据权重、主题边界和未实现清单见 [INTERPRETATION_V1.md](INTERPRETATION_V1.md)。
 
-第三阶段按 [PHASE3_SCOPE.md](PHASE3_SCOPE.md) 的四个切片推进。第一批高级结构事实及月日来源门禁见 [ADVANCED_FACTS_V1.md](ADVANCED_FACTS_V1.md) 和 [ADVANCED_RUNTIME_V1.md](ADVANCED_RUNTIME_V1.md)；第二批空破墓绝、飞伏与多动爻审查矩阵见 [VALIDITY_MATRIX_V1.md](VALIDITY_MATRIX_V1.md)，逐页证据边界见 [VALIDITY_SOURCE_AUDIT_V1.md](VALIDITY_SOURCE_AUDIT_V1.md)，工程决策与验收口径见 [LIUYAO_PHASE3_VALIDITY_MATRIX_V1_REPORT.md](../../LIUYAO_PHASE3_VALIDITY_MATRIX_V1_REPORT.md)。第二批仍固定为 `review_only`、`production_allowed=false`、`source_only`、`human_reviewed=false`，不评估预测有效性。
+第三阶段按 [PHASE3_SCOPE.md](PHASE3_SCOPE.md) 的四个切片推进。第一批高级结构事实及月日来源门禁见 [ADVANCED_FACTS_V1.md](ADVANCED_FACTS_V1.md) 和 [ADVANCED_RUNTIME_V1.md](ADVANCED_RUNTIME_V1.md)；第二批空破墓绝、飞伏与多动爻审查矩阵见 [VALIDITY_MATRIX_V1.md](VALIDITY_MATRIX_V1.md)，逐页证据边界见 [VALIDITY_SOURCE_AUDIT_V1.md](VALIDITY_SOURCE_AUDIT_V1.md)，工程决策与验收口径见 [LIUYAO_PHASE3_VALIDITY_MATRIX_V1_REPORT.md](../../LIUYAO_PHASE3_VALIDITY_MATRIX_V1_REPORT.md)。第三切片的事件合同候选运行时见 [SELECTION_RUNTIME_V1.md](SELECTION_RUNTIME_V1.md)，新增取用来源页级审计见 [SELECTION_SOURCE_AUDIT_V1.md](SELECTION_SOURCE_AUDIT_V1.md)，实施边界见 [LIUYAO_PHASE3_SELECTION_RUNTIME_V1_REPORT.md](../../LIUYAO_PHASE3_SELECTION_RUNTIME_V1_REPORT.md)。三批均固定为 `review_only`、`production_allowed=false`，来源规则仍为 `source_only`、`human_reviewed=false`，不评估预测有效性。
 
 ## 固定约定
 
@@ -81,6 +81,14 @@ python -m mingli.liuyao.validity_cli evaluate \
 # 有效性、冲突与两边路径裁剪合成基准
 python -m mingli.liuyao.validity_cli benchmark
 
+# 第三阶段第三切片：严格校验事件合同与上下文摘要，生成待人工复核候选
+python -m mingli.liuyao.selection_cli evaluate \
+  --record case.json \
+  --request selection-request.json > selection-report.json
+
+# 事件合同候选、专项主题与失败关闭基准
+python -m mingli.liuyao.selection_cli benchmark
+
 # 新增冻结草稿；草稿尚不进入前瞻结算
 mingli-liuyao add-version --record case.json --version version-draft.json --not-current > case-draft.json
 
@@ -148,14 +156,15 @@ mingli-liuyao benchmark
 - 伏神/飞神候选、十二长生、进退神、反吟伏吟和多动爻关系图；
 - 空、破、墓、绝和飞伏自身资格的条件矩阵；
 - 围绕已确认用神的多动爻候选路径与可审计裁剪。
+- 事件合同驱动的考试、感情复合与求孕专项候选清单；专业维度、来源范围冲突、多爻并列和伏神均失败关闭。
 
 尚未实现并明确拒绝假装实现的部分：
 
 - 从公历时间自动计算月建、日辰；
-- 伏神自动出伏、自动取用和最终飞伏作用裁决；
+- 伏神自动出伏、最终用神确认和最终飞伏作用裁决；
 - 合化、三合局、暗动、真破、完整墓绝条件树和复杂旺衰；
 - 多动爻能量合成与跨位变爻作用；
-- 应期推断、事件概率和自动自然语言吉凶预测；
+- 条件化应期候选、事件概率和自动自然语言吉凶预测；
 - 真实案例存储、身份信息处理、命中率统计和产品准确率声明。
 
-下一阶段只能在独立规则审查、冲突表和前瞻结算样本建立后推进，不能把 `draft` 候选规则直接升级为生产规则。
+下一切片仅允许处理条件化应期候选；必须等第三切片自身完成审查和当前 Head CI，且仍不能把 `draft` 候选规则直接升级为生产规则。

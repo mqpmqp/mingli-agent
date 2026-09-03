@@ -24,6 +24,25 @@ from .interpretation import (
 from .interpretation_benchmark import benchmark_liuyao_interpretation
 from .models import EventContract, HexagramIdentity, LiuYaoCastInput, LiuYaoChart, LiuYaoLine
 from .prediction import PredictionVersion, SettlementRecord
+from .selection_profile import (
+    SELECTION_ENGINEERING_POLICY_ID,
+    SELECTION_ENGINEERING_POLICY_SHA256,
+    SELECTION_PRIORITY_TABLE_SHA256,
+    SELECTION_SOURCE_PROFILE_ID,
+    SELECTION_SOURCE_PROFILE_SHA256,
+    SELECTION_TOPIC_POLICY_ID,
+    SELECTION_TOPIC_POLICY_SHA256,
+)
+from .selection_benchmark import benchmark_liuyao_selection_runtime
+from .selection_runtime import (
+    SELECTION_RUNTIME_METHOD_ID,
+    SELECTION_RUNTIME_PRODUCTION_ALLOWED,
+    SELECTION_RUNTIME_STATUS,
+    SelectionCandidate,
+    SelectionRequest,
+    SelectionRuntimeReport,
+    build_selection_runtime_report,
+)
 from .tables import (
     COIN_CONVENTION, HEXAGRAM_NAMES, INPUT_ORDER, METHOD_ID, NAJIA_TABLE,
     PALACE_ELEMENTS, PALACE_SEQUENCES, PREDICTION_VALIDITY, STATIC_TABLE_SHA256,
@@ -58,6 +77,12 @@ __all__ = [
     "LiuYaoError", "LiuYaoInputConflictError", "LiuYaoLine", "METHOD_ID",
     "NAJIA_TABLE", "PALACE_ELEMENTS", "PALACE_SEQUENCES", "PREDICTION_VALIDITY",
     "PRODUCTION_ALLOWED", "PredictionVersion", "STATIC_TABLE_SHA256",
+    "SELECTION_ENGINEERING_POLICY_ID", "SELECTION_ENGINEERING_POLICY_SHA256",
+    "SELECTION_PRIORITY_TABLE_SHA256", "SELECTION_RUNTIME_METHOD_ID",
+    "SELECTION_RUNTIME_PRODUCTION_ALLOWED", "SELECTION_RUNTIME_STATUS",
+    "SELECTION_SOURCE_PROFILE_ID", "SELECTION_SOURCE_PROFILE_SHA256",
+    "SELECTION_TOPIC_POLICY_ID", "SELECTION_TOPIC_POLICY_SHA256",
+    "SelectionCandidate", "SelectionRequest", "SelectionRuntimeReport",
     "SettlementRecord", "TRIGRAM_BITS", "UseActor", "UseLineSelection",
     "VALIDITY_ENGINEERING_POLICY", "VALIDITY_ENGINEERING_POLICY_ID",
     "VALIDITY_ENGINEERING_POLICY_SHA256", "VALIDITY_GATE_PRIORITY",
@@ -68,9 +93,11 @@ __all__ = [
     "VALIDITY_RULE_PROFILE_SHA256", "VALIDITY_RULE_CONTRACT",
     "ValidityMatrixReport", "ValidityRequest",
     "activate_prediction", "append_prediction", "benchmark_liuyao",
-    "benchmark_liuyao_interpretation", "benchmark_liuyao_validity_matrix",
+    "benchmark_liuyao_interpretation", "benchmark_liuyao_selection_runtime",
+    "benchmark_liuyao_validity_matrix",
     "build_advanced_runtime_report", "build_liuyao_chart",
-    "build_validity_matrix", "create_case_record", "interpret_case", "invalidate_prediction",
+    "build_selection_runtime_report", "build_validity_matrix", "create_case_record",
+    "interpret_case", "invalidate_prediction",
     "normalize_line_value", "normalize_line_values", "register_cast",
     "settle_prediction",
 ]
