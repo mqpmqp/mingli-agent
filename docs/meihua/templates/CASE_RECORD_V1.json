@@ -1,0 +1,49 @@
+{
+  "schema_version": "meihua-case-record@1.0",
+  "case_id": "SYNTHETIC-MIGRATION-001",
+  "privacy_mode": "category_only",
+  "question_contract": {
+    "contract_version": "C1",
+    "event_class": "migration_identity",
+    "question_text": "何时完成一次远距离、身份与长期居住地同步改变的迁移",
+    "target_event": "身份正式生效并完成实际迁入",
+    "success_criteria": "可核验文件证明身份已生效，且当事人已入住目标地并连续居住30日",
+    "deadline": "2027-06-30",
+    "natural_time_unit": "months",
+    "current_stage": "application_pending",
+    "reality_constraints": [
+      "subject_to_official_approval"
+    ],
+    "sensitive_details_withheld": true
+  },
+  "cast": {
+    "profile_id": "meihua-numeric-three-explicit@1.0.0",
+    "upper_input": 60,
+    "lower_input": 70,
+    "moving_input": 50,
+    "cast_at": "2026-09-01T22:00:00+08:00",
+    "location_precision": "city",
+    "location": "示例城市",
+    "repeat_cast": false,
+    "line_order": "bottom_to_top"
+  },
+  "chart_expected": {
+    "primary_hexagram": "雷水解",
+    "mutual_hexagram": "水火既济",
+    "changed_hexagram": "雷地豫",
+    "moving_line": 2,
+    "body_trigram": "震",
+    "body_element": "木",
+    "use_trigram": "坎",
+    "use_element": "水"
+  },
+  "governance": {
+    "gate_status": "READY",
+    "review_state": "draft",
+    "runtime_enabled": false,
+    "production_allowed": false,
+    "prediction_validity": "not_evaluated",
+    "countable": false,
+    "non_countable_reason": "synthetic_fixture"
+  }
+}
