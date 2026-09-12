@@ -6,8 +6,29 @@ import {
   buildFullJson,
   formatLuckStartAge,
   mapChartCalculationError,
+  selectLanguageText,
   type ChartPresentationData,
 } from "../src/presentation";
+
+describe("UI language selection", () => {
+  it("selects both languages without losing values, IANA names or review boundaries", () => {
+    expect(selectLanguageText("Birth time / 出生时间", "en")).toBe("Birth time");
+    expect(selectLanguageText("Birth time / 出生时间", "zh-CN")).toBe("出生时间");
+    expect(selectLanguageText("3.25 years / 3.25 岁", "zh-CN")).toBe("3.25 岁");
+    expect(selectLanguageText("Asia/Shanghai", "zh-CN")).toBe("Asia/Shanghai");
+    expect(selectLanguageText("甲子", "en")).toBe("甲子");
+    const error = mapChartCalculationError("SOLAR_TERM_UNCERTAIN");
+    expect(selectLanguageText(error, "en")).toContain("Manual review is required");
+    expect(selectLanguageText(error, "zh-CN")).toContain("人工复核");
+    for (const lang of ["en", "zh-CN"] as const) expect(selectLanguageText(error, lang)).toContain("REVIEW_REQUIRED");
+  });
+
+  it("switches back from the original copy and keeps each validation message", () => {
+    const original = "Check date. / 核对日期。\nCheck time. / 核对时间。";
+    expect(selectLanguageText(original, "zh-CN")).toBe("核对日期。\n核对时间。");
+    expect(selectLanguageText(original, "en")).toBe("Check date.\nCheck time.");
+  });
+});
 
 const chartResult = {
   method_id: "bazi-deterministic-lichun-jie-noaa-v0.1",

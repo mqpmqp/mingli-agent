@@ -64,6 +64,18 @@ summary {
   padding: 1.25rem 0 1rem;
 }
 
+.tagline { font-size: 1.1rem; color: var(--jade); }
+.language-control { display: flex; justify-content: flex-end; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
+.language-control select { width: auto; min-width: 7rem; min-height: 44px; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.hero-actions { margin-bottom: 1rem; }
+.button-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0.7rem 1rem; color: var(--jade); border: 1px solid var(--line); border-radius: 0.75rem; text-decoration: none; }
+.launch-card { margin: 1rem 0; padding: 1.25rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--paper); line-height: 1.6; scroll-margin-top: 1rem; }
+.launch-card details { margin: 0.9rem 0; }
+.launch-card summary { min-height: 44px; }
+.explanation { border-top: 1px solid var(--line); padding-top: 1rem; margin-top: 1rem; line-height: 1.6; }
+.privacy-contract { flex-wrap: wrap; gap: 0.25rem; }
+
 .eyebrow,
 .step {
   margin: 0 0 0.35rem;

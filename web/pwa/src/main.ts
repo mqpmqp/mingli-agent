@@ -12,6 +12,8 @@ import {
   buildFullJson,
   formatLuckStartAge,
   mapChartCalculationError,
+  selectLanguageText,
+  type UiLanguage,
   type ChartPresentationData,
   type ChartResult,
 } from "./presentation";
@@ -78,6 +80,44 @@ const actionFeedback = requiredElement<HTMLElement>('[data-testid="action-feedba
 const coordinateConfirmation = requiredElement<HTMLInputElement>('[name="coordinate_confirm"]');
 const genderMale = requiredElement<HTMLInputElement>('[data-testid="gender-male"]');
 const updateBanner = requiredElement<HTMLElement>('[data-testid="update-banner"]');
+const languageSelect = requiredElement<HTMLSelectElement>("#language-select");
+let language: UiLanguage = "en";
+const localizedElements = new Map<HTMLElement, string>();
+const staticText: Array<{ node: Text; original: string }> = [];
+const localizedAttributes: Array<{ element: Element; name: string; original: string }> = [];
+
+function setUiText(element: HTMLElement, original: string): void {
+  localizedElements.set(element, original);
+  element.textContent = selectLanguageText(original, language);
+}
+
+function initializeLanguage(): void {
+  const dynamic = '[data-testid="runtime-status"], [data-testid="offline-ready"], [data-testid="calculate"], [data-testid="form-error"], [data-testid="calculation-error"], [data-testid="action-feedback"]';
+  const walker = document.createTreeWalker(requiredElement(".app-shell"), NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    if (node.parentElement?.closest(dynamic)) continue;
+    if (node.data.includes(" / ")) staticText.push({ node, original: node.data });
+  }
+  document.querySelectorAll<HTMLElement>(dynamic).forEach((element) => {
+    localizedElements.set(element, element.textContent ?? "");
+  });
+  document.querySelectorAll("[aria-label], [placeholder]").forEach((element) => {
+    for (const name of ["aria-label", "placeholder"]) {
+      const original = element.getAttribute(name);
+      if (original?.includes(" / ")) localizedAttributes.push({ element, name, original });
+    }
+  });
+  const applyLanguage = (): void => {
+    language = languageSelect.value === "zh-CN" ? "zh-CN" : "en";
+    document.documentElement.lang = language;
+    for (const { node, original } of staticText) node.data = selectLanguageText(original, language);
+    for (const { element, name, original } of localizedAttributes) element.setAttribute(name, selectLanguageText(original, language));
+    for (const [element, original] of localizedElements) element.textContent = selectLanguageText(original, language);
+  };
+  languageSelect.addEventListener("change", applyLanguage);
+  applyLanguage();
+}
 
 const FORM_ERROR_FIELD_NAMES: Record<keyof ChartFormValues, readonly string[]> = {
   gender: ["gender"],
@@ -108,12 +148,12 @@ let activeFormErrors: ChartFormErrors = {};
 
 function setRuntimeState(state: "loading" | "ready" | "error", message: string): void {
   runtimeStatus.dataset.state = state;
-  runtimeStatus.textContent = message;
+  setUiText(runtimeStatus, message);
 }
 
 function setOfflineState(state: "preparing" | "ready" | "error", message: string): void {
   offlineReady.dataset.state = state;
-  offlineReady.textContent = message;
+  setUiText(offlineReady, message);
 }
 
 function showUpdateBanner(): void {
@@ -185,8 +225,21 @@ function removeErrorDescription(control: HTMLElement): void {
 }
 
 function renderActiveFormErrors(): void {
-  const messages = [...new Set(Object.values(activeFormErrors).filter((message): message is string => Boolean(message)))];
-  formError.textContent = messages.join(" ");
+  const fieldHelp: Partial<Record<keyof ChartFormValues, string>> = {
+    gender: "Choose male or female.", calendar: "Choose Gregorian or Chinese lunar.",
+    birthDate: "Enter a valid birth date (1901–2099).",
+    lunarYear: "Enter a lunar year from 1901 to 2099.",
+    lunarMonth: "Enter a lunar month from 1 to 12.", lunarDay: "Enter a lunar day from 1 to 30.",
+    birthTime: "Enter a known birth time in 24-hour format; unknown time cannot be inferred.",
+    timezone: "Enter a valid IANA time zone, such as Asia/Shanghai.",
+    longitude: "Check longitude (-180 to 180); required for true solar time.",
+    latitude: "Check latitude (-90 to 90).", fold: "Choose 0 or 1 for repeated local time.",
+    coordinateConfirmed: "Confirm your coordinate choices before calculating.",
+  };
+  const messages = Object.entries(activeFormErrors).map(([key, message]) =>
+    `${fieldHelp[key as keyof ChartFormValues] ?? "Check this input."} / ${message}`,
+  );
+  setUiText(formError, messages.join("\n"));
   formError.hidden = messages.length === 0;
 }
 
@@ -216,7 +269,7 @@ function clearAllFormErrors(): void {
 function hideMessages(): void {
   clearAllFormErrors();
   calculationError.hidden = true;
-  calculationError.textContent = "";
+  setUiText(calculationError, "");
 }
 
 function clearRenderedResult(): void {
@@ -225,11 +278,11 @@ function clearRenderedResult(): void {
   currentPresentation = null;
   resultSection.hidden = true;
   resultSection.querySelectorAll<HTMLElement>("dd, .pillar-grid strong").forEach((element) => {
-    element.textContent = "";
+    setUiText(element, "");
   });
   trueSolarOutput.removeAttribute("data-testid");
   resultJson.value = "";
-  actionFeedback.textContent = "";
+  setUiText(actionFeedback, "");
 }
 
 function showFormErrors(errors: ChartFormErrors): void {
@@ -251,14 +304,14 @@ function showFormErrors(errors: ChartFormErrors): void {
 
 function showCalculationError(message: string): void {
   clearRenderedResult();
-  calculationError.textContent = message;
+  setUiText(calculationError, message);
   calculationError.hidden = false;
 }
 
 function setOutput(testId: string, value: string | number): void {
   const element = resultSection.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
   if (!element) throw new Error(`结果页面缺少字段：${testId}`);
-  element.textContent = String(value);
+  setUiText(element, String(value));
 }
 
 function requireResult(result: ChartResult): void {
@@ -315,19 +368,20 @@ function renderResult(outcome: RuntimeSuccess, versions: RuntimeVersions): void 
 
   setOutput("civil-birth-time", result.calendar.input_datetime);
   trueSolarOutput.setAttribute("data-testid", "result-true-solar-time");
-  trueSolarOutput.textContent = result.calendar.true_solar_time_applied
+  setUiText(trueSolarOutput, result.calendar.true_solar_time_applied
     ? result.calendar.corrected_datetime
-    : "未启用";
-  setOutput("true-solar-correction-minutes", `${result.calendar.true_solar_correction_minutes} 分钟`);
-  setOutput("equation-of-time-minutes", `${result.calendar.equation_of_time_minutes} 分钟`);
+    : "Off / 未启用");
+  setOutput("true-solar-correction-minutes", `${result.calendar.true_solar_correction_minutes} min / ${result.calendar.true_solar_correction_minutes} 分钟`);
+  setOutput("equation-of-time-minutes", `${result.calendar.equation_of_time_minutes} min / ${result.calendar.equation_of_time_minutes} 分钟`);
   setOutput("year-pillar", result.pillars.year);
   setOutput("month-pillar", result.pillars.month);
   setOutput("day-pillar", result.pillars.day);
   setOutput("hour-pillar", result.pillars.hour);
   setOutput("day-master", Array.from(result.pillars.day)[0] ?? "");
-  setOutput("luck-direction", result.luck.direction === "forward" ? "顺行（forward）" : "逆行（reverse）");
-  setOutput("luck-start-age-raw", `${result.luck.start_age_years} 岁`);
-  setOutput("luck-start-age-readable", formatLuckStartAge(result.luck.start_age_years));
+  setOutput("luck-direction", result.luck.direction === "forward" ? "Forward / 顺行（forward）" : "Reverse / 逆行（reverse）");
+  setOutput("luck-start-age-raw", `${result.luck.start_age_years} years / ${result.luck.start_age_years} 岁`);
+  const totalMonths = Math.round(result.luck.start_age_years * 12);
+  setOutput("luck-start-age-readable", `About ${Math.floor(totalMonths / 12)} years ${totalMonths % 12} months / ${formatLuckStartAge(result.luck.start_age_years)}`);
   setOutput("adjacent-solar-term", result.luck.adjacent_jie);
   setOutput("adjacent-solar-term-time", result.luck.adjacent_jie_utc);
   setOutput("current-month-term", result.boundaries.active_month_term);
@@ -337,7 +391,7 @@ function renderResult(outcome: RuntimeSuccess, versions: RuntimeVersions): void 
   setOutput("wheel-sha256", versions.wheelSha256);
   setOutput("canonical-result-hash", outcome.canonical_hash);
   setOutput("prediction-validity", result.prediction_validity);
-  setOutput("warnings", result.warnings.length > 0 ? result.warnings.join("；") : "无");
+  setOutput("warnings", result.warnings.length > 0 ? result.warnings.join("；") : "None / 无");
   resultJson.value = buildFullJson(presentation);
   resultSection.hidden = false;
 }
@@ -347,10 +401,10 @@ async function copyText(text: string, successMessage: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
     if (revision !== feedbackRevision) return;
-    actionFeedback.textContent = successMessage;
+    setUiText(actionFeedback, successMessage);
   } catch {
     if (revision !== feedbackRevision) return;
-    actionFeedback.textContent = "复制失败，请确认浏览器已允许剪贴板权限。";
+    setUiText(actionFeedback, "Copy failed; check clipboard permission. / 复制失败，请确认浏览器已允许剪贴板权限。");
   }
 }
 
@@ -363,7 +417,7 @@ async function loadRuntime(): Promise<void> {
   runtimeVersions = null;
   retryRuntime.hidden = true;
   calculateButton.disabled = true;
-  setRuntimeState("loading", "正在初始化本地 Python 运行环境…");
+  setRuntimeState("loading", "Loading local Python… / 正在初始化本地 Python 运行环境…");
   try {
     const loaded = (await import("./runtime")) as unknown as RuntimeModule;
     await loaded.ready;
@@ -381,22 +435,24 @@ async function loadRuntime(): Promise<void> {
     runtime = loaded;
     runtimeVersions = versions;
     calculateButton.disabled = false;
-    setRuntimeState("ready", `本地排盘引擎已就绪（Python ${versions.python}），可以排盘。`);
+    setRuntimeState("ready", `Local engine ready (Python ${versions.python}) / 本地排盘引擎已就绪，可以排盘。`);
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
     if (code === "UPDATE_REQUIRED") showUpdateBanner();
-    setRuntimeState("error", `运行环境初始化失败：${errorMessage(error)}`);
+    setRuntimeState("error", `Engine unavailable. Reconnect and reload. / 运行环境初始化失败：${errorMessage(error)}`);
     retryRuntime.hidden = false;
   }
 }
 
-function networkLabel(): string {
-  return navigator.onLine ? "当前在线" : "当前离线";
+function offlineLabel(): string {
+  return navigator.onLine
+    ? "Offline ready · Online / 离线资源已就绪 · 当前在线"
+    : "Offline ready · Offline / 离线资源已就绪 · 当前离线";
 }
 
 function refreshOfflineLabel(): void {
   if (offlineReady.dataset.state === "ready") {
-    offlineReady.textContent = `离线资源已就绪 · ${networkLabel()}`;
+    setUiText(offlineReady, offlineLabel());
   }
 }
 
@@ -437,7 +493,7 @@ async function waitForServiceWorkerControl(timeoutMs = 15_000): Promise<void> {
 
 async function initializeServiceWorker(): Promise<void> {
   if (!("serviceWorker" in navigator)) {
-    setOfflineState("error", "此浏览器不支持离线安装，请使用最新版移动浏览器。 ");
+    setOfflineState("error", "Offline installation unsupported; use a current browser. / 此浏览器不支持离线安装，请使用最新版移动浏览器。 ");
     return;
   }
   try {
@@ -446,9 +502,9 @@ async function initializeServiceWorker(): Promise<void> {
     observeServiceWorkerUpdate(registration);
     await navigator.serviceWorker.ready;
     await waitForServiceWorkerControl();
-    setOfflineState("ready", `离线资源已就绪 · ${networkLabel()}`);
+    setOfflineState("ready", offlineLabel());
   } catch (error) {
-    setOfflineState("error", `离线资源准备失败：${errorMessage(error)}`);
+    setOfflineState("error", `Offline resources unavailable; reconnect and reload. / 离线资源准备失败：${errorMessage(error)}`);
   }
 }
 
@@ -524,14 +580,13 @@ form.addEventListener("submit", async (event) => {
     return;
   }
   if (!runtime || !runtimeVersions) {
-    showCalculationError("本地排盘引擎尚未就绪，请等待加载完成或重新加载运行环境。");
+    showCalculationError("Engine not ready; wait or reload. / 本地排盘引擎尚未就绪，请等待加载完成或重新加载运行环境。");
     return;
   }
 
   calculateButton.disabled = true;
   const revision = calculationRevision;
-  const originalLabel = calculateButton.textContent;
-  calculateButton.textContent = "正在排盘…";
+  setUiText(calculateButton, "Calculating… / 正在排盘…");
   try {
     const outcome = await runtime.calculateOutcome(validation.input as unknown as Record<string, unknown>);
     if (revision !== calculationRevision) return;
@@ -542,23 +597,26 @@ form.addEventListener("submit", async (event) => {
     renderResult(outcome, runtimeVersions);
   } catch (error) {
     if (revision !== calculationRevision) return;
-    showCalculationError(`排盘计算未完成：${errorMessage(error)}`);
+    const message = errorMessage(error);
+    showCalculationError(message.includes(" / ")
+      ? message
+      : `Calculation stopped. Check inputs or reload. / 排盘计算未完成：${message}`);
   } finally {
     calculateButton.disabled = false;
-    calculateButton.textContent = originalLabel;
+    setUiText(calculateButton, "Calculate chart / 开始排盘");
   }
 });
 
 requiredElement<HTMLButtonElement>('[data-testid="copy-summary"]').addEventListener("click", () => {
-  if (currentPresentation) void copyText(buildCompactChartText(currentPresentation), "简版排盘已复制。 ");
+  if (currentPresentation) void copyText(buildCompactChartText(currentPresentation), "Chart copied. / 简版排盘已复制。 ");
 });
 
 requiredElement<HTMLButtonElement>('[data-testid="copy-json"]').addEventListener("click", () => {
-  if (currentPresentation) void copyText(buildFullJson(currentPresentation), "完整 JSON 已复制。 ");
+  if (currentPresentation) void copyText(buildFullJson(currentPresentation), "JSON copied. / 完整 JSON 已复制。 ");
 });
 
 requiredElement<HTMLButtonElement>('[data-testid="copy-prompt"]').addEventListener("click", () => {
-  if (currentPresentation) void copyText(buildChatGptPrompt(currentPresentation), "ChatGPT 解读提示词已复制。 ");
+  if (currentPresentation) void copyText(buildChatGptPrompt(currentPresentation), "Prompt copied; nothing sent. / ChatGPT 解读提示词已复制，未发送。 ");
 });
 
 requiredElement<HTMLButtonElement>('[data-testid="download-json"]').addEventListener("click", () => {
@@ -570,7 +628,7 @@ requiredElement<HTMLButtonElement>('[data-testid="download-json"]').addEventList
   link.click();
   URL.revokeObjectURL(url);
   feedbackRevision += 1;
-  actionFeedback.textContent = "JSON 文件已下载。 ";
+  setUiText(actionFeedback, "JSON downloaded. / JSON 文件已下载。 ");
 });
 
 requiredElement<HTMLButtonElement>('[data-testid="clear-data"]').addEventListener("click", () => {
@@ -589,5 +647,6 @@ requiredElement<HTMLButtonElement>('[data-action="reload-app"]').addEventListene
 window.addEventListener("online", refreshOfflineLabel);
 window.addEventListener("offline", refreshOfflineLabel);
 
+initializeLanguage();
 updateCalendarVisibility();
 void initializeApplication();

@@ -1,3 +1,14 @@
+export type UiLanguage = "en" | "zh-CN";
+
+// Explicit UI copy pairs only; engine values and exported JSON stay unchanged.
+export function selectLanguageText(text: string, language: UiLanguage): string {
+  return text.split("\n").map((line) => {
+    const separator = line.indexOf(" / ");
+    if (separator < 0) return line;
+    return language === "en" ? line.slice(0, separator) : line.slice(separator + 3);
+  }).join("\n");
+}
+
 export type ChartResult = {
   method_id: string;
   calculation_version: string;
@@ -58,7 +69,21 @@ const ERROR_MESSAGES: Readonly<Record<string, string>> = {
 };
 
 export function mapChartCalculationError(code: string): string {
-  return ERROR_MESSAGES[code] ?? "排盘计算未完成，请检查输入后重新尝试。";
+  const english: Readonly<Record<string, string>> = {
+    INVALID_INPUT: "Check required fields and options.",
+    INVALID_DATE: "Check the birth date.", INVALID_TIME: "Check the 24-hour birth time.",
+    INVALID_CALENDAR: "Choose Gregorian or Chinese lunar.", INVALID_GENDER: "Choose male or female.",
+    INVALID_LUNAR_DATE: "Check the lunar month, day and leap-month option.",
+    MISSING_LONGITUDE: "True solar time requires longitude.",
+    INVALID_COORDINATE: "Check longitude and latitude ranges.",
+    INVALID_TIMEZONE: "Check the IANA time zone name.",
+    NONEXISTENT_LOCAL_TIME: "This time does not exist due to a clock change. Check the recorded time.",
+    SOLAR_TERM_UNCERTAIN: "REVIEW_REQUIRED: this time is near an uncertain solar-term boundary. Manual review is required; no precise chart is shown.",
+    UNSUPPORTED_YEAR: "Use a supported year from 1901 to 2099.",
+    INVALID_LEAP_MONTH: "Check the lunar leap-month selection.", INVALID_FOLD: "Choose fold 0 or 1 for the repeated local time.",
+    INTERNAL_SOLAR_TERM: "Internal calendar calculation failed. Reload; if repeated, report the version and input range.",
+  };
+  return `${english[code] ?? "Calculation stopped. Check inputs and retry."} / ${ERROR_MESSAGES[code] ?? "排盘计算未完成，请检查输入后重新尝试。"}`;
 }
 
 export function formatLuckStartAge(startAgeYears: number): string {

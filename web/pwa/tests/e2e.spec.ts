@@ -230,10 +230,31 @@ async function renderedEngineResult(page: Page): Promise<Record<string, unknown>
   return presentation.result;
 }
 
+async function openChineseApp(page: Page): Promise<void> {
+  await page.goto("/");
+  await page.getByTestId("language-select").selectOption("zh-CN");
+}
+
+test("switches visible UI language without changing entered birth details", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByTestId("calculate")).toHaveText("Calculate chart");
+  await page.getByTestId("birth-date").fill("2000-01-07");
+  await page.getByTestId("language-select").selectOption("zh-CN");
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.getByTestId("calculate")).toHaveText("开始排盘");
+  await expect(page.getByTestId("disclaimer")).toContainText("仅供文化研究与娱乐参考");
+  await page.getByTestId("language-select").selectOption("en");
+  await expect(page.getByTestId("calculate")).toHaveText("Calculate chart");
+  await expect(page.getByTestId("birth-date")).toHaveValue("2000-01-07");
+  await expect(page.getByTestId("disclaimer")).toContainText("For cultural exploration");
+  await expect(page.getByTestId("disclaimer")).not.toContainText("仅供");
+});
+
 test.describe("mobile privacy-first shell", () => {
   test("shows the local-only contract, the complete form, and no horizontal overflow", async ({ page }) => {
     await page.route("**/runtime/**", (route) => route.abort("failed"));
-    await page.goto("/");
+    await openChineseApp(page);
 
     await expect(page.getByText("本地计算，出生资料未上传", { exact: true })).toBeVisible();
     const form = page.locator("#chart-form");
@@ -270,7 +291,7 @@ test.describe("mobile privacy-first shell", () => {
   test("shows and submits the leap-month field only for lunar input", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== RUNTIME_PROJECT, "One project is enough for form-state behavior.");
     await page.route("**/runtime/**", (route) => route.abort("failed"));
-    await page.goto("/");
+    await openChineseApp(page);
 
     const leapMonth = page.locator('[name="is_leap_month"]');
     await expect(leapMonth).toBeHidden();
@@ -293,7 +314,7 @@ test.describe("mobile privacy-first shell", () => {
   }, testInfo) => {
     test.skip(testInfo.project.name !== RUNTIME_PROJECT, "One project is enough for form-state behavior.");
     await page.route("**/runtime/**", (route) => route.abort("failed"));
-    await page.goto("/");
+    await openChineseApp(page);
 
     await choose(page, "calendar", "lunar");
     await expect(page.getByTestId("birth-date")).toBeHidden();
@@ -325,7 +346,7 @@ test.describe("mobile privacy-first shell", () => {
   test("requires coordinates to be confirmed again after either value changes", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== RUNTIME_PROJECT, "One project is enough for form-state behavior.");
     await page.route("**/runtime/**", (route) => route.abort("failed"));
-    await page.goto("/");
+    await openChineseApp(page);
 
     const confirmation = page.locator('[name="coordinate_confirm"]');
     await page.locator('[name="longitude"]').fill(SYNTHETIC_INPUT.longitude);
@@ -346,7 +367,7 @@ test.describe("form validation", () => {
     page,
   }, testInfo) => {
     useRuntimeProject(testInfo);
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page);
 
@@ -398,7 +419,7 @@ test.describe("keyboard and accessible error recovery", () => {
     page,
   }, testInfo) => {
     useRuntimeProject(testInfo);
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
 
     const calculate = page.getByTestId("calculate");
@@ -427,7 +448,7 @@ test.describe("keyboard and accessible error recovery", () => {
   }, testInfo) => {
     useRuntimeProject(testInfo);
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP_ORIGIN });
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
 
     const genderMale = page.getByTestId("gender-male");
@@ -484,7 +505,7 @@ test.describe("keyboard and accessible error recovery", () => {
   }, testInfo) => {
     useRuntimeProject(testInfo);
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP_ORIGIN });
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
 
     await tabTo(page, page.getByTestId("gender-male"));
@@ -540,7 +561,7 @@ test.describe("keyboard and accessible error recovery", () => {
 test.describe("runtime lifecycle", () => {
   test("reports Pyodide initialization and reaches the ready state", async ({ page }, testInfo) => {
     useRuntimeProject(testInfo);
-    await page.goto("/");
+    await openChineseApp(page);
 
     const status = page.getByTestId("runtime-status");
     await expect(status).toContainText(/正在.*(?:初始化|加载)|准备.*运行环境/);
@@ -565,7 +586,7 @@ test.describe("runtime lifecycle", () => {
       await route.abort("failed");
     });
 
-    await page.goto("/");
+    await openChineseApp(page);
     const status = page.getByTestId("runtime-status");
     await expect(status).toContainText(/初始化失败|运行环境.*加载失败|无法加载.*运行资源/);
 
@@ -596,7 +617,7 @@ test.describe("runtime lifecycle", () => {
       await route.abort("failed");
     });
 
-    await page.goto("/");
+    await openChineseApp(page);
     await expect.poll(() => wheelRequests, { timeout: 120_000 }).toBeGreaterThan(0);
     await expect(page.getByTestId("runtime-status")).toContainText(
       /排盘引擎.*加载失败|核心程序.*加载失败|wheel.*失败|运行资源.*加载失败/i,
@@ -618,7 +639,7 @@ test.describe("real deterministic chart journey", () => {
     };
     const expected = calculateWithCPython(input);
 
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page, input);
     await submitChart(page);
@@ -634,7 +655,7 @@ test.describe("real deterministic chart journey", () => {
     page,
   }, testInfo) => {
     useRuntimeProject(testInfo);
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page, {
       ...SYNTHETIC_INPUT,
@@ -664,7 +685,7 @@ test.describe("real deterministic chart journey", () => {
       is_leap_month: false,
     };
 
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page, input);
     await submitChart(page);
@@ -678,7 +699,7 @@ test.describe("real deterministic chart journey", () => {
     page,
   }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP_ORIGIN });
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page);
     await submitChart(page);
@@ -788,7 +809,7 @@ test.describe("real deterministic chart journey", () => {
     const uncertain = cases.find((item) => item.outcome.error?.code === "SOLAR_TERM_UNCERTAIN");
     expect(uncertain, "generated parity corpus must include SOLAR_TERM_UNCERTAIN").toBeTruthy();
 
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page, uncertain!.input);
     await submitChart(page);
@@ -806,7 +827,7 @@ test.describe("real deterministic chart journey", () => {
 
   test("invalidates a rendered result as soon as the form input changes", async ({ page }, testInfo) => {
     useRuntimeProject(testInfo);
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page);
     await submitChart(page);
@@ -822,7 +843,7 @@ test.describe("real deterministic chart journey", () => {
 
   test("keeps the cleared state final when an earlier clipboard write settles late", async ({ page }, testInfo) => {
     useRuntimeProject(testInfo);
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page);
     await submitChart(page);
@@ -855,7 +876,7 @@ test.describe("real deterministic chart journey", () => {
 
   test("keeps the cleared state final when an earlier calculation settles late", async ({ page }, testInfo) => {
     useRuntimeProject(testInfo);
-    await page.goto("/");
+    await openChineseApp(page);
     await waitForRuntimeReady(page);
     await fillChartForm(page);
 
@@ -929,7 +950,7 @@ test.describe("PWA update experience", () => {
       });
     });
     await page.route("**/runtime/**", (route) => route.abort("failed"));
-    await page.goto("/");
+    await openChineseApp(page);
     const initialPageLoadCount = await page.evaluate(
       () => Number(sessionStorage.getItem("__pwaPageLoadCount") ?? "0"),
     );

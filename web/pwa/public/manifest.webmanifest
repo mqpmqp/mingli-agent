@@ -1,8 +1,8 @@
 {
-  "name": "明理 · 本地八字排盘",
-  "short_name": "明理排盘",
-  "description": "在手机浏览器本地运行确定性 Python 八字引擎，首次加载后可离线排盘。",
-  "lang": "zh-CN",
+  "name": "MingLi AI · 命理师",
+  "short_name": "MingLi AI",
+  "description": "Local deterministic BaZi chart calculation. AI interpretation is not enabled.",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
