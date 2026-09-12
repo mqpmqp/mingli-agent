@@ -11,6 +11,7 @@ import {
   buildCompactChartText,
   buildFullJson,
   formatLuckStartAge,
+  formatRuntimeInitializationError,
   mapChartCalculationError,
   selectLanguageText,
   type UiLanguage,
@@ -439,7 +440,7 @@ async function loadRuntime(): Promise<void> {
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
     if (code === "UPDATE_REQUIRED") showUpdateBanner();
-    setRuntimeState("error", `Engine unavailable. Reconnect and reload. / 运行环境初始化失败：${errorMessage(error)}`);
+    setRuntimeState("error", formatRuntimeInitializationError(errorMessage(error)));
     retryRuntime.hidden = false;
   }
 }

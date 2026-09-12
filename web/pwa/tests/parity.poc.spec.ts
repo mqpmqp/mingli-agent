@@ -66,7 +66,8 @@ for (const asset of PYODIDE_BOOTSTRAP_ASSETS) {
     await page.goto("/");
     const status = page.getByTestId("runtime-status");
     await expect(status).toHaveAttribute("data-state", "error", { timeout: 120_000 });
-    await expect(status).toContainText("SHA256 校验失败：" + asset);
+    await expect(status).toContainText("SHA256");
+    await expect(status).toContainText(asset);
   });
 }
 

@@ -9,6 +9,18 @@ export function selectLanguageText(text: string, language: UiLanguage): string {
   }).join("\n");
 }
 
+export function formatRuntimeInitializationError(message: string): string {
+  // Runtime integrity errors identify static assets, never birth inputs or Python stacks.
+  const integrity = /运行资源 (SHA256|字节数) 校验失败：([A-Za-z0-9_./-]+)/u.exec(message);
+  if (integrity) {
+    const [, check, asset] = integrity;
+    return `Engine unavailable: ${check === "SHA256" ? "SHA256" : "byte length"} verification failed for ${asset}. Reconnect and reload. / 运行环境初始化失败：运行资源 ${check} 校验失败：${asset}。请联网重新加载。`;
+  }
+  const firstLine = message.split(/\r?\n/u)[0];
+  const detail = /Traceback|^\s*File "/u.test(firstLine) ? "运行资源加载失败，请重新加载。" : firstLine;
+  return `Engine unavailable. Reconnect and reload. / 运行环境初始化失败：${detail}`;
+}
+
 export type ChartResult = {
   method_id: string;
   calculation_version: string;

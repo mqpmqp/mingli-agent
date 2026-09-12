@@ -5,12 +5,27 @@ import {
   buildCompactChartText,
   buildFullJson,
   formatLuckStartAge,
+  formatRuntimeInitializationError,
   mapChartCalculationError,
   selectLanguageText,
   type ChartPresentationData,
 } from "../src/presentation";
 
 describe("UI language selection", () => {
+  it.each([
+    "pyodide/pyodide.asm.js", "pyodide/pyodide.asm.wasm",
+    "pyodide/python_stdlib.zip", "pyodide/pyodide-lock.json",
+  ])("retains the integrity failure and asset %s in either language without a stack", (asset) => {
+    const message = formatRuntimeInitializationError(`运行资源 SHA256 校验失败：${asset}\nTraceback: private stack`);
+    for (const lang of ["en", "zh-CN"] as const) {
+      const translated = selectLanguageText(message, lang);
+      expect(translated).toContain("SHA256");
+      expect(translated).toContain(asset);
+      expect(translated).not.toContain("Traceback");
+      expect(translated).not.toContain("private stack");
+    }
+  });
+
   it("selects both languages without losing values, IANA names or review boundaries", () => {
     expect(selectLanguageText("Birth time / 出生时间", "en")).toBe("Birth time");
     expect(selectLanguageText("Birth time / 出生时间", "zh-CN")).toBe("出生时间");
