@@ -14,7 +14,11 @@ from mcp.server.auth.settings import AuthSettings
 import pytest
 from starlette.testclient import TestClient
 
-from mingli.integrated_service_app import create_app, get_integrated_capabilities
+from mingli.integrated_service_app import (
+    analyze_mingli,
+    create_app,
+    get_integrated_capabilities,
+)
 from mingli.oauth_resource import OIDCJWTVerifier
 from mingli.rule_runtime_v1 import RuleAwareRuntime
 from mingli.training import TrainingError, TrainingStore
@@ -30,6 +34,43 @@ MCP_HEADERS = {
     "accept": "application/json, text/event-stream",
     "content-type": "application/json",
 }
+
+
+def test_integrated_runtime_exposes_correct_day_master_and_luck_periods() -> None:
+    result = analyze_mingli(
+        calendar="lunar",
+        birth_date="1988-03-11",
+        birth_time="13:15",
+        timezone="Asia/Shanghai",
+        gender="male",
+        longitude=117.638,
+        latitude=35.506,
+        anchor_year=2026,
+        true_solar_time=True,
+        is_leap_month=False,
+    )
+
+    assert result["chart"]["pillars"] == {
+        "year": "戊辰",
+        "month": "丙辰",
+        "day": "辛亥",
+        "hour": "甲午",
+    }
+    assert result["day_master"] == "辛"
+    assert result["luck_anchor"]["direction"] == "forward"
+    assert [period["ganzhi"] for period in result["dayun_periods"]] == [
+        "丁巳",
+        "戊午",
+        "己未",
+        "庚申",
+        "辛酉",
+        "壬戌",
+        "癸亥",
+        "甲子",
+        "乙丑",
+        "丙寅",
+    ]
+    assert result["prediction_validity"] == "not_evaluated"
 
 
 def hourly_report(source_id: str) -> dict[str, object]:

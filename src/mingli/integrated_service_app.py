@@ -228,7 +228,15 @@ def analyze_mingli(
     }
     if scenario is not None:
         payload["scenario"] = scenario
-    return _apply_active_release(analyze_mingli_payload(payload), domain="bazi")
+    result = _apply_active_release(analyze_mingli_payload(payload), domain="bazi")
+    chart = result["chart"]
+    timeline = result["artifacts"]["fact_graph"]["timeline"]
+    return {
+        **result,
+        "day_master": chart["pillars"]["day"][0],
+        "luck_anchor": timeline["luck_anchor"],
+        "dayun_periods": timeline["dayun_periods"],
+    }
 
 
 def create_ziwei_chart(

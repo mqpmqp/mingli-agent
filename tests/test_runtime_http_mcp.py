@@ -199,6 +199,70 @@ def test_mcp_analyze_tool_has_explicit_machine_friendly_input_schema(client) -> 
     ]
 
 
+def test_mcp_lunar_analysis_returns_day_master_and_runtime_luck_periods(client) -> None:
+    arguments = {
+        "calendar": "lunar",
+        "birth_date": "1988-03-11",
+        "birth_time": "13:15",
+        "timezone": "Asia/Shanghai",
+        "gender": "male",
+        "longitude": 117.638,
+        "latitude": 35.506,
+        "anchor_year": 2026,
+        "true_solar_time": True,
+        "is_leap_month": False,
+    }
+    response = _mcp_request(
+        client,
+        "tools/call",
+        {"name": "analyze_mingli", "arguments": arguments},
+        1,
+    )
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is False
+    value = result["structuredContent"]
+    assert value["chart"]["calendar"]["solar_date"] == "1988-04-26"
+    assert value["chart"]["pillars"] == {
+        "year": "戊辰", "month": "丙辰", "day": "辛亥", "hour": "甲午",
+    }
+    assert value["day_master"] == "辛"
+    assert value["prediction_validity"] == "not_evaluated"
+    assert value["chart"]["prediction_validity"] == "not_evaluated"
+
+    chart_input = {
+        key: arguments[key]
+        for key in (
+            "calendar", "birth_date", "birth_time", "timezone", "gender",
+            "true_solar_time", "is_leap_month",
+        )
+    }
+    chart_input["birth_location"] = {
+        "longitude": arguments["longitude"], "latitude": arguments["latitude"],
+    }
+    runtime_response = client.post(
+        "/v1/mingli/analyze",
+        json={"chart_input": chart_input, "anchor_year": arguments["anchor_year"]},
+    )
+    assert runtime_response.status_code == 200
+    runtime = runtime_response.json()
+    timeline = runtime["artifacts"]["fact_graph"]["timeline"]
+    assert value["luck_anchor"] == timeline["luck_anchor"]
+    assert value["dayun_periods"] == timeline["dayun_periods"]
+    assert value["luck_anchor"]["direction"] == "forward"
+    assert value["luck_anchor"]["duration"]["display_start_age_years"]
+    periods = value["dayun_periods"]
+    assert [period["ganzhi"] for period in periods] == [
+        "丁巳", "戊午", "己未", "庚申", "辛酉", "壬戌", "癸亥", "甲子", "乙丑", "丙寅",
+    ]
+    assert periods[0]["start_instant_utc"] == value["luck_anchor"]["exact_start_instant_utc"]
+    assert all(
+        earlier["end_instant_utc"] == later["start_instant_utc"]
+        for earlier, later in zip(periods, periods[1:])
+    )
+    assert runtime["prediction_validity"] == "not_evaluated"
+
+
 def test_mcp_transport_allows_only_configured_public_host_and_origin() -> None:
     public_app = create_app(
         create_mcp(

@@ -119,12 +119,17 @@ def analyze_mingli(
     if scenario is not None:
         payload["scenario"] = scenario
     result = analyze_mingli_payload(payload)
+    chart = result["chart"]
+    timeline = result["artifacts"]["fact_graph"]["timeline"]
     return {
         "schema_version": result["schema_version"],
         "method_id": result["method_id"],
         "calculation_version": result["calculation_version"],
         "run_id": result["run_id"],
-        "chart": result["chart"],
+        "chart": chart,
+        "day_master": chart["pillars"]["day"][0],
+        "luck_anchor": timeline["luck_anchor"],
+        "dayun_periods": timeline["dayun_periods"],
         "scenario_assessment": result["scenario_assessment"],
         "chenggu": result["chenggu"],
         "final_answer": result["final_answer"],
