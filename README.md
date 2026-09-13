@@ -239,6 +239,33 @@ python -m mingli.cli validation benchmark
 
 完整数据合同、隐私政策和人工审查步骤分别见 `REAL_CASE_DATA_MODEL.md`、`PRIVACY_AND_CONSENT_POLICY.md` 与 `REVIEWER_RUNBOOK.md`。不得把填写后的模板、原始同意文件或真实案例提交到 Git。
 
+## 小时训练到 Runtime 的规则晋升闭环
+
+`mingli.rule_promotion` 把小时训练报告接入一条 fail-closed 路径：结构化报告 → 内容去重候选 → 来源哈希与人工来源审查 → 候选回归 → 独立人工批准 → 不可变规则版本 → Runtime 加载 → Phase 4.1 真人试点。自动化任务只能提交候选，不能自行通过来源门、批准或发布。
+
+常驻接入使用 `mingli-integrated-service`。它在原 Runtime MCP 中增加 OAuth 保护的 `submit_hourly_training_report`，每次自动执行摄取、去重、来源状态检查与合同回归，并停在人工批准门；部署与三个小时任务的实际接线见 `docs/deployment/hourly-training-collector.md`。
+
+训练 store 必须位于 Git 仓库外。`report-ingest` 既接受纯 JSON，也能从小时任务输出的 `HOURLY_TRAINING_REPORT_JSON` 代码块提取结构化记录。完整字段、命令顺序和 Runtime 配置见 `docs/hourly-rule-promotion.md`。
+
+```bash
+python -m mingli.cli training source-register --file source.pdf --input source.json --store /private/mingli-training --json
+python -m mingli.cli training source-review --input source-review.json --store /private/mingli-training --json
+python -m mingli.cli training report-ingest --input hourly-report.md --store /private/mingli-training --json
+python -m mingli.cli training report-collect --input hourly-report.md --store /private/mingli-training --json
+python -m mingli.cli training source-verify --candidate-id 'candidate:...' --checked-at '2026-09-13T12:00:00+00:00' --store /private/mingli-training --json
+python -m mingli.cli training regression-run --candidate-id 'candidate:...' --checked-at '2026-09-13T12:00:00+00:00' --store /private/mingli-training --json
+python -m mingli.cli training candidate-decide --input approval.json --store /private/mingli-training --json
+python -m mingli.cli training rules-publish --input release.json --store /private/mingli-training --json
+python -m mingli.cli training rules-status --store /private/mingli-training --json
+mingli-rule-runtime capabilities --store /private/mingli-training --version hourly-rules@2026.09.1
+mingli-rule-runtime analyze --input runtime.json --store /private/mingli-training --version hourly-rules@2026.09.1
+mingli-rule-runtime apply --domain qimen --input qimen-result.json --store /private/mingli-training --version hourly-rules@2026.09.1
+mingli-rule-runtime runtime-instructions --store /private/mingli-training --version hourly-rules@2026.09.1
+mingli-rule-runtime phase4-1-binding --store /private/mingli-training --version hourly-rules@2026.09.1
+```
+
+发布版本只允许 `development_and_pilot` 加载，并固定保留 `pilot_target=10`、`prediction_validity=not_evaluated` 和 `commercial_release_hold=ACTIVE`。工程回归不能替代 Phase 4.1 真人验证，小时训练反馈也不计作准确率。
+
 ## 核心约束
 
 - 生产规则检索默认只返回 `reviewed` 与 `verified`，现实规则始终先于普通结构规则，再按优先级降序排列。

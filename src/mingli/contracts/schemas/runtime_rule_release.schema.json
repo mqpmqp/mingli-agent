@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/runtime_rule_release.schema.json",
+  "title": "RuntimeRuleRelease",
+  "type": "object",
+  "required": ["release_id", "version", "created_at", "rules", "source_check_ids", "regression_ids", "approval_ids", "manifest_hash", "runtime_loadable", "deployment_scope", "phase4_1_validation"],
+  "properties": {
+    "release_id": {"type": "string", "pattern": "^release:[0-9a-f]{64}$"},
+    "version": {"type": "string", "pattern": "^hourly-rules@[0-9]{4}\\.[0-9]{2}\\.[0-9]+$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["candidate_id", "candidate_hash", "domain", "kind", "statement", "value", "source_ids"],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^candidate:[0-9a-f]{64}$"},
+          "candidate_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+          "domain": {"enum": ["bazi", "qimen", "fengshui", "cross_domain"]},
+          "kind": {"enum": ["runtime_instruction", "output_forbidden_phrase", "output_required_notice"]},
+          "statement": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "value": {"type": "string", "minLength": 1, "maxLength": 500},
+          "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^source:[0-9a-f]{64}$"}, "uniqueItems": true}
+        },
+        "additionalProperties": false
+      }
+    },
+    "source_check_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^source-check:[0-9a-f]{64}$"}},
+    "regression_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^regression:[0-9a-f]{64}$"}},
+    "approval_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^approval:[0-9a-f]{64}$"}},
+    "manifest_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "runtime_loadable": {"const": true},
+    "deployment_scope": {"const": "development_and_pilot"},
+    "phase4_1_validation": {
+      "type": "object",
+      "required": ["pilot_target", "registered_real_cases", "accuracy", "prediction_validity", "commercial_release_hold"],
+      "properties": {
+        "pilot_target": {"const": 10},
+        "registered_real_cases": {"type": "integer", "minimum": 0},
+        "accuracy": {"type": ["number", "null"]},
+        "prediction_validity": {"const": "not_evaluated"},
+        "commercial_release_hold": {"const": "ACTIVE"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

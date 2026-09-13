@@ -281,7 +281,7 @@ class SourceAndPackagingTests(unittest.TestCase):
                     for name in archive.namelist()
                     if "/schemas/" in name and name.endswith(".json")
                 }
-            self.assertEqual(42, len(packaged))
+            self.assertEqual(49, len(packaged))
             ziwei_schemas = {
                 f"ziwei_{name}.schema.json"
                 for name in (

@@ -157,7 +157,10 @@ class TrainingStoreTests(unittest.TestCase):
             "product_runtime_input.schema.json", "product_runtime_envelope.schema.json",
             "training_case.schema.json", "analysis_run.schema.json", "user_feedback.schema.json",
             "outcome_observation.schema.json", "rule_review_candidate.schema.json",
-            "training_iteration.schema.json",
+            "training_iteration.schema.json", "training_source.schema.json",
+            "hourly_training_report.schema.json", "promotion_rule_candidate.schema.json",
+            "promotion_source_check.schema.json", "promotion_regression.schema.json",
+            "promotion_approval.schema.json", "runtime_rule_release.schema.json",
         )
         for name in names:
             Draft202012Validator.check_schema(get_schema(name))

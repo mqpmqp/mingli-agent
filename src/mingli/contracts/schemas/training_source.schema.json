@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/training_source.schema.json",
+  "title": "TrainingSource",
+  "type": "object",
+  "required": ["source_id", "title", "source_type", "sha256", "source_family", "scope_note", "review_state", "reviewer_id", "reviewed_at", "review_note", "registered_at"],
+  "properties": {
+    "source_id": {"type": "string", "pattern": "^source:[0-9a-f]{64}$"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 300},
+    "source_type": {"enum": ["pdf", "book", "article", "case_record", "runtime_trace", "other"]},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_family": {"type": "string", "minLength": 1, "maxLength": 120},
+    "scope_note": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "review_state": {"enum": ["pending_human_review", "reviewed", "verified", "rejected"]},
+    "reviewer_id": {"type": ["string", "null"], "pattern": "^reviewer:[0-9a-f]{64}$"},
+    "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+    "review_note": {"type": ["string", "null"], "maxLength": 1000},
+    "registered_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}
