@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "build>=1.2,<2"]
-api = ["mcp[cli]>=1.28,<2"]
+api = ["mcp[cli]>=1.28,<2", "PyJWT[crypto]>=2.10,<3"]
 
 [project.scripts]
 mingli = "mingli.cli:main"
@@ -41,6 +41,8 @@ mingli-phase23 = "mingli.phase23_cli:main"
 mingli-phase24 = "mingli.phase24_cli:main"
 mingli-validation = "mingli.validation_cli:main"
 mingli-service = "mingli.service_app:main"
+mingli-integrated-service = "mingli.integrated_service_app:main"
+mingli-rule-runtime = "mingli.rule_runtime_cli:main"
 mingli-knowledge-service = "mingli.knowledge_service_app:main"
 mingli-contract-freeze = "mingli.contracts.freeze:main"
 mingli-capability-surge-service = "mingli.capability_surge_service_v2:main"

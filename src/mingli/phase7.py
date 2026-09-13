@@ -878,6 +878,10 @@ def build_bazi_fact_graph(
     timeline = build_luck_timeline(base_chart, dayun_count=dayun_count, liunian_start_year=liunian_start_year, liunian_end_year=liunian_end_year)
     relations = tuple(fact.to_dict() for fact in detect_structural_relations(derived_chart))
     pillars = _pillars_from_value(derived_chart)
+    day_stems = [stem for position, stem, _ in pillars if position == "day"]
+    if len(day_stems) != 1:
+        raise ValueError("fact graph requires exactly one day pillar")
+    day_master = day_stems[0]
     growth_targets = tuple((stem, branch) for _, stem, branch in pillars)
     growth = tuple(fact.to_dict() for fact in calculate_growth_stages(growth_targets))
     base_ref, derived_ref = _graph_refs(base_chart, derived_chart)
@@ -895,13 +899,13 @@ def build_bazi_fact_graph(
             ]
         )
         edges.extend([_edge("contains", pillar_id, stem_id), _edge("contains", pillar_id, branch_id)])
-        hidden = map_hidden_stems(branch, day_master=pillars[2][1])
+        hidden = map_hidden_stems(branch, day_master=day_master)
         for record in hidden:
             hidden_id = f"hidden-stem:{position}:{branch}:{record.ordinal}:{record.stem}"
             ten_god_code = record.ten_god.code if record.ten_god else None
             nodes.append(_node("HiddenStem", hidden_id, stem=record.stem, ordinal=record.ordinal, ten_god=ten_god_code))
             edges.append(_edge("contains", branch_id, hidden_id))
-        ten_god = map_ten_god(pillars[2][1], stem)
+        ten_god = map_ten_god(day_master, stem)
         ten_god_id = f"ten-god:{position}:{ten_god.code}"
         nodes.append(_node("TenGod", ten_god_id, code=ten_god.code, label=ten_god.label))
         edges.append(_edge("relative_to_day_master", stem_id, ten_god_id))

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/promotion_approval.schema.json",
+  "title": "PromotionApproval",
+  "type": "object",
+  "required": ["approval_id", "candidate_id", "candidate_hash", "source_check_id", "regression_id", "decision", "reviewer_id", "review_note", "decided_at"],
+  "properties": {
+    "approval_id": {"type": "string", "pattern": "^approval:[0-9a-f]{64}$"},
+    "candidate_id": {"type": "string", "pattern": "^candidate:[0-9a-f]{64}$"},
+    "candidate_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "source_check_id": {"type": "string", "pattern": "^source-check:[0-9a-f]{64}$"},
+    "regression_id": {"type": "string", "pattern": "^regression:[0-9a-f]{64}$"},
+    "decision": {"enum": ["approved", "rejected"]},
+    "reviewer_id": {"type": "string", "pattern": "^reviewer:[0-9a-f]{64}$"},
+    "review_note": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "decided_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

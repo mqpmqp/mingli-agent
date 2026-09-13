@@ -1,0 +1,25 @@
+[Unit]
+Description=MingLi integrated Runtime and hourly training collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mingli
+Group=mingli
+WorkingDirectory=/opt/mingli-agent
+EnvironmentFile=/etc/mingli/integrated.env
+Environment=MINGLI_REPOSITORY_ROOT=/opt/mingli-agent
+Environment=MINGLI_TRAINING_STORE=/var/lib/mingli/training
+ExecStart=/opt/mingli-agent/.venv/bin/mingli-integrated-service
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mingli
+StateDirectory=mingli
+
+[Install]
+WantedBy=multi-user.target

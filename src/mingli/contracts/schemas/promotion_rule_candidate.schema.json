@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/promotion_rule_candidate.schema.json",
+  "title": "PromotionRuleCandidate",
+  "type": "object",
+  "required": ["candidate_id", "dedupe_key", "candidate_hash", "report_ids", "domain", "rule", "source_ids", "counter_evidence", "review_state", "created_at", "valid"],
+  "properties": {
+    "candidate_id": {"type": "string", "pattern": "^candidate:[0-9a-f]{64}$"},
+    "dedupe_key": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "candidate_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "report_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^report:[0-9a-f]{64}$"}, "uniqueItems": true},
+    "domain": {"enum": ["bazi", "qimen", "fengshui", "cross_domain"]},
+    "rule": {"$ref": "#/$defs/proposed_rule"},
+    "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^source:[0-9a-f]{64}$"}, "uniqueItems": true},
+    "counter_evidence": {"type": "array", "items": {"type": "string"}},
+    "review_state": {"enum": ["pending_source_verification", "source_check_passed", "source_check_failed"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "valid": {"const": true}
+  },
+  "$defs": {
+    "proposed_rule": {
+      "type": "object",
+      "required": ["kind", "statement", "value", "supporting_source_ids", "counter_evidence", "regression_examples"],
+      "properties": {
+        "kind": {"enum": ["runtime_instruction", "output_forbidden_phrase", "output_required_notice"]},
+        "statement": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "value": {"type": "string", "minLength": 1, "maxLength": 500},
+        "supporting_source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^source:[0-9a-f]{64}$"}, "uniqueItems": true},
+        "counter_evidence": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 1000}, "maxItems": 30},
+        "regression_examples": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "required": ["text", "expected_violation"],
+            "properties": {
+              "text": {"type": "string", "maxLength": 4000},
+              "expected_violation": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

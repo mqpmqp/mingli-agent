@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/hourly_training_report.schema.json",
+  "title": "HourlyTrainingReport",
+  "type": "object",
+  "required": ["report_id", "report_hash", "automation_id", "domain", "window_start", "window_end", "generated_at", "run_count", "summary", "findings", "source_ids", "proposed_rules", "synthetic", "status"],
+  "properties": {
+    "report_id": {"type": "string", "pattern": "^report:[0-9a-f]{64}$"},
+    "report_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "automation_id": {"type": "string", "minLength": 1, "maxLength": 120},
+    "domain": {"enum": ["bazi", "qimen", "fengshui", "cross_domain"]},
+    "window_start": {"type": "string", "format": "date-time"},
+    "window_end": {"type": "string", "format": "date-time"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "run_count": {"type": "integer", "minimum": 0},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "findings": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 2000}, "maxItems": 100},
+    "source_ids": {"type": "array", "items": {"type": "string", "pattern": "^source:[0-9a-f]{64}$"}, "uniqueItems": true},
+    "proposed_rules": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {"$ref": "#/$defs/proposed_rule"}
+    },
+    "synthetic": {"type": "boolean"},
+    "status": {"const": "ingested"}
+  },
+  "$defs": {
+    "proposed_rule": {
+      "type": "object",
+      "required": ["kind", "statement", "value", "supporting_source_ids", "counter_evidence", "regression_examples"],
+      "properties": {
+        "kind": {"enum": ["runtime_instruction", "output_forbidden_phrase", "output_required_notice"]},
+        "statement": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "value": {"type": "string", "minLength": 1, "maxLength": 500},
+        "supporting_source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^source:[0-9a-f]{64}$"}, "uniqueItems": true},
+        "counter_evidence": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 1000}, "maxItems": 30},
+        "regression_examples": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "required": ["text", "expected_violation"],
+            "properties": {
+              "text": {"type": "string", "maxLength": 4000},
+              "expected_violation": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
