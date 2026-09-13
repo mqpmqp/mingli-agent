@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Mapping
 
+from .phase4_1 import Phase41Pilot
 from .rule_promotion import RulePromotionPipeline, apply_runtime_release
 from .service import analyze_mingli_payload, get_service_capabilities
 from .training import TrainingError, TrainingStore
@@ -24,6 +25,8 @@ class RuleAwareRuntime:
         synthetic: bool = False,
     ) -> None:
         store = TrainingStore(store_root, repository_root=repository_root, synthetic=synthetic)
+        self.store = store
+        self.phase4_1 = Phase41Pilot(store)
         self.release = RulePromotionPipeline(store).load_release(version)
 
     def analyze(self, payload: object) -> dict[str, object]:
@@ -36,13 +39,18 @@ class RuleAwareRuntime:
 
     def capabilities(self) -> dict[str, object]:
         base = get_service_capabilities()
+        binding = self.phase4_1_binding()
         base["rule_runtime_version"] = RULE_RUNTIME_VERSION
         base["rule_release"] = {
             "status": "loaded",
             "version": self.release["version"],
             "manifest_hash": self.release["manifest_hash"],
             "deployment_scope": self.release["deployment_scope"],
-            "phase4_1_validation": self.release["phase4_1_validation"],
+            "phase4_1_validation": {
+                key: value
+                for key, value in binding.items()
+                if key not in {"rule_set_version", "rule_manifest_hash"}
+            },
         }
         return base
 
@@ -50,7 +58,7 @@ class RuleAwareRuntime:
         return {
             "rule_set_version": self.release["version"],
             "rule_manifest_hash": self.release["manifest_hash"],
-            **self.release["phase4_1_validation"],
+            **self.phase4_1.status()["phase4_1_validation"],
         }
 
     def bind_phase4_1_prediction(

@@ -112,3 +112,16 @@ mingli training rules-publish --input release.json \
 - 训练库属于受控、仓库外、持久卷；备份和恢复必须保持整个目录的一致快照。
 - V1 不提供远程删除或批准工具，避免自动任务或提示注入破坏审计链。发现误收敏感信息时立即停服务，隔离整个 store 快照，由管理员离线定位依赖记录并执行删除；删除后重新跑完整性和回归。
 - 本服务仅限开发与真人试点，不是商业生产发布；Phase 4.1 仍以 10 个前瞻真人案例为目标，当前准确率不能由工程测试推导。
+
+## Phase 4.1 真人案例写入
+
+真人案例和小时训练规则使用同一个 `MINGLI_TRAINING_STORE`。客户端必须在生成正式预测前依次调用：
+
+1. `submit_phase4_1_candidate_intake`
+2. `screen_phase4_1_candidate`
+3. 生成预测并调用 `freeze_phase4_1_prediction`
+4. 收到现实反馈后调用 `submit_phase4_1_feedback`
+
+MCP 与对应 `/v1/training/phase4-1/*` HTTP 路由均要求 `training:write`，状态读取要求 `training:read`。服务仅落盘不可逆 candidate/person/prediction 标识、claim/evidence 代码和 manifest hash，不接受姓名、电话、邮箱、身份证或详细地址。
+
+如果在候选登记时预测或反馈已经存在，必须将 `prior_stage` 设为实际阶段。系统写入 `intake_sequence_violation=true`，允许再用 `submit_phase4_1_retrospective_audit` 保存去标识的验证证据，但不允许 screen、freeze、分配 slot 或计入准确率。`get_phase4_1_status` 会分别报告 `observed_real_cases` 和 `registered_real_cases`，防止事后挑选命中案例。

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from threading import RLock
 from typing import Mapping
 
+from .phase4_1 import Phase41Pilot
 from .rule_promotion import RulePromotionPipeline
 from .training import TrainingError, TrainingStore
 
@@ -29,7 +30,9 @@ class TrainingReportCollector:
     """
 
     def __init__(self, store: TrainingStore) -> None:
+        self.store = store
         self.pipeline = RulePromotionPipeline(store)
+        self.phase4_1 = Phase41Pilot(store)
         self._write_lock = RLock()
 
     def collect(
@@ -117,6 +120,7 @@ class TrainingReportCollector:
             "accepted_automations": dict(AUTOMATION_DOMAINS),
             "single_process_writer_required": True,
             "pipeline": pipeline_status,
+            "phase4_1": self.phase4_1.status(),
             "review_queue_counts": states,
             "automatic_steps": [
                 "report_ingest",
