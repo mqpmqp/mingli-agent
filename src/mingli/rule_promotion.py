@@ -185,6 +185,7 @@ class RulePromotionPipeline:
     """Fail-closed promotion path from hourly reports to pilot Runtime releases."""
 
     def __init__(self, store: TrainingStore) -> None:
+        self.training_store = store
         self.store = _PromotionRecords(store.root)
 
     def register_source_file(self, path: Path | str, metadata: Mapping[str, object]) -> dict[str, object]:
@@ -579,8 +580,11 @@ class RulePromotionPipeline:
         return release
 
     def status(self) -> dict[str, object]:
+        from .phase4_1 import Phase41Pilot
+
         releases = self.store._list("release")
         candidates = self.store._list("promotion_candidate")
+        phase4_1 = Phase41Pilot(self.training_store).status()["phase4_1_validation"]
         return {
             "schema_version": RULE_PROMOTION_VERSION,
             "hourly_reports": len(self.store._list("hourly_report")),
@@ -590,13 +594,7 @@ class RulePromotionPipeline:
             "approvals": len(self.store._list("approval")),
             "releases": len(releases),
             "active_release": self.load_release()["version"] if releases else None,
-            "phase4_1_validation": {
-                "pilot_target": 10,
-                "registered_real_cases": 0,
-                "accuracy": None,
-                "prediction_validity": "not_evaluated",
-                "commercial_release_hold": "ACTIVE",
-            },
+            "phase4_1_validation": phase4_1,
         }
 
     def review_queue(self) -> dict[str, object]:

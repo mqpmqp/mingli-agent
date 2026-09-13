@@ -266,6 +266,19 @@ mingli-rule-runtime phase4-1-binding --store /private/mingli-training --version 
 
 发布版本只允许 `development_and_pilot` 加载，并固定保留 `pilot_target=10`、`prediction_validity=not_evaluated` 和 `commercial_release_hold=ACTIVE`。工程回归不能替代 Phase 4.1 真人验证，小时训练反馈也不计作准确率。
 
+### Phase 4.1 真人案例入口
+
+`mingli-integrated-service` 通过同一个仓库外训练 store 提供六个 OAuth 保护接口：
+
+- `submit_phase4_1_candidate_intake`：在任何正式预测前写入不可变、去标识候选收据；
+- `screen_phase4_1_candidate`：检查同意、隐私、输入、人类案例与时序门禁；
+- `freeze_phase4_1_prediction`：冻结 claim 标识、预测摘要哈希和实际 Runtime 版本，并顺序分配 `slot_01...slot_10`；
+- `submit_phase4_1_feedback`：只接受预测冻结后的编码反馈，保持 `counts_toward_accuracy=false` 等待独立复核；
+- `submit_phase4_1_retrospective_audit`：保存已经先预测或先反馈的真人案例，但标记时序违规且不占正式 slot；
+- `get_phase4_1_status`：读取候选、筛选、slot、反馈、完整性和 Release Hold 状态。
+
+强制顺序为 `candidate intake → pilot screen → prediction freeze → feedback`。已有预测后再登记的案例只进入 `observed_real_cases` 与审计计数，不进入 `registered_real_cases`、不参与准确率，也不解除 `commercial_release_hold=ACTIVE`。
+
 ## 核心约束
 
 - 生产规则检索默认只返回 `reviewed` 与 `verified`，现实规则始终先于普通结构规则，再按优先级降序排列。

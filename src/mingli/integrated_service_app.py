@@ -50,6 +50,12 @@ _PROTECTED_TOOLS = frozenset(
         "submit_hourly_training_report",
         "get_rule_promotion_status",
         "list_rule_review_queue",
+        "submit_phase4_1_candidate_intake",
+        "screen_phase4_1_candidate",
+        "freeze_phase4_1_prediction",
+        "submit_phase4_1_feedback",
+        "submit_phase4_1_retrospective_audit",
+        "get_phase4_1_status",
     }
 )
 _LOGGER = logging.getLogger("mingli.integrated_service")
@@ -63,7 +69,9 @@ MCP_INSTRUCTIONS = (
     "and commercial Release Hold. submit_hourly_training_report is only for the "
     "three registered hourly-training automations. It stores a schema-valid report, "
     "deduplicates candidates, and runs source and contract-regression gates. It never "
-    "approves or publishes a rule."
+    "approves or publishes a rule. Phase 4.1 real cases must be received through "
+    "candidate intake before screening and prediction freeze; post-prediction cases "
+    "are retained only as sequence-violation audits and never count as registered slots."
 )
 
 
@@ -294,12 +302,24 @@ def get_integrated_capabilities() -> dict[str, object]:
         "auto_approval": False,
         "auto_publish": False,
     }
+    capabilities["phase4_1_case_intake"] = {
+        "status": "available",
+        "storage": "same_private_training_store",
+        "required_order": ["candidate_intake", "pilot_screen", "prediction_freeze", "feedback"],
+        "retrospective_cases": "audit_only_not_registered",
+        "pilot_target": 10,
+        "commercial_release_hold": "ACTIVE",
+    }
     capabilities["rule_release"] = (
         {
             "status": "loaded",
             "version": runtime.release["version"],
             "manifest_hash": runtime.release["manifest_hash"],
-            "phase4_1_validation": runtime.release["phase4_1_validation"],
+            "phase4_1_validation": {
+                key: value
+                for key, value in runtime.phase4_1_binding().items()
+                if key not in {"rule_set_version", "rule_manifest_hash"}
+            },
         }
         if runtime is not None
         else {
@@ -397,6 +417,76 @@ def create_mcp(
             required_scope="training:read",
         )
         return collector_provider().review_queue()
+
+    def submit_phase4_1_candidate_intake(
+        candidate: dict[str, object], ctx: Context
+    ) -> dict[str, object]:
+        _require_mcp_auth(
+            ctx,
+            bearer_token=bearer_token,
+            oauth_enabled=oauth_enabled,
+            required_scope="training:write",
+        )
+        return collector_provider().phase4_1.intake(candidate)
+
+    def screen_phase4_1_candidate(
+        screen: dict[str, object], ctx: Context
+    ) -> dict[str, object]:
+        _require_mcp_auth(
+            ctx,
+            bearer_token=bearer_token,
+            oauth_enabled=oauth_enabled,
+            required_scope="training:write",
+        )
+        return collector_provider().phase4_1.screen(screen)
+
+    def freeze_phase4_1_prediction(
+        prediction: dict[str, object], ctx: Context
+    ) -> dict[str, object]:
+        _require_mcp_auth(
+            ctx,
+            bearer_token=bearer_token,
+            oauth_enabled=oauth_enabled,
+            required_scope="training:write",
+        )
+        payload = dict(prediction)
+        runtime = _configured_runtime()
+        payload.setdefault(
+            "rule_set_version",
+            str(runtime.release["version"]) if runtime is not None else INTEGRATED_SERVICE_VERSION,
+        )
+        return collector_provider().phase4_1.freeze_prediction(payload)
+
+    def submit_phase4_1_feedback(
+        feedback: dict[str, object], ctx: Context
+    ) -> dict[str, object]:
+        _require_mcp_auth(
+            ctx,
+            bearer_token=bearer_token,
+            oauth_enabled=oauth_enabled,
+            required_scope="training:write",
+        )
+        return collector_provider().phase4_1.add_feedback(feedback)
+
+    def submit_phase4_1_retrospective_audit(
+        audit: dict[str, object], ctx: Context
+    ) -> dict[str, object]:
+        _require_mcp_auth(
+            ctx,
+            bearer_token=bearer_token,
+            oauth_enabled=oauth_enabled,
+            required_scope="training:write",
+        )
+        return collector_provider().phase4_1.add_retrospective_audit(audit)
+
+    def get_phase4_1_status(ctx: Context) -> dict[str, object]:
+        _require_mcp_auth(
+            ctx,
+            bearer_token=bearer_token,
+            oauth_enabled=oauth_enabled,
+            required_scope="training:read",
+        )
+        return collector_provider().phase4_1.status()
 
     resolved_hosts = (
         _csv_setting("MINGLI_ALLOWED_HOSTS")
@@ -506,6 +596,58 @@ def create_mcp(
         if oauth_enabled
         else None,
     )(list_rule_review_queue)
+    write_meta = {
+        "securitySchemes": [
+            {"type": "oauth2", "scopes": ["runtime:read", "training:write"]}
+        ]
+    } if oauth_enabled else None
+    read_meta = {
+        "securitySchemes": [
+            {"type": "oauth2", "scopes": ["runtime:read", "training:read"]}
+        ]
+    } if oauth_enabled else None
+    server.tool(
+        name="submit_phase4_1_candidate_intake",
+        title="Submit Phase 4.1 candidate intake",
+        description="Create the immutable deidentified receipt that must precede screening and prediction.",
+        annotations=_annotations("Submit Phase 4.1 candidate intake", read_only=False),
+        meta=write_meta,
+    )(submit_phase4_1_candidate_intake)
+    server.tool(
+        name="screen_phase4_1_candidate",
+        title="Screen Phase 4.1 candidate",
+        description="Evaluate consent, privacy, input, human, and sequence gates without deleting failed candidates.",
+        annotations=_annotations("Screen Phase 4.1 candidate", read_only=False),
+        meta=write_meta,
+    )(screen_phase4_1_candidate)
+    server.tool(
+        name="freeze_phase4_1_prediction",
+        title="Freeze Phase 4.1 prediction",
+        description="Freeze claim identifiers and assign the next real pilot slot after a passing screen.",
+        annotations=_annotations("Freeze Phase 4.1 prediction", read_only=False),
+        meta=write_meta,
+    )(freeze_phase4_1_prediction)
+    server.tool(
+        name="submit_phase4_1_feedback",
+        title="Submit Phase 4.1 feedback",
+        description="Attach coded feedback to an already frozen pilot prediction; accuracy remains independently reviewed.",
+        annotations=_annotations("Submit Phase 4.1 feedback", read_only=False),
+        meta=write_meta,
+    )(submit_phase4_1_feedback)
+    server.tool(
+        name="submit_phase4_1_retrospective_audit",
+        title="Submit Phase 4.1 retrospective audit",
+        description="Retain a consented real case received after prediction as an audit-only sequence violation.",
+        annotations=_annotations("Submit Phase 4.1 retrospective audit", read_only=False),
+        meta=write_meta,
+    )(submit_phase4_1_retrospective_audit)
+    server.tool(
+        name="get_phase4_1_status",
+        title="Get Phase 4.1 status",
+        description="Read candidate, screen, slot, feedback, integrity, and Release Hold counts.",
+        annotations=_annotations("Get Phase 4.1 status", read_only=True),
+        meta=read_meta,
+    )(get_phase4_1_status)
 
     async def healthz(request: Request) -> JSONResponse:
         fallback_token = (
@@ -594,6 +736,59 @@ def create_mcp(
         except Exception as exc:
             return _collector_error(exc)
 
+    def _training_http_authorized(request: Request, required_scope: str) -> bool:
+        if oauth_enabled:
+            return required_scope in request.auth.scopes
+        return collector_authorized(
+            request.headers.get("authorization"), bearer_token=bearer_token
+        )
+
+    async def phase4_1_write_http(request: Request, operation: str) -> JSONResponse:
+        if not _training_http_authorized(request, "training:write"):
+            return _error("collector_auth_required", "Valid Bearer authorization required", 401)
+        try:
+            payload = await _json_object(request)
+            pilot = collector_provider().phase4_1
+            if operation == "intake":
+                return JSONResponse(pilot.intake(payload))
+            if operation == "screen":
+                return JSONResponse(pilot.screen(payload))
+            if operation == "freeze":
+                runtime = _configured_runtime()
+                payload.setdefault(
+                    "rule_set_version",
+                    str(runtime.release["version"]) if runtime is not None else INTEGRATED_SERVICE_VERSION,
+                )
+                return JSONResponse(pilot.freeze_prediction(payload))
+            if operation == "feedback":
+                return JSONResponse(pilot.add_feedback(payload))
+            return JSONResponse(pilot.add_retrospective_audit(payload))
+        except Exception as exc:
+            return _collector_error(exc)
+
+    async def phase4_1_status_http(request: Request) -> JSONResponse:
+        if not _training_http_authorized(request, "training:read"):
+            return _error("collector_auth_required", "Valid Bearer authorization required", 401)
+        try:
+            return JSONResponse(collector_provider().phase4_1.status())
+        except Exception as exc:
+            return _collector_error(exc)
+
+    async def phase4_1_intake_http(request: Request) -> JSONResponse:
+        return await phase4_1_write_http(request, "intake")
+
+    async def phase4_1_screen_http(request: Request) -> JSONResponse:
+        return await phase4_1_write_http(request, "screen")
+
+    async def phase4_1_prediction_http(request: Request) -> JSONResponse:
+        return await phase4_1_write_http(request, "freeze")
+
+    async def phase4_1_feedback_http(request: Request) -> JSONResponse:
+        return await phase4_1_write_http(request, "feedback")
+
+    async def phase4_1_retrospective_http(request: Request) -> JSONResponse:
+        return await phase4_1_write_http(request, "retrospective")
+
     async def ziwei_coverage_http(request: Request) -> JSONResponse:
         return JSONResponse(get_ziwei_coverage())
 
@@ -612,6 +807,24 @@ def create_mcp(
     server.custom_route(
         "/v1/training/review-queue", methods=["GET"], include_in_schema=False
     )(review_queue_http)
+    server.custom_route(
+        "/v1/training/phase4-1/candidates", methods=["POST"], include_in_schema=False
+    )(phase4_1_intake_http)
+    server.custom_route(
+        "/v1/training/phase4-1/screens", methods=["POST"], include_in_schema=False
+    )(phase4_1_screen_http)
+    server.custom_route(
+        "/v1/training/phase4-1/predictions", methods=["POST"], include_in_schema=False
+    )(phase4_1_prediction_http)
+    server.custom_route(
+        "/v1/training/phase4-1/feedback", methods=["POST"], include_in_schema=False
+    )(phase4_1_feedback_http)
+    server.custom_route(
+        "/v1/training/phase4-1/retrospective-audits", methods=["POST"], include_in_schema=False
+    )(phase4_1_retrospective_http)
+    server.custom_route(
+        "/v1/training/phase4-1/status", methods=["GET"], include_in_schema=False
+    )(phase4_1_status_http)
     return server
 
 
