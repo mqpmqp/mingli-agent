@@ -1,0 +1,113 @@
+{
+  "schema_version": "phase3-synthetic-acceptance@1",
+  "synthetic": true,
+  "example_id": "l3_pending",
+  "expected_pool": "L3",
+  "expected_result": "pending",
+  "steps": [
+    {
+      "command": "case-create",
+      "input": {
+        "case_id": "synthetic-l3_pending",
+        "synthetic": true,
+        "evidence_level": "L0",
+        "registered_at": "2026-09-13T12:00:00+08:00",
+        "question": "离线岗位面谈通知验收",
+        "outcome_hidden_from_prediction": false,
+        "sources": [
+          {
+            "source_id": "basis",
+            "role": "independent",
+            "text": "明确标记的离线规则依据",
+            "available_at": "2026-09-13T12:00:00+08:00"
+          }
+        ],
+        "given_facts": [
+          {
+            "fact_id": "given",
+            "text": "你正在求职",
+            "available_at": "2026-09-13T12:00:00+08:00"
+          }
+        ],
+        "pilot_batch_id": "pilot-10-v1",
+        "case_role": "pilot_evaluation",
+        "consent": {
+          "status": "synthetic_not_applicable",
+          "analysis": false,
+          "storage": false,
+          "followup": false,
+          "withdrawal_available": true
+        },
+        "hidden_answer_fields": [],
+        "future_outcome_fields": [
+          "interview_notice_received"
+        ],
+        "simulated_validation_track": "prospective"
+      },
+      "expected_exit": 0
+    },
+    {
+      "command": "case-show",
+      "input": {
+        "case_id": "synthetic-l3_pending"
+      },
+      "expected_exit": 0
+    },
+    {
+      "command": "freeze-prediction",
+      "input": {
+        "case_id": "synthetic-l3_pending",
+        "frozen_at": "2026-09-13T12:00:00+08:00",
+        "prediction": {
+          "prediction_id": "prediction-l3_pending",
+          "person_case_id": "synthetic-l3_pending",
+          "scenario_id": "career",
+          "engine_version": "synthetic@1",
+          "source_commit_sha": "0000000000000000000000000000000000000000",
+          "rule_set_version": "synthetic@1",
+          "knowledge_manifest_sha": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "input_manifest_sha": "sha256:9dbc6ecf010ce67a2ae76cb5e2eb8406485598b4d31833f9594722cbba502ebb",
+          "generated_at": "2026-09-13T12:00:00+08:00",
+          "prediction_content": "你收到一次岗位面谈通知",
+          "structured_claims": [
+            {
+              "claim_id": "interview",
+              "claim_type": "future_event",
+              "event_window": "2026-10-01T00:00:00+08:00/2026-10-31T23:59:59+08:00",
+              "result_variable": "interview_notice_received",
+              "atomic": true,
+              "outcome_criterion": "以窗口内一份岗位面谈通知记录核验",
+              "basis_source_ids": [
+                "basis"
+              ],
+              "predicted_event_or_state": "你收到一次岗位面谈通知",
+              "domain": "career",
+              "validation_track": "prospective",
+              "predicted_direction": "support",
+              "confidence": 0.5,
+              "specificity_level": "bounded",
+              "given_dependency_ids": [],
+              "exclusion_conditions": []
+            }
+          ],
+          "confidence": 0.5,
+          "blocked_fields": [],
+          "reality_evidence_visibility": false
+        }
+      },
+      "expected_exit": 0
+    },
+    {
+      "command": "validation-summary",
+      "input": {
+        "as_of": "2026-09-13T12:00:00+08:00"
+      },
+      "expected_exit": 0
+    },
+    {
+      "command": "pilot-show",
+      "input": {},
+      "expected_exit": 0
+    }
+  ]
+}

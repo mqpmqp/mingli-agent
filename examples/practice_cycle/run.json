@@ -1,0 +1,38 @@
+{
+  "synthetic": true,
+  "case_id": "person:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "run_id": "practice-v1",
+  "as_of": "2026-09-13T12:00:00+08:00",
+  "recorded_at": "2026-09-13T12:00:00+08:00",
+  "question": "看工作",
+  "rule_version": "synthetic-career@1",
+  "known_facts": [
+    {"source_id": "marital", "text": "你已婚", "available_at": "2026-09-13T12:00:00+08:00"},
+    {"source_id": "employment", "text": "你在职", "available_at": "2026-09-13T12:00:00+08:00"}
+  ],
+  "bases": [
+    {
+      "basis_id": "fixture-career",
+      "kind": "synthetic_rule_fixture",
+      "available_at": "2026-09-13T12:00:00+08:00",
+      "supported_claims": [
+        {
+          "text": "你在2026年10月可能有机会收到岗位面谈安排。",
+          "window": {"text": "2026年10月", "intent": "future"},
+          "confidence": 0.5,
+          "required_fact_ids": []
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "career-interview",
+      "text": "你在2026年10月可能有机会收到岗位面谈安排。",
+      "window": {"text": "2026年10月", "intent": "future"},
+      "confidence": 0.5,
+      "basis_id": "fixture-career",
+      "known_fact_ids": []
+    }
+  ]
+}

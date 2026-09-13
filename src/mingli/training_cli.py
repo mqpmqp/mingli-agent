@@ -7,13 +7,21 @@ import sys
 from typing import Mapping, Sequence
 
 from .product_runtime import run_product_runtime
+from .practice_cycle import dispatch_practice
+from .practice_phase2 import PHASE2_COMMANDS, dispatch_phase2
+from .practice_phase3 import PHASE3_COMMANDS, dispatch_phase3
+from .practice_phase4 import PHASE4_COMMANDS, dispatch_phase4
 from .training import TrainingError, TrainingStore
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mingli training", description="MingLi 日常训练闭环")
     commands = parser.add_subparsers(dest="training_command", required=True)
-    for name in ("run", "feedback", "outcome"):
+    for name in (
+        "run", "feedback", "outcome", "practice-run", "practice-replay",
+        "practice-feedback", "practice-compare", *sorted(PHASE2_COMMANDS),
+        *sorted(PHASE3_COMMANDS), *sorted(PHASE4_COMMANDS),
+    ):
         command = commands.add_parser(name)
         command.add_argument("--input", required=True, help="JSON 文件；- 表示 stdin")
         _store_arguments(command)
@@ -54,8 +62,26 @@ def _emit(value: Mapping[str, object]) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if (args.training_command.startswith("practice-") or args.training_command in PHASE2_COMMANDS | PHASE3_COMMANDS) and not args.synthetic:
+            raise TrainingError("SYNTHETIC_ONLY", "本轮闭环必须显式使用 --synthetic，不接入真人资料")
         store = TrainingStore(args.store, repository_root=args.repository_root, synthetic=args.synthetic)
         command = args.training_command
+        if command in PHASE3_COMMANDS:
+            result = dispatch_phase3(command, _read(args.input), store=store)
+            _emit({"status": "ok", "data": result})
+            return 0
+        if command in PHASE4_COMMANDS:
+            result = dispatch_phase4(command, _read(args.input), store=store)
+            _emit({"status": "ok", "data": result})
+            return 0
+        if command.startswith("practice-"):
+            result = dispatch_practice(command, _read(args.input), store=store)
+            _emit({"status": "ok", "data": result})
+            return 0
+        if command in PHASE2_COMMANDS:
+            result = dispatch_phase2(command, _read(args.input), store=store)
+            _emit({"status": "ok", "data": result})
+            return 0
         if command == "run":
             result = run_product_runtime(_read(args.input), store=store)
             _emit({"status": "ok" if result["status"] != "blocked" else "blocked", "data": result})

@@ -1,0 +1,14 @@
+{
+  "batch_id": "phase4-pilot-001",
+  "received_at": "2026-09-13T12:01:00+08:00",
+  "source_timestamp": "2026-09-13T12:01:00+08:00",
+  "source_type": "synthetic_fixture",
+  "deidentified_source_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+  "intake_nonce": "sha256:0000000000000000000000000000000000000000000000000000000000000065",
+  "proposed_case_id": "synthetic-phase4-candidate-one",
+  "human": false,
+  "synthetic": true,
+  "consent_status": "granted",
+  "privacy_status": "pass",
+  "input_gate_status": "pass"
+}

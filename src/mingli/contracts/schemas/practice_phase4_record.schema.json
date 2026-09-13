@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase 4 pilot control record",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "enum": ["prospective-real-case-validation-phase4@1", "practice-phase4-candidate-intake@1.0"]
+    },
+    "record_type": {
+      "enum": [
+        "pilot_batch",
+        "pilot_candidate_intake",
+        "pilot_screen",
+        "pilot_maturity",
+        "pilot_quality",
+        "pilot_revision",
+        "pilot_withdrawal"
+      ]
+    },
+    "synthetic": {"type": "boolean"},
+    "counts_toward_real_pilot": {"type": "boolean"},
+    "accuracy_eligible": {"const": false},
+    "commercial_release_hold": {"const": "ACTIVE"},
+    "canonical_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "batch_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "candidate_id": {"type": "string", "pattern": "^candidate:[0-9a-f]{64}$"},
+    "received_at": {"type": "string", "format": "date-time"},
+    "source_type": {"enum": ["direct_inquiry", "authorized_import", "synthetic_fixture"]},
+    "deidentified_source_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "proposed_case_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "human": {"type": "boolean"},
+    "consent_status": {"enum": ["unknown", "granted", "denied"]},
+    "privacy_status": {"enum": ["pending", "pass", "fail"]},
+    "input_gate_status": {"enum": ["pending", "pass", "fail"]},
+    "pilot_screen_status": {"enum": ["not_screened", "eligible", "ineligible"]},
+    "screen_fail_reason": {"type": ["array", "null"], "items": {"type": "string"}},
+    "registered_case_id": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+    "pilot_slot": {"type": ["integer", "null"], "minimum": 1, "maximum": 10},
+    "prediction_created": {"type": "boolean"},
+    "prior_state_detected": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["case", "prediction", "feedback"]}
+    },
+    "intake_sequence_violation": {"type": "boolean"},
+    "intake_status": {"enum": ["accepted", "blocked_sequence_violation"]},
+    "identity_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "pilot_start_at": {"type": "string", "format": "date-time"},
+    "target_real_cases": {"const": 10},
+    "grace_period_days": {"type": "integer", "minimum": 0, "maximum": 90},
+    "real_intake_enabled": {"type": "boolean"},
+    "screen_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "supersedes_screen_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "candidate_case_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "person_case_id": {"type": "string", "pattern": "^person:[0-9a-f]{64}$"},
+    "source_timestamp": {"type": "string", "format": "date-time"},
+    "screened_at": {"type": "string", "format": "date-time"},
+    "engineering_dry_run": {"type": "boolean"},
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "granted": {"type": "boolean"},
+        "scope": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "recorded_at": {"type": "string", "format": "date-time"},
+        "withdrawal_supported": {"type": "boolean"}
+      },
+      "required": ["granted", "scope", "recorded_at", "withdrawal_supported"]
+    },
+    "deidentified": {"type": "boolean"},
+    "minimum_input_gate_passed": {"type": "boolean"},
+    "chart_gate_passed": {"type": "boolean"},
+    "freeze_ready": {"type": "boolean"},
+    "claim_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "L2": {"type": "integer", "minimum": 0},
+        "current_state": {"type": "integer", "minimum": 0},
+        "L3": {"type": "integer", "minimum": 0},
+        "total": {"type": "integer", "minimum": 0}
+      },
+      "required": ["L2", "current_state", "L3", "total"]
+    },
+    "case_role": {"enum": ["development", "pilot_evaluation", "holdout_evaluation"]},
+    "engine_version": {"type": "string", "minLength": 1, "maxLength": 256},
+    "source_commit_sha": {"type": "string", "minLength": 1, "maxLength": 256},
+    "rule_set_version": {"type": "string", "minLength": 1, "maxLength": 256},
+    "input_manifest_sha": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "visible_input_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "prediction_snapshot_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "eligibility_status": {"enum": ["eligible", "screen_fail"]},
+    "failure_reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "screen_status": {
+      "enum": [
+        "enrolled",
+        "screen_fail",
+        "pilot_full",
+        "synthetic_simulation_eligible",
+        "synthetic_screen_fail",
+        "synthetic_pilot_full"
+      ]
+    },
+    "assigned_real_slot": {"type": ["integer", "null"], "minimum": 1, "maximum": 10},
+    "simulated_slot": {"type": ["integer", "null"], "minimum": 1, "maximum": 10},
+    "maturity_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "prediction_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "claim_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "case_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "as_of": {"type": "string", "format": "date-time"},
+    "resolution": {
+      "enum": ["pending", "with_feedback", "lost_to_followup", "awaiting_manual_confirmation", "miss"]
+    },
+    "event_window": {"type": "string", "minLength": 1, "maxLength": 8000},
+    "maturity_at": {"type": "string", "format": "date-time"},
+    "observation_count": {"type": "integer", "minimum": 0},
+    "maturity_status": {
+      "enum": ["pending", "matured_with_feedback", "lost_to_followup", "awaiting_manual_confirmation"]
+    },
+    "quality_feedback_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "collected_at": {"type": "string", "format": "date-time"},
+    "labels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "USER_ACCEPTED",
+          "USER_REJECTED",
+          "TOO_VAGUE",
+          "TOO_VERBOSE",
+          "TEMPLATE_LIKE",
+          "GOOD_STYLE",
+          "BAD_STYLE",
+          "OVERCLAIMED",
+          "GOOD_SPECIFICITY"
+        ]
+      }
+    },
+    "raw_feedback_excerpt": {"type": "string", "minLength": 1, "maxLength": 8000},
+    "revision_receipt_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "parent_prediction_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "revision_prediction_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "parent_prediction_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "revision_prediction_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "revision_generated_at": {"type": "string", "format": "date-time"},
+    "revision_reason": {"type": "string", "minLength": 1, "maxLength": 8000},
+    "feedback_visibility_at_generation": {"enum": ["hidden", "visible"]},
+    "withdrawal_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "withdrawn_at": {"type": "string", "format": "date-time"},
+    "source_withdrawal_ref": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "slot_released": {"const": false},
+    "withdrawal_status": {"const": "withdrawn"},
+    "pilot_target": {"const": 10}
+  },
+  "required": [
+    "schema_version",
+    "record_type",
+    "synthetic",
+    "counts_toward_real_pilot",
+    "accuracy_eligible",
+    "commercial_release_hold",
+    "canonical_hash",
+    "batch_id"
+  ],
+  "allOf": [
+    {
+      "if": {"not": {"properties": {"record_type": {"const": "pilot_candidate_intake"}}}},
+      "then": {
+        "properties": {"schema_version": {"const": "prospective-real-case-validation-phase4@1"}}
+      }
+    },
+    {
+      "if": {"properties": {"record_type": {"const": "pilot_candidate_intake"}}},
+      "then": {
+        "properties": {"schema_version": {"const": "practice-phase4-candidate-intake@1.0"}},
+        "required": [
+          "candidate_id",
+          "received_at",
+          "source_timestamp",
+          "source_type",
+          "deidentified_source_fingerprint",
+          "proposed_case_id",
+          "human",
+          "consent_status",
+          "privacy_status",
+          "input_gate_status",
+          "pilot_screen_status",
+          "screen_fail_reason",
+          "registered_case_id",
+          "pilot_slot",
+          "simulated_slot",
+          "prediction_created",
+          "prior_state_detected",
+          "intake_sequence_violation",
+          "intake_status",
+          "identity_hash"
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"record_type": {"const": "pilot_batch"}}},
+      "then": {
+        "required": ["pilot_start_at", "target_real_cases", "grace_period_days", "real_intake_enabled"]
+      }
+    },
+    {
+      "if": {"properties": {"record_type": {"const": "pilot_screen"}}},
+      "then": {
+        "required": [
+          "screen_id",
+          "candidate_id",
+          "candidate_case_id",
+          "person_case_id",
+          "source_timestamp",
+          "screened_at",
+          "engineering_dry_run",
+          "consent",
+          "deidentified",
+          "minimum_input_gate_passed",
+          "chart_gate_passed",
+          "freeze_ready",
+          "claim_counts",
+          "case_role",
+          "engine_version",
+          "source_commit_sha",
+          "rule_set_version",
+          "input_manifest_sha",
+          "visible_input_hash",
+          "prediction_snapshot_hash",
+          "eligibility_status",
+          "failure_reasons",
+          "screen_status",
+          "assigned_real_slot",
+          "simulated_slot"
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"record_type": {"const": "pilot_maturity"}}},
+      "then": {
+        "required": [
+          "maturity_id",
+          "prediction_id",
+          "claim_id",
+          "case_id",
+          "as_of",
+          "resolution",
+          "event_window",
+          "maturity_at",
+          "observation_count",
+          "maturity_status"
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"record_type": {"const": "pilot_quality"}}},
+      "then": {
+        "required": [
+          "quality_feedback_id",
+          "prediction_id",
+          "collected_at",
+          "labels",
+          "raw_feedback_excerpt"
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"record_type": {"const": "pilot_revision"}}},
+      "then": {
+        "required": [
+          "revision_receipt_id",
+          "case_id",
+          "parent_prediction_id",
+          "revision_prediction_id",
+          "parent_prediction_hash",
+          "revision_prediction_hash",
+          "revision_generated_at",
+          "revision_reason",
+          "feedback_visibility_at_generation"
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"record_type": {"const": "pilot_withdrawal"}}},
+      "then": {
+        "required": [
+          "withdrawal_id",
+          "person_case_id",
+          "withdrawn_at",
+          "source_withdrawal_ref",
+          "assigned_real_slot",
+          "simulated_slot",
+          "slot_released",
+          "withdrawal_status",
+          "pilot_target"
+        ]
+      }
+    }
+  ]
+}

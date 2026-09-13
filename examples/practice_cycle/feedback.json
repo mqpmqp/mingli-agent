@@ -1,0 +1,18 @@
+{
+  "run_id": "practice-v1",
+  "feedback_id": "synthetic-result-1",
+  "claim_id": "career-interview",
+  "submitted_at": "2026-11-01T12:00:00+08:00",
+  "outcome": "hit",
+  "text": "synthetic outcome：已收到岗位面谈安排。本条仅为工程夹具，不是真人事实。",
+  "experience": {
+    "overall_rating": 4,
+    "useful_sections": ["事业"],
+    "inaccurate_sections": [],
+    "missing_context": [],
+    "user_correction": null,
+    "clarity_rating": 4,
+    "actionability_rating": 4,
+    "feedback_kind": "subjective"
+  }
+}

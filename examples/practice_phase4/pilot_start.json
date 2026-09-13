@@ -1,0 +1,8 @@
+{
+  "batch_id": "phase4-pilot-001",
+  "pilot_start_at": "2026-09-13T12:00:00+08:00",
+  "target_real_cases": 10,
+  "grace_period_days": 7,
+  "synthetic": true,
+  "real_intake_enabled": false
+}

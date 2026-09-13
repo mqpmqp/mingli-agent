@@ -1,0 +1,184 @@
+{
+  "schema_version": "practice-to-product-phase2@1",
+  "cases": [
+    {
+      "regression_case_id": "reg-time-block-001",
+      "error_family": "time_reference_error",
+      "source_type": "historical_summary_only",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-ticket:time-reference",
+      "known_bad_behavior": "把 as_of 之前已经结束的今年五月继续当成未来窗口。",
+      "expected_behavior": "拒绝过期未来窗口，不自动顺延年份。",
+      "expected_gate": "blocked",
+      "fixture": {"as_of": "2026-09-13T12:00:00+08:00", "window": {"text": "今年5月", "intent": "future"}},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-time-allow-001",
+      "error_family": "time_reference_error",
+      "source_type": "synthetic_from_known_failure_pattern",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-fixture:time-reference-normal",
+      "known_bad_behavior": "正常历史窗口也被一律拒绝。",
+      "expected_behavior": "明确的历史五月窗口正常放行。",
+      "expected_gate": "allowed",
+      "fixture": {"as_of": "2026-09-13T12:00:00+08:00", "window": {"text": "回顾今年5月", "intent": "historical"}},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-given-block-001",
+      "error_family": "given_leakage_or_given_scoring",
+      "source_type": "historical_summary_only",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-ticket:given-isolation",
+      "known_bad_behavior": "把用户已提供的在职事实计成独立命中。",
+      "expected_behavior": "GIVEN 保持隔离且不能进入独立预测计分。",
+      "expected_gate": "blocked",
+      "fixture": {"origin": "given", "independent_prediction_eligible": true, "rendered_as_prediction": true, "reality_evidence_visibility": false},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-given-allow-001",
+      "error_family": "given_leakage_or_given_scoring",
+      "source_type": "synthetic_from_known_failure_pattern",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-fixture:given-isolation-normal",
+      "known_bad_behavior": "隔离后的 GIVEN 仍被误判为泄漏。",
+      "expected_behavior": "GIVEN 留在结构化输入且明确排除计分时放行。",
+      "expected_gate": "allowed",
+      "fixture": {"origin": "given", "independent_prediction_eligible": false, "rendered_as_prediction": false, "reality_evidence_visibility": false},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-career-block-001",
+      "error_family": "career_template_reuse",
+      "source_type": "historical_summary_only",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-ticket:career-template",
+      "known_bad_behavior": "工作问题只返回可复用的空泛模板。",
+      "expected_behavior": "至少给出有边界的事件与时间落点。",
+      "expected_gate": "blocked",
+      "fixture": {"answer": "事业有机会，会变化，压力大，注意沟通。"},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-career-allow-001",
+      "error_family": "career_template_reuse",
+      "source_type": "synthetic_from_known_failure_pattern",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-fixture:career-specific-normal",
+      "known_bad_behavior": "具体且有限定的工作回答也被误杀。",
+      "expected_behavior": "明确月份、事件和结果边界的回答放行。",
+      "expected_gate": "allowed",
+      "fixture": {"answer": "你在2026年10月可能收到一次岗位面谈安排，结果以正式通知为准。"},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-relationship-block-001",
+      "error_family": "relationship_overclaim",
+      "source_type": "historical_summary_only",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-ticket:relationship-overclaim",
+      "known_bad_behavior": "把联系倾向升级为保证复合。",
+      "expected_behavior": "拦截必然和保证性关系结论。",
+      "expected_gate": "blocked",
+      "fixture": {"answer": "对方一定会复合。"},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-relationship-allow-001",
+      "error_family": "relationship_overclaim",
+      "source_type": "synthetic_from_known_failure_pattern",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-fixture:relationship-bounded-normal",
+      "known_bad_behavior": "带反证边界的关系判断也被一律拒绝。",
+      "expected_behavior": "可能性判断与不能保证复合的边界正常放行。",
+      "expected_gate": "allowed",
+      "fixture": {"answer": "你们存在联系可能，但这不能保证复合。"},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-comment-block-001",
+      "error_family": "comment_output_vagueness",
+      "source_type": "historical_summary_only",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-ticket:comment-vagueness",
+      "known_bad_behavior": "评论区输出只有空话，没有事件、时间或结果方向。",
+      "expected_behavior": "空泛评论应被门禁拦截。",
+      "expected_gate": "blocked",
+      "fixture": {"answer": "有机会，会变化，注意沟通，慢慢稳定。"},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-comment-allow-001",
+      "error_family": "comment_output_vagueness",
+      "source_type": "synthetic_from_known_failure_pattern",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-fixture:comment-specific-normal",
+      "known_bad_behavior": "有事件和时间点的短评论被误拒。",
+      "expected_behavior": "有明确月份和可验证事件的短评论放行。",
+      "expected_gate": "allowed",
+      "fixture": {"answer": "2026年10月可能收到岗位面谈安排，最终结果看正式通知。"},
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-paid-block-001",
+      "error_family": "paid_output_hallucinated_detail",
+      "source_type": "historical_summary_only",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-ticket:paid-hallucinated-detail",
+      "known_bad_behavior": "付费版在结构化判断之外补写升职细节。",
+      "expected_behavior": "付费版只能渲染已有 inference，不能添新事实。",
+      "expected_gate": "blocked",
+      "fixture": {
+        "structured_claims": [{"original_text": "你在2026年10月可能收到岗位面谈安排。", "origin": "inference"}],
+        "rendered": "你在2026年10月可能收到岗位面谈安排。并会升职。\n仅供文化研究与娱乐参考。"
+      },
+      "accuracy_eligible": false
+    },
+    {
+      "regression_case_id": "reg-paid-allow-001",
+      "error_family": "paid_output_hallucinated_detail",
+      "source_type": "synthetic_from_known_failure_pattern",
+      "source_date": "2026-09-13",
+      "source_reference": "phase2-fixture:paid-claim-bound-normal",
+      "known_bad_behavior": "逐条忠实渲染也被误认为新增细节。",
+      "expected_behavior": "只含已有 inference 和单次免责声明时放行。",
+      "expected_gate": "allowed",
+      "fixture": {
+        "structured_claims": [{"original_text": "你在2026年10月可能收到岗位面谈安排。", "origin": "inference"}],
+        "rendered": "你在2026年10月可能收到岗位面谈安排。\n仅供文化研究与娱乐参考。"
+      },
+      "accuracy_eligible": false
+    }
+  ],
+  "comparisons": [
+    {
+      "comparison_id": "phase2-before-after-time-001",
+      "error_family": "time_reference_error",
+      "fixed_input": "as_of=2026-09-13，用户问现在到今年五月的工作。",
+      "baseline": {
+        "output": "把今年五月当作未来窗口继续判断。",
+        "fixture": {"as_of": "2026-09-13T12:00:00+08:00", "window": {"text": "今年5月", "intent": "future"}}
+      },
+      "candidate": {
+        "output": "先指出今年五月已结束；若要复盘，按历史窗口处理。",
+        "fixture": {"as_of": "2026-09-13T12:00:00+08:00", "window": {"text": "回顾今年5月", "intent": "historical"}}
+      }
+    },
+    {
+      "comparison_id": "phase2-before-after-career-001",
+      "error_family": "career_template_reuse",
+      "fixed_input": "用户只问当前工作走向。",
+      "baseline": {"output": "事业有机会，会变化，压力大，注意沟通。", "fixture": {"answer": "事业有机会，会变化，压力大，注意沟通。"}},
+      "candidate": {"output": "你在2026年10月可能收到一次岗位面谈安排，结果以正式通知为准。", "fixture": {"answer": "你在2026年10月可能收到一次岗位面谈安排，结果以正式通知为准。"}}
+    },
+    {
+      "comparison_id": "phase2-before-after-relationship-001",
+      "error_family": "relationship_overclaim",
+      "fixed_input": "用户问双方是否可能复联，但没有对方行动证据。",
+      "baseline": {"output": "对方一定会复合。", "fixture": {"answer": "对方一定会复合。"}},
+      "candidate": {"output": "你们存在联系可能，但这不能保证复合。", "fixture": {"answer": "你们存在联系可能，但这不能保证复合。"}}
+    }
+  ]
+}

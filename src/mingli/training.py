@@ -21,6 +21,19 @@ _KINDS = {
     "outcome": "outcomes",
     "candidate": "candidates",
     "iteration": "iterations",
+    "review_packet": "review_packets",
+    "human_review": "human_reviews",
+    "validation_case": "validation_cases",
+    "validation_prediction": "validation_predictions",
+    "validation_observation": "validation_observations",
+    "validation_adjudication": "validation_adjudications",
+    "pilot_batch": "pilot_batches",
+    "pilot_candidate_intake": "pilot_candidate_intakes",
+    "pilot_screen": "pilot_screens",
+    "pilot_maturity": "pilot_maturities",
+    "pilot_quality": "pilot_quality_feedback",
+    "pilot_revision": "pilot_revisions",
+    "pilot_withdrawal": "pilot_withdrawals",
 }
 _SCHEMAS = {
     "case": "training_case.schema.json",
@@ -29,6 +42,19 @@ _SCHEMAS = {
     "outcome": "outcome_observation.schema.json",
     "candidate": "rule_review_candidate.schema.json",
     "iteration": "training_iteration.schema.json",
+    "review_packet": "blind_review_packet.schema.json",
+    "human_review": "human_blind_review.schema.json",
+    "validation_case": "practice_phase3_record.schema.json",
+    "validation_prediction": "practice_phase3_record.schema.json",
+    "validation_observation": "practice_phase3_record.schema.json",
+    "validation_adjudication": "practice_phase3_record.schema.json",
+    "pilot_batch": "practice_phase4_record.schema.json",
+    "pilot_candidate_intake": "practice_phase4_record.schema.json",
+    "pilot_screen": "practice_phase4_record.schema.json",
+    "pilot_maturity": "practice_phase4_record.schema.json",
+    "pilot_quality": "practice_phase4_record.schema.json",
+    "pilot_revision": "practice_phase4_record.schema.json",
+    "pilot_withdrawal": "practice_phase4_record.schema.json",
 }
 
 
@@ -246,6 +272,44 @@ class TrainingStore:
     def create_iteration(self, value: Mapping[str, object]) -> dict[str, object]:
         payload = {**value, "valid": True}
         return self._write("iteration", str(payload.get("iteration_id", "")), payload)
+
+    def create_review_packet(self, value: Mapping[str, object]) -> dict[str, object]:
+        """Freeze one synthetic A/B packet without exposing its assignment."""
+
+        if not self.synthetic:
+            raise TrainingError("SYNTHETIC_ONLY", "blind review packets are synthetic-only in Phase 2")
+        return self._write("review_packet", str(value.get("review_id", "")), value)
+
+    def review_packet(self, review_id: str) -> dict[str, object]:
+        return self._validate("review_packet", self._read("review_packet", review_id))
+
+    def add_human_review(self, value: Mapping[str, object]) -> dict[str, object]:
+        """Append one review receipt; the packet and source runs stay immutable."""
+
+        if not self.synthetic:
+            raise TrainingError("SYNTHETIC_ONLY", "blind review receipts are synthetic-only in Phase 2")
+        review_id = str(value.get("review_id", ""))
+        self.review_packet(review_id)
+        reviewer_id = str(value.get("reviewer_id", ""))
+        if any(
+            item.get("review_id") == review_id and item.get("reviewer_id") == reviewer_id
+            for item in self._list("human_review")
+        ):
+            raise TrainingError(
+                "REVIEWER_ALREADY_SUBMITTED",
+                "one reviewer may submit only one append-only receipt for a blind packet",
+            )
+        return self._write(
+            "human_review",
+            str(value.get("review_submission_id", "")),
+            value,
+        )
+
+    def human_reviews(self, *, review_id: str | None = None) -> list[dict[str, object]]:
+        records = [self._validate("human_review", item) for item in self._list("human_review")]
+        if review_id is None:
+            return records
+        return [item for item in records if item.get("review_id") == review_id]
 
     def generate_rule_candidates(self, *, created_at: str) -> list[dict[str, object]]:
         """Create review-only candidates from explicit negative/correction feedback."""

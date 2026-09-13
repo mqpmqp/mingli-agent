@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/human_blind_review.schema.json",
+  "title": "HumanBlindReview",
+  "type": "object",
+  "required": ["review_submission_id", "review_id", "reviewer_id", "submitted_at", "overall_preference", "answers_user_question", "specificity_without_overreach", "time_window_clarity", "unsupported_detail_risk", "template_or_generic_language", "human_master_style", "requires_manual_rewrite", "note", "synthetic", "accuracy_eligible", "status", "commercial_release_hold"],
+  "properties": {
+    "review_submission_id": {"type": "string", "minLength": 1},
+    "review_id": {"type": "string", "minLength": 1},
+    "reviewer_id": {"type": "string", "minLength": 1},
+    "submitted_at": {"type": "string", "format": "date-time"},
+    "overall_preference": {"enum": ["A", "B", "tie", "neither"]},
+    "answers_user_question": {"enum": ["A", "B", "tie", "neither"]},
+    "specificity_without_overreach": {"enum": ["A", "B", "tie", "neither"]},
+    "time_window_clarity": {"enum": ["A", "B", "tie", "neither", "not_applicable"]},
+    "unsupported_detail_risk": {"enum": ["A_lower", "B_lower", "tie"]},
+    "template_or_generic_language": {"enum": ["A_lower", "B_lower", "tie"]},
+    "human_master_style": {"enum": ["A", "B", "tie", "neither"]},
+    "requires_manual_rewrite": {"enum": ["A", "B", "both", "neither"]},
+    "note": {"type": ["string", "null"]},
+    "synthetic": {"const": true},
+    "accuracy_eligible": {"const": false},
+    "status": {"const": "recorded"},
+    "commercial_release_hold": {"const": "ACTIVE"}
+  },
+  "additionalProperties": false
+}

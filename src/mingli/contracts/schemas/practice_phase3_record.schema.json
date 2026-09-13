@@ -1,0 +1,932 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase 3 offline append-only validation record",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "prospective-real-case-validation@1"
+        },
+        "synthetic": {
+          "const": true
+        },
+        "accuracy_eligible": {
+          "const": false
+        },
+        "commercial_release_hold": {
+          "const": "ACTIVE"
+        },
+        "canonical_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "record_type": {
+          "const": "validation_case"
+        },
+        "evidence_level": {
+          "const": "L0"
+        },
+        "registered_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "outcome_hidden_from_prediction": {
+          "type": "boolean"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "source_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "role": {
+                "const": "independent"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "available_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "source_id",
+              "role",
+              "text",
+              "available_at"
+            ]
+          }
+        },
+        "given_facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fact_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "available_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "fact_id",
+              "text",
+              "available_at"
+            ]
+          }
+        },
+        "pilot_batch_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "case_role": {
+          "enum": [
+            "development",
+            "pilot_evaluation",
+            "holdout_evaluation"
+          ]
+        },
+        "consent": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "synthetic_not_applicable"
+            },
+            "analysis": {
+              "const": false
+            },
+            "storage": {
+              "const": false
+            },
+            "followup": {
+              "const": false
+            },
+            "withdrawal_available": {
+              "const": true
+            }
+          },
+          "required": [
+            "status",
+            "analysis",
+            "storage",
+            "followup",
+            "withdrawal_available"
+          ]
+        },
+        "hidden_answer_fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,79}$"
+          }
+        },
+        "future_outcome_fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,79}$"
+          }
+        },
+        "visible_input_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "simulated_validation_track": {
+          "enum": [
+            "unverified",
+            "retrospective_visible",
+            "retrospective_blind",
+            "prospective"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "synthetic",
+        "accuracy_eligible",
+        "commercial_release_hold",
+        "canonical_hash",
+        "case_id",
+        "record_type",
+        "evidence_level",
+        "registered_at",
+        "question",
+        "outcome_hidden_from_prediction",
+        "sources",
+        "given_facts",
+        "pilot_batch_id",
+        "case_role",
+        "consent",
+        "hidden_answer_fields",
+        "future_outcome_fields",
+        "visible_input_hash",
+        "simulated_validation_track"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "prospective-real-case-validation@1"
+        },
+        "synthetic": {
+          "const": true
+        },
+        "accuracy_eligible": {
+          "const": false
+        },
+        "commercial_release_hold": {
+          "const": "ACTIVE"
+        },
+        "canonical_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "record_type": {
+          "const": "validation_prediction"
+        },
+        "prediction_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "evidence_level": {
+          "const": "L0"
+        },
+        "prediction_snapshot": {
+          "$ref": "#/$defs/predictionSnapshot"
+        },
+        "claim_contracts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claim_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "claim_type": {
+                "enum": [
+                  "current_state",
+                  "prior_event",
+                  "future_event",
+                  "timing",
+                  "outcome",
+                  "relationship_action",
+                  "exam_result",
+                  "fertility_stage",
+                  "other"
+                ]
+              },
+              "event_window": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "result_variable": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "atomic": {
+                "type": "boolean"
+              },
+              "outcome_criterion": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "basis_source_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8000
+                },
+                "uniqueItems": true
+              },
+              "predicted_event_or_state": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "domain": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "validation_track": {
+                "enum": [
+                  "unverified",
+                  "retrospective_visible",
+                  "retrospective_blind",
+                  "prospective"
+                ]
+              },
+              "predicted_direction": {
+                "enum": [
+                  "support",
+                  "contradict"
+                ]
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "specificity_level": {
+                "enum": [
+                  "bounded",
+                  "vague"
+                ]
+              },
+              "given_dependency_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8000
+                },
+                "uniqueItems": true
+              },
+              "exclusion_conditions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8000
+                },
+                "uniqueItems": true
+              },
+              "scorable": {
+                "type": "boolean"
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8000
+                },
+                "uniqueItems": true
+              },
+              "accuracy_eligible": {
+                "const": false
+              }
+            },
+            "required": [
+              "claim_id",
+              "claim_type",
+              "event_window",
+              "result_variable",
+              "atomic",
+              "outcome_criterion",
+              "basis_source_ids",
+              "predicted_event_or_state",
+              "domain",
+              "validation_track",
+              "predicted_direction",
+              "confidence",
+              "specificity_level",
+              "given_dependency_ids",
+              "exclusion_conditions",
+              "scorable",
+              "reasons",
+              "accuracy_eligible"
+            ]
+          }
+        },
+        "revision_of": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "simulated_validation_track": {
+          "enum": [
+            "unverified",
+            "retrospective_visible",
+            "retrospective_blind",
+            "prospective"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "synthetic",
+        "accuracy_eligible",
+        "commercial_release_hold",
+        "canonical_hash",
+        "case_id",
+        "record_type",
+        "prediction_id",
+        "evidence_level",
+        "prediction_snapshot",
+        "claim_contracts",
+        "revision_of",
+        "simulated_validation_track"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "prospective-real-case-validation@1"
+        },
+        "synthetic": {
+          "const": true
+        },
+        "accuracy_eligible": {
+          "const": false
+        },
+        "commercial_release_hold": {
+          "const": "ACTIVE"
+        },
+        "canonical_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "record_type": {
+          "const": "validation_observation"
+        },
+        "prediction_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "claim_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "evidence_snapshot": {
+          "$ref": "#/$defs/evidenceSnapshot"
+        }
+      },
+      "required": [
+        "schema_version",
+        "synthetic",
+        "accuracy_eligible",
+        "commercial_release_hold",
+        "canonical_hash",
+        "case_id",
+        "record_type",
+        "prediction_id",
+        "claim_id",
+        "evidence_id",
+        "evidence_snapshot"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "prospective-real-case-validation@1"
+        },
+        "synthetic": {
+          "const": true
+        },
+        "accuracy_eligible": {
+          "const": false
+        },
+        "commercial_release_hold": {
+          "const": "ACTIVE"
+        },
+        "canonical_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "record_type": {
+          "const": "validation_adjudication"
+        },
+        "prediction_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "claim_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "adjudication_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "outcome_evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "uniqueItems": true
+        },
+        "status": {
+          "enum": [
+            "hit",
+            "partial",
+            "miss",
+            "unverifiable",
+            "pending",
+            "lost_to_followup",
+            "refused",
+            "missing"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "adjudicated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "supersedes": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "verdict": {
+          "enum": [
+            "hit",
+            "partial",
+            "miss",
+            "unverifiable",
+            "pending",
+            "lost_to_followup",
+            "refused",
+            "missing"
+          ]
+        },
+        "timing_verdict": {
+          "enum": [
+            "in_window",
+            "out_of_window",
+            "pending",
+            "unverifiable"
+          ]
+        },
+        "direction_verdict": {
+          "enum": [
+            "support",
+            "contradict",
+            "pending",
+            "unverifiable"
+          ]
+        },
+        "adjudicator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "adjudication_status": {
+          "const": "single_reviewer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "synthetic",
+        "accuracy_eligible",
+        "commercial_release_hold",
+        "canonical_hash",
+        "case_id",
+        "record_type",
+        "prediction_id",
+        "claim_id",
+        "adjudication_id",
+        "outcome_evidence_ids",
+        "status",
+        "reason",
+        "adjudicated_at",
+        "verdict",
+        "timing_verdict",
+        "direction_verdict",
+        "adjudicator",
+        "adjudication_status"
+      ]
+    }
+  ],
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "claim_type": {
+          "enum": [
+            "current_state",
+            "prior_event",
+            "future_event",
+            "timing",
+            "outcome",
+            "relationship_action",
+            "exam_result",
+            "fertility_stage",
+            "other"
+          ]
+        },
+        "event_window": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "result_variable": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "atomic": {
+          "type": "boolean"
+        },
+        "outcome_criterion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "basis_source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "uniqueItems": true
+        },
+        "predicted_event_or_state": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "validation_track": {
+          "enum": [
+            "unverified",
+            "retrospective_visible",
+            "retrospective_blind",
+            "prospective"
+          ]
+        },
+        "predicted_direction": {
+          "enum": [
+            "support",
+            "contradict"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "specificity_level": {
+          "enum": [
+            "bounded",
+            "vague"
+          ]
+        },
+        "given_dependency_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "uniqueItems": true
+        },
+        "exclusion_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "claim_id",
+        "claim_type",
+        "event_window",
+        "result_variable",
+        "atomic",
+        "outcome_criterion",
+        "basis_source_ids",
+        "predicted_event_or_state",
+        "domain",
+        "validation_track",
+        "predicted_direction",
+        "confidence",
+        "specificity_level",
+        "given_dependency_ids",
+        "exclusion_conditions"
+      ]
+    },
+    "predictionSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prediction_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "person_case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "scenario_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "engine_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "source_commit_sha": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "rule_set_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "knowledge_manifest_sha": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "input_manifest_sha": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "prediction_content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "structured_claims": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "blocked_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        "reality_evidence_visibility": {
+          "const": false
+        },
+        "freeze_status": {
+          "const": "frozen"
+        },
+        "freeze_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "canonical_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "prediction_id",
+        "person_case_id",
+        "scenario_id",
+        "engine_version",
+        "source_commit_sha",
+        "rule_set_version",
+        "knowledge_manifest_sha",
+        "input_manifest_sha",
+        "generated_at",
+        "prediction_content",
+        "structured_claims",
+        "confidence",
+        "blocked_fields",
+        "reality_evidence_visibility",
+        "freeze_status",
+        "freeze_timestamp",
+        "canonical_hash"
+      ]
+    },
+    "evidenceSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prediction_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "claim_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "event_window": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "collected_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_provenance": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "evidence_quality": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "fact": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "synthetic": {
+          "const": true
+        },
+        "person_case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "scenario_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "freeze_status": {
+          "const": "frozen"
+        },
+        "canonical_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "prediction_id",
+        "evidence_id",
+        "claim_id",
+        "event_window",
+        "observed_at",
+        "collected_at",
+        "source_provenance",
+        "evidence_quality",
+        "fact",
+        "synthetic",
+        "person_case_id",
+        "scenario_id",
+        "freeze_status",
+        "canonical_hash"
+      ]
+    }
+  }
+}

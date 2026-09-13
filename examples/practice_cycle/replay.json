@@ -1,0 +1,31 @@
+{
+  "source_run_id": "practice-v1",
+  "run_id": "practice-v2",
+  "rule_version": "synthetic-career@2",
+  "recorded_at": "2026-11-02T12:00:00+08:00",
+  "bases": [
+    {
+      "basis_id": "fixture-career-v2",
+      "kind": "synthetic_rule_fixture",
+      "available_at": "2026-09-13T12:00:00+08:00",
+      "supported_claims": [
+        {
+          "text": "你在2026年10月可能收到一次岗位面谈安排，结果以正式通知为准。",
+          "window": {"text": "2026年10月", "intent": "future"},
+          "confidence": 0.5,
+          "required_fact_ids": []
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "career-interview",
+      "text": "你在2026年10月可能收到一次岗位面谈安排，结果以正式通知为准。",
+      "window": {"text": "2026年10月", "intent": "future"},
+      "confidence": 0.5,
+      "basis_id": "fixture-career-v2",
+      "known_fact_ids": []
+    }
+  ]
+}

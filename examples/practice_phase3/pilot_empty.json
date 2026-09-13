@@ -1,0 +1,66 @@
+{
+  "schema_version": "prospective-real-case-validation@1",
+  "target_real_cases": 10,
+  "registered_cases": 0,
+  "eligible_sample_count": 0,
+  "accuracy": null,
+  "metrics": null,
+  "status": "not_evaluated",
+  "commercial_release_hold": "ACTIVE",
+  "real_intake_enabled": false,
+  "slots": [
+    {
+      "slot": 1,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 2,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 3,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 4,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 5,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 6,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 7,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 8,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 9,
+      "case_id": null,
+      "status": "not_registered"
+    },
+    {
+      "slot": 10,
+      "case_id": null,
+      "status": "not_registered"
+    }
+  ],
+  "pilot_batch_id": "pilot-10-v1",
+  "case_role": "pilot_evaluation",
+  "public_accuracy_claim_allowed": false
+}

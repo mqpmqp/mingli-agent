@@ -1,0 +1,9 @@
+{
+  "review_id": "review:phase2:career:001",
+  "comparison_id": "comparison:phase2:career:001",
+  "baseline_run_id": "practice-v1",
+  "candidate_run_id": "practice-v2",
+  "tier": "paid",
+  "created_at": "2026-11-04T12:00:00+08:00",
+  "randomization_seed": "phase2-blind-demo-20260913"
+}

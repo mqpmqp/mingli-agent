@@ -1,0 +1,15 @@
+{
+  "review_submission_id": "review-submission:phase2:demo:001",
+  "review_id": "review:phase2:career:001",
+  "reviewer_id": "reviewer:synthetic:demo",
+  "submitted_at": "2026-11-05T12:00:00+08:00",
+  "overall_preference": "B",
+  "answers_user_question": "B",
+  "specificity_without_overreach": "B",
+  "time_window_clarity": "B",
+  "unsupported_detail_risk": "B_lower",
+  "template_or_generic_language": "B_lower",
+  "human_master_style": "B",
+  "requires_manual_rewrite": "A",
+  "note": "合成盲评格式样例；只评产品表达，不是独立真人结果或准确率证据。"
+}

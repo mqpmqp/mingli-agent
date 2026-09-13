@@ -1,0 +1,28 @@
+{
+  "batch_id": "phase4-pilot-001",
+  "screen_id": "synthetic-screen-one",
+  "candidate_case_id": "synthetic-phase4-candidate-one",
+  "person_case_id": "person:0000000000000000000000000000000000000000000000000000000000000001",
+  "source_timestamp": "2026-09-13T12:01:00+08:00",
+  "screened_at": "2026-09-13T13:01:00+08:00",
+  "synthetic": true,
+  "engineering_dry_run": true,
+  "consent": {
+    "granted": true,
+    "scope": ["deidentified_training_evaluation"],
+    "recorded_at": "2026-09-13T12:00:00+08:00",
+    "withdrawal_supported": true
+  },
+  "deidentified": true,
+  "minimum_input_gate_passed": true,
+  "chart_gate_passed": true,
+  "freeze_ready": true,
+  "claim_counts": {"L2": 1, "current_state": 0, "L3": 1, "total": 2},
+  "case_role": "pilot_evaluation",
+  "engine_version": "synthetic@1",
+  "source_commit_sha": "0000000000000000000000000000000000000000",
+  "rule_set_version": "synthetic@1",
+  "input_manifest_sha": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "visible_input_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "prediction_snapshot_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+}

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mingli.local/schemas/blind_review_packet.schema.json",
+  "title": "BlindReviewPacket",
+  "type": "object",
+  "required": ["review_id", "comparison_id", "created_at", "tier", "visible_input", "answers", "assignment", "source_snapshots", "randomization", "synthetic", "accuracy_eligible", "human_review_status", "commercial_release_hold"],
+  "properties": {
+    "review_id": {"type": "string", "minLength": 1},
+    "comparison_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "tier": {"enum": ["comment", "paid"]},
+    "visible_input": {
+      "type": "object",
+      "required": ["question", "as_of", "given_facts", "visible_input_hash"],
+      "properties": {
+        "question": {"type": "string", "minLength": 1},
+        "as_of": {"type": "string", "format": "date-time"},
+        "given_facts": {"type": "array", "items": {"type": "string"}},
+        "visible_input_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "answers": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["label", "answer_id", "text"],
+        "properties": {
+          "label": {"enum": ["A", "B"]},
+          "answer_id": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "assignment": {
+      "type": "object",
+      "required": ["baseline_answer_id", "candidate_answer_id"],
+      "properties": {
+        "baseline_answer_id": {"type": "string", "minLength": 1},
+        "candidate_answer_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "source_snapshots": {
+      "type": "object",
+      "required": ["baseline_run_id", "candidate_run_id", "baseline_answer_id", "candidate_answer_id", "baseline_prediction_hash", "candidate_prediction_hash"],
+      "properties": {
+        "baseline_run_id": {"type": "string", "minLength": 1},
+        "candidate_run_id": {"type": "string", "minLength": 1},
+        "baseline_answer_id": {"type": "string", "minLength": 1},
+        "candidate_answer_id": {"type": "string", "minLength": 1},
+        "baseline_prediction_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "candidate_prediction_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "randomization": {
+      "type": "object",
+      "required": ["method", "seed_hash"],
+      "properties": {
+        "method": {"const": "sha256_seeded_permutation"},
+        "seed_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "synthetic": {"const": true},
+    "accuracy_eligible": {"const": false},
+    "human_review_status": {"const": "not_evaluated"},
+    "commercial_release_hold": {"const": "ACTIVE"}
+  },
+  "additionalProperties": false
+}
