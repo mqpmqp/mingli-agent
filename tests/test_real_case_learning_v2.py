@@ -472,6 +472,62 @@ def test_miss_creates_negative_archive_revision_and_review_only_demotion() -> No
         build_operator_review_queue([forged])
 
 
+def test_complete_synthetic_training_lifecycle_is_explicitly_closed() -> None:
+    """Regression proof for intake -> freeze -> evidence -> review -> adjudication."""
+    case = learning_case()
+    prior = evidence_record(
+        case,
+        evidence_id="prior:synthetic:lifecycle",
+        observed_at="2025-01-15T00:00:00Z",
+        collected_at="2025-01-16T00:00:00Z",
+        direction="support",
+        claim_id="claim:career:prior:001",
+        scope="career:prior:2025-01",
+        event_window="2025-01-01T00:00:00Z/2025-01-31T23:59:59Z",
+    )
+    prior_validated = record_prior_event_validation(case, prior)
+    outcome = evidence_record(
+        prior_validated,
+        evidence_id="outcome:synthetic:lifecycle",
+        observed_at="2025-12-31T00:00:00Z",
+        collected_at="2026-01-02T00:00:00Z",
+        direction="support",
+    )
+    with_outcome = record_future_outcome(prior_validated, outcome)
+    closed = adjudicate_outcome(
+        with_outcome,
+        adjudication_id="adjudication:synthetic:lifecycle",
+        claim_id="claim:career:001",
+        scope="career:2025-h2",
+        outcome_evidence_ids=["outcome:synthetic:lifecycle"],
+        status="hit",
+        error_taxonomy=[],
+        rule_attributions=[
+            {"rule_id": "rule:synthetic:career:001", "attribution": "candidate_contributor"}
+        ],
+        revision={
+            "revision_id": "revision:synthetic:lifecycle",
+            "proposal": "No rule change; retain as audit feedback only.",
+        },
+        benchmark_comparison=benchmark_comparison(
+            with_outcome, baseline_status="hit", candidate_status="hit"
+        ),
+        recommendation="retain",
+        adjudicated_at="2026-01-03T00:00:00Z",
+    )
+
+    summary = summarize_learning_cases([closed])
+    assert closed["lifecycle_status"] == "pending_operator_review"
+    assert len(closed["prior_event_validations"]) == 1
+    assert len(closed["future_outcomes"]) == 1
+    assert len(closed["adjudications"]) == 1
+    assert closed["prediction_validity"] == "not_evaluated"
+    assert closed["accuracy_eligible"] is False
+    assert summary["prediction_validity"] == "not_evaluated"
+    assert summary["accuracy_metrics"] is None
+    assert verify_learning_record(closed)
+
+
 @pytest.mark.parametrize("status", ["hit", "partial", "miss", "unverifiable"])
 def test_all_outcome_classes_are_supported_but_never_auto_promote(status: str) -> None:
     case = observed_case(

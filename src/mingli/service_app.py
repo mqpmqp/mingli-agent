@@ -4,7 +4,9 @@ from collections.abc import Awaitable, Callable
 import json
 import logging
 import os
+from pathlib import Path
 import re
+import secrets
 from time import perf_counter
 from typing import Literal
 from uuid import uuid4
@@ -25,11 +27,16 @@ from .service import (
     get_service_capabilities,
     get_ziwei_coverage,
 )
+from .validation_intake import IntakeError, import_intakes
+from .training import TrainingError, TrainingStore
+from .product_runtime import run_product_runtime
 
 MAX_REQUEST_BYTES = 1_000_000
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 _LOGGER = logging.getLogger("mingli.service")
 _BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
+_RETROSPECTIVE_TOKEN_ENV = "MINGLI_RETROSPECTIVE_AUDIT_TOKEN"
+_RETROSPECTIVE_STORE_ENV = "MINGLI_VALIDATION_STORE"
 
 MCP_NAME = "MingLi Agent Runtime"
 MCP_INSTRUCTIONS = (
@@ -350,6 +357,89 @@ async def ziwei_coverage_http(request: Request) -> JSONResponse:
     return JSONResponse(get_ziwei_coverage())
 
 
+def _retrospective_authorized(request: Request) -> bool:
+    configured = os.environ.get(_RETROSPECTIVE_TOKEN_ENV)
+    supplied = request.headers.get("authorization", "")
+    return bool(configured) and secrets.compare_digest(supplied, f"Bearer {configured}")
+
+
+async def retrospective_audit_http(request: Request) -> JSONResponse:
+    """Authenticated intake-only write; deliberately absent from the MCP tool list."""
+    if not _retrospective_authorized(request):
+        return _error_response("unauthorized", "有效的 retrospective Bearer token 是必需的", 401)
+    store = os.environ.get(_RETROSPECTIVE_STORE_ENV, "").strip()
+    if not store:
+        return _error_response("write_disabled", "retrospective audit store 未配置，写入已关闭", 503)
+    try:
+        payload = await _json_object(request)
+        intake = payload.get("intake")
+        source_ref = payload.get("source_ref")
+        if not isinstance(intake, dict):
+            raise TypeError("intake must be an object")
+        if not isinstance(source_ref, str) or not source_ref.startswith("authorized:"):
+            raise ValueError("source_ref must start with authorized:")
+        report = import_intakes(Path(store), [intake], source_ref=source_ref)
+    except OverflowError:
+        return _error_response("request_too_large", f"Request body exceeds {MAX_REQUEST_BYTES} bytes", 413)
+    except (json.JSONDecodeError, TypeError) as exc:
+        return _error_response("invalid_request", str(exc), 400)
+    except (ValueError, IntakeError) as exc:
+        return _error_response("audit_validation_failed", str(exc), 422)
+    return JSONResponse(
+        {
+            "status": "accepted",
+            "record_type": "retrospective_audit_intake",
+            "audit_only": True,
+            "prediction_accuracy_claim": False,
+            "import": report.to_dict(),
+        },
+        status_code=201,
+    )
+
+
+async def training_feedback_http(request: Request) -> JSONResponse:
+    """Authenticated append-only feedback; never exposed as an MCP tool."""
+    if not _retrospective_authorized(request):
+        return _error_response("unauthorized", "有效的 training Bearer token 是必需的", 401)
+    store_path = os.environ.get("MINGLI_TRAINING_STORE", "").strip()
+    if not store_path:
+        return _error_response("write_disabled", "training store 未配置，写入已关闭", 503)
+    try:
+        payload = await _json_object(request)
+        store = TrainingStore(store_path, repository_root=Path(__file__).resolve().parents[2])
+        result = store.add_feedback(payload)
+    except OverflowError:
+        return _error_response("request_too_large", f"Request body exceeds {MAX_REQUEST_BYTES} bytes", 413)
+    except (json.JSONDecodeError, TypeError) as exc:
+        return _error_response("invalid_request", str(exc), 400)
+    except TrainingError as exc:
+        return _error_response(exc.code, exc.message, 422)
+    return JSONResponse(
+        {
+            "status": "accepted",
+            "record_type": "training_feedback",
+            "audit_only": True,
+            "prediction_accuracy_claim": False,
+            "feedback": result,
+        },
+        status_code=201,
+    )
+
+
+async def training_analyze_http(request: Request) -> JSONResponse:
+    """Run the product runtime and auto-capture an opted-in frozen analysis."""
+    if not _retrospective_authorized(request):
+        return _error_response("unauthorized", "有效的 training Bearer token 是必需的", 401)
+    try:
+        payload = await _json_object(request)
+        result = run_product_runtime(payload)
+    except OverflowError:
+        return _error_response("request_too_large", f"Request body exceeds {MAX_REQUEST_BYTES} bytes", 413)
+    except (json.JSONDecodeError, TypeError) as exc:
+        return _error_response("invalid_request", str(exc), 400)
+    return JSONResponse(result, status_code=201 if result.get("training_write", {}).get("stored") is True else 422)
+
+
 def create_mcp(
     *,
     host: str | None = None,
@@ -428,6 +518,15 @@ def create_mcp(
     server.custom_route(
         "/v1/ziwei/coverage", methods=["GET"], include_in_schema=False
     )(ziwei_coverage_http)
+    server.custom_route(
+        "/admin/retrospective", methods=["POST"], include_in_schema=False
+    )(retrospective_audit_http)
+    server.custom_route(
+        "/admin/training/feedback", methods=["POST"], include_in_schema=False
+    )(training_feedback_http)
+    server.custom_route(
+        "/admin/training/analyze", methods=["POST"], include_in_schema=False
+    )(training_analyze_http)
     return server
 
 

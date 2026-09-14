@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 from typing import Mapping, Sequence
@@ -215,6 +216,13 @@ def run_product_runtime(
     if not training_allowed:
         body["training_write"] = {"attempted": False, "stored": False, "reason": "TRAINING_CONSENT_NOT_GRANTED"}
         return json.loads(canonical_json(body))
+    if store is None:
+        configured_store = os.environ.get("MINGLI_TRAINING_STORE", "").strip()
+        if configured_store:
+            store = TrainingStore(
+                configured_store,
+                repository_root=Path(__file__).resolve().parents[2],
+            )
     if store is None:
         body["training_write"] = {"attempted": False, "stored": False, "reason": "TRAINING_STORE_NOT_CONFIGURED"}
         return json.loads(canonical_json(body))
