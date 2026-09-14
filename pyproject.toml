@@ -18,6 +18,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "build>=1.2,<2"]
 api = ["mcp[cli]>=1.28,<2"]
+gateway = [
+  "fastapi>=0.115,<1",
+  "pydantic>=2.7,<3",
+  "uvicorn[standard]>=0.30,<1",
+]
 
 [project.scripts]
 mingli = "mingli.cli:main"
@@ -40,6 +45,7 @@ mingli-phase23 = "mingli.phase23_cli:main"
 mingli-phase24 = "mingli.phase24_cli:main"
 mingli-validation = "mingli.validation_cli:main"
 mingli-service = "mingli.service_app:main"
+mingli-telegram-training = "mingli.telegram_training_bot:run"
 mingli-knowledge-service = "mingli.knowledge_service_app:main"
 mingli-contract-freeze = "mingli.contracts.freeze:main"
 mingli-capability-surge-service = "mingli.capability_surge_service_v2:main"
