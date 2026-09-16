@@ -14,12 +14,15 @@ Consumption V1 解决 REVIEW/人工批准后的结构化训练资产如何进入
 - REVIEW 阶段必须有 `scenario`、`topic`、`source_case_ids` 和结构化 `content`。
 - outcome 支持 `VERIFIED_HIT / PARTIAL_HIT / FAILURE / UNVERIFIED / CONTAMINATED / INPUT_ERROR`。
 - 人工决定通过不可变 approval receipt 绑定精确 `review_hash`。
-- 发布时只认同一 `review_hash` 的**最新**人工决定；后续拒绝会让旧批准失效。
+- 发布时只认同一 `review_hash` 的**最新**人工决定。
+- 同一 REVIEW 只允许生成一个已发布 Consumption 资产，禁止用不同 `published_at` 重复占用召回配额。
+- 如果发布后最新人工决定变成 `rejected`，该资产立即失去检索资格；重新 approved 后仍以最新人工决定为准。
+- 如果任一 `source_case_id` 已产生 `CONSENT_WITHDRAWN` tombstone，REVIEW、发布和后续检索均 fail closed；已发布资产保留审计记录但不再返回。
 - `UNVERIFIED / CONTAMINATED / INPUT_ERROR` 可归档，但永远不进入检索上下文。
 
 ## 检索规则
 
-检索必须精确匹配 `domain + scenario + topic`，禁止跨 domain、跨 scenario 或跨 topic 放宽。
+检索必须精确匹配 `domain + scenario + topic`，禁止跨 domain、跨 scenario 或跨 topic 放宽。每次检索前重新验证：最新人工决定仍为 approved，且来源案例未撤回。
 
 返回上限：
 
@@ -27,7 +30,7 @@ Consumption V1 解决 REVIEW/人工批准后的结构化训练资产如何进入
 - PARTIAL_HIT：最多 2 条，仅作边界学习；
 - FAILURE：最多 2 条，仅作风险提醒，不直接模仿。
 
-无匹配或缺标签时返回 `NO_HISTORICAL_CONTEXT`，不得回退到不相关历史案例。
+无匹配、缺标签、批准被撤销或来源案例撤回时返回 `NO_HISTORICAL_CONTEXT`，不得回退到不相关历史案例。
 
 每次检索写入 `consumption_audit.jsonl`，记录 query、domain/scenario/topic、mode、实际选中的 asset IDs 和时间。
 
@@ -49,14 +52,26 @@ mingli-consumption --store <off-git-store> --repository-root <repo> retrieve --d
 mingli-consumption --store <off-git-store> --repository-root <repo> status
 ```
 
+## 现有 MingLi Integrated Runtime
+
+`mingli-integrated-service` 保持原服务名、端口、OAuth 资源与 off-Git `MINGLI_TRAINING_STORE`，并在同一 MCP 上增加：
+
+- `stage_consumption_review_asset`
+- `decide_consumption_review`
+- `publish_consumption_asset`
+- `retrieve_training_context`
+- `get_consumption_status`
+
+前三个写工具仍要求明确人工流程；自动训练不得调用 `decide_consumption_review` 或 `publish_consumption_asset`。检索工具默认 `mode=SHADOW`，即使服务已部署也不会自动影响上层实盘答案。
+
 ## 与现有链路关系
 
-- `TrainingStore`：继续作为仓库外私有存储边界。
+- `TrainingStore`：继续作为仓库外私有存储边界和 consent tombstone 来源。
 - `Real Case Learning V2`：继续负责预测冻结、现实证据与 outcome 分类；不自动 promote。
 - `RulePromotionPipeline`：继续负责规则来源审核、回归、人工批准、release；不被 Consumption 替代。
 - `Phase 4.1`：继续用于真人试点验证；Consumption 资产不自动计入 Phase 4.1 accuracy。
-- `RuleAwareRuntime`：新增受控 `retrieve_training_context()`，默认 SHADOW，并在 capabilities 中暴露 Consumption 状态。
+- `RuleAwareRuntime`：受控 `retrieve_training_context()` 默认 SHADOW，并暴露 Consumption 状态。
 
 ## 安全边界
 
-Consumption V1 不自动批准、不自动发布、不跨域召回、不把训练反馈等同准确率、不把失败样本当示范答案。生产部署、切换 ACTIVE、批量导入历史案例都必须单独审批。
+Consumption V1 不自动批准、不自动发布、不跨域召回、不把训练反馈等同准确率、不把失败样本当示范答案。生产部署和切换 ACTIVE 必须单独审批；本次部署目标固定为 SHADOW。
