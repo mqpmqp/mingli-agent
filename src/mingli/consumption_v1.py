@@ -11,7 +11,7 @@ from .training import TrainingError, TrainingStore
 from .validation_privacy import scan_for_pii
 
 
-CONSUMPTION_VERSION = "mingli-consumption-v1@1.1"
+CONSUMPTION_VERSION = "mingli-consumption-v1@1.2"
 _ALLOWED_DOMAINS = frozenset({"bazi", "qimen", "fengshui"})
 _ALLOWED_OUTCOMES = frozenset({
     "VERIFIED_HIT", "PARTIAL_HIT", "FAILURE", "UNVERIFIED", "CONTAMINATED", "INPUT_ERROR"
@@ -139,6 +139,16 @@ class ConsumptionV1:
             return False
         return not self._withdrawn_source_ids(asset.get("source_case_ids", []))
 
+    def _asset_id_for_review(self, review_id: str, review_hash: str) -> str:
+        identity_hash = digest(
+            {
+                "record_type": "ConsumptionAssetIdentity",
+                "review_id": review_id,
+                "review_hash": review_hash,
+            }
+        )
+        return "consumption-asset:" + identity_hash.split(":", 1)[1]
+
     def stage_review_asset(self, value: Mapping[str, object]) -> dict[str, object]:
         domain = str(value.get("domain", ""))
         outcome = str(value.get("outcome_class", ""))
@@ -215,12 +225,6 @@ class ConsumptionV1:
         withdrawn = self._withdrawn_source_ids(review.get("source_case_ids", []))
         if withdrawn:
             raise TrainingError("SOURCE_CASE_WITHDRAWN", "来源案例已撤回同意，禁止发布 Consumption 资产")
-        duplicates = [
-            item for item in self._list("asset")
-            if item.get("review_id") == review_id and item.get("review_hash") == review.get("review_hash")
-        ]
-        if duplicates:
-            raise TrainingError("ASSET_ALREADY_PUBLISHED", "同一 REVIEW 只能发布一个 Consumption 资产")
         published_at = str(value.get("published_at", ""))
         _parse_time(published_at, field="published_at")
         body = {
@@ -239,8 +243,20 @@ class ConsumptionV1:
             "consumption_eligible": review["outcome_class"] in _RETRIEVABLE,
         }
         asset_hash = digest({"record_type": "ConsumptionAsset", "payload": body})
-        asset_id = "consumption-asset:" + asset_hash.split(":", 1)[1]
-        return self._write_once("asset", asset_id, {"asset_id": asset_id, "asset_hash": asset_hash, **body})
+        asset_id = self._asset_id_for_review(review_id, str(review["review_hash"]))
+        try:
+            return self._write_once(
+                "asset",
+                asset_id,
+                {"asset_id": asset_id, "asset_hash": asset_hash, **body},
+            )
+        except TrainingError as exc:
+            if exc.code == "DUPLICATE_RECORD":
+                raise TrainingError(
+                    "ASSET_ALREADY_PUBLISHED",
+                    "同一 REVIEW 只能发布一个 Consumption 资产",
+                ) from exc
+            raise
 
     def retrieve(
         self,
