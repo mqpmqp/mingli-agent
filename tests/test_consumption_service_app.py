@@ -12,6 +12,7 @@ from mingli.training import TrainingStore
 
 NOW = "2026-09-16T08:30:00+00:00"
 TOKEN = "consumption-test-token-with-at-least-32-characters"
+APPROVAL_TOKEN = "consumption-approval-test-token-with-at-least-32-characters"
 REVIEWER = "reviewer:" + "a" * 64
 MCP_HEADERS = {
     "accept": "application/json, text/event-stream",
@@ -19,10 +20,17 @@ MCP_HEADERS = {
 }
 
 
-def _call(client: TestClient, name: str, arguments: dict[str, object], call_id: int, *, authorized: bool = False):
+def _call(
+    client: TestClient,
+    name: str,
+    arguments: dict[str, object],
+    call_id: int,
+    *,
+    token: str | None = None,
+):
     headers = dict(MCP_HEADERS)
-    if authorized:
-        headers["authorization"] = f"Bearer {TOKEN}"
+    if token:
+        headers["authorization"] = f"Bearer {token}"
     return client.post(
         "/mcp",
         headers=headers,
@@ -41,7 +49,11 @@ def test_consumption_mcp_exposes_gated_review_publish_and_retrieval() -> None:
         repo = root / "repo"
         repo.mkdir()
         manager = ConsumptionV1(TrainingStore(root / "training", repository_root=repo))
-        app = create_app(manager=manager, bearer_token=TOKEN)
+        app = create_app(
+            manager=manager,
+            bearer_token=TOKEN,
+            approval_token=APPROVAL_TOKEN,
+        )
         with TestClient(app, base_url="http://127.0.0.1:8010") as client:
             client.post(
                 "/mcp",
@@ -62,13 +74,7 @@ def test_consumption_mcp_exposes_gated_review_publish_and_retrieval() -> None:
                 headers=MCP_HEADERS,
                 json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
             ).json()["result"]["tools"]
-            denied = _call(
-                client,
-                "get_consumption_status",
-                {},
-                3,
-                authorized=False,
-            )
+            denied = _call(client, "get_consumption_status", {}, 3)
             staged = _call(
                 client,
                 "stage_consumption_review_asset",
@@ -86,9 +92,27 @@ def test_consumption_mcp_exposes_gated_review_publish_and_retrieval() -> None:
                     }
                 },
                 4,
-                authorized=True,
+                token=TOKEN,
             ).json()["result"]["structuredContent"]
             review_id = staged["review_id"]
+
+            automated_approval = _call(
+                client,
+                "decide_consumption_review",
+                {
+                    "decision": {
+                        "review_id": review_id,
+                        "decision": "approved",
+                        "reviewer_id": REVIEWER,
+                        "review_note": "自动凭证不应具有人工批准权限。",
+                        "decided_at": NOW,
+                    }
+                },
+                5,
+                token=TOKEN,
+            )
+            assert automated_approval.json()["result"]["isError"] is True
+
             approval = _call(
                 client,
                 "decide_consumption_review",
@@ -101,8 +125,8 @@ def test_consumption_mcp_exposes_gated_review_publish_and_retrieval() -> None:
                         "decided_at": NOW,
                     }
                 },
-                5,
-                authorized=True,
+                6,
+                token=APPROVAL_TOKEN,
             ).json()["result"]["structuredContent"]
             published = _call(
                 client,
@@ -114,8 +138,8 @@ def test_consumption_mcp_exposes_gated_review_publish_and_retrieval() -> None:
                         "published_at": NOW,
                     }
                 },
-                6,
-                authorized=True,
+                7,
+                token=APPROVAL_TOKEN,
             )
             context = _call(
                 client,
@@ -128,8 +152,8 @@ def test_consumption_mcp_exposes_gated_review_publish_and_retrieval() -> None:
                     "consumed_at": NOW,
                     "mode": "SHADOW",
                 },
-                7,
-                authorized=True,
+                8,
+                token=TOKEN,
             ).json()["result"]["structuredContent"]
 
         names = {item["name"] for item in tools}
