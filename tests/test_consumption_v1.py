@@ -10,6 +10,7 @@ from mingli.training import TrainingError, TrainingStore
 
 
 NOW = "2026-09-16T08:30:00+00:00"
+LATER = "2026-09-16T08:31:00+00:00"
 REVIEWER = "reviewer:" + "a" * 64
 
 
@@ -101,6 +102,40 @@ def test_rejected_review_cannot_publish() -> None:
         temp.cleanup()
 
 
+def test_later_rejection_invalidates_older_approval() -> None:
+    temp, manager, _root = _manager()
+    try:
+        review = _stage(manager, outcome="VERIFIED_HIT")
+        approved = manager.decide_review(
+            {
+                "review_id": review["review_id"],
+                "decision": "approved",
+                "reviewer_id": REVIEWER,
+                "review_note": "初审通过。",
+                "decided_at": NOW,
+            }
+        )
+        manager.decide_review(
+            {
+                "review_id": review["review_id"],
+                "decision": "rejected",
+                "reviewer_id": REVIEWER,
+                "review_note": "复核后撤回批准。",
+                "decided_at": LATER,
+            }
+        )
+        with pytest.raises(TrainingError, match="STALE_APPROVAL_RECEIPT"):
+            manager.publish_approved_asset(
+                {
+                    "review_id": review["review_id"],
+                    "approval_id": approved["approval_id"],
+                    "published_at": LATER,
+                }
+            )
+    finally:
+        temp.cleanup()
+
+
 def test_unverified_can_be_archived_but_never_retrieved() -> None:
     temp, manager, _root = _manager()
     try:
@@ -145,6 +180,7 @@ def test_exact_same_domain_scenario_topic_retrieval_and_limits() -> None:
         assert len(context["failure_cases"]) == 2
         assert len(context["boundary_cases"]) == 2
         assert all(item["domain"] == "bazi" for item in context["positive_cases"])
+        assert context["usage_policy"]["failure_cases"] == "risk_warning_only_do_not_imitate"
         assert context["cross_domain_allowed"] is False
         assert (root / "consumption_audit.jsonl").is_file()
     finally:
