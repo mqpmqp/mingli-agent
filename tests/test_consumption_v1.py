@@ -211,7 +211,7 @@ def test_later_rejection_revokes_already_published_asset_from_retrieval() -> Non
 def test_withdrawn_source_case_revokes_already_published_asset() -> None:
     temp, manager, root = _manager()
     try:
-        case_id = "person:" + "b" * 64
+        case_id = "case-ref-withdrawn-1"
         review = _stage(
             manager,
             outcome="FAILURE",
@@ -236,7 +236,7 @@ def test_withdrawn_source_case_revokes_already_published_asset() -> None:
 def test_withdrawn_source_case_cannot_enter_review() -> None:
     temp, manager, root = _manager()
     try:
-        case_id = "person:" + "c" * 64
+        case_id = "case-ref-withdrawn-2"
         _write_withdrawal_tombstone(root, case_id)
         with pytest.raises(TrainingError, match="SOURCE_CASE_WITHDRAWN"):
             _stage(
