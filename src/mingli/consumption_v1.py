@@ -416,17 +416,15 @@ class ConsumptionV1:
             item for item in assets
             if self._asset_authorized_now(item, latest_decisions=latest_decisions)
         ]
-        revoked = [
-            item for item in assets
-            if item.get("consumption_eligible") is True and item not in retrievable
-        ]
+        eligible_count = sum(item.get("consumption_eligible") is True for item in assets)
+        revoked_or_withdrawn_count = eligible_count - len(retrievable)
         return {
             "schema_version": CONSUMPTION_VERSION,
             "reviews": len(reviews),
             "approvals": len(approvals),
             "published_assets": len(assets),
             "retrievable_assets": len(retrievable),
-            "revoked_or_withdrawn_assets": len(revoked),
+            "revoked_or_withdrawn_assets": revoked_or_withdrawn_count,
             "mode_default": "SHADOW",
             "positive_limit": 3,
             "failure_limit": 2,
