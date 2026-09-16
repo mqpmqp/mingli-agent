@@ -104,6 +104,21 @@ class ConsumptionV1:
                 records.append(value)
         return records
 
+    def _latest_decision(self, review_id: str, review_hash: str) -> dict[str, object] | None:
+        matching = [
+            item for item in self._list("approval")
+            if item.get("review_id") == review_id and item.get("review_hash") == review_hash
+        ]
+        if not matching:
+            return None
+        return sorted(
+            matching,
+            key=lambda item: (
+                _parse_time(item.get("decided_at"), field="decided_at"),
+                str(item.get("approval_id", "")),
+            ),
+        )[-1]
+
     def stage_review_asset(self, value: Mapping[str, object]) -> dict[str, object]:
         domain = str(value.get("domain", ""))
         outcome = str(value.get("outcome_class", ""))
@@ -169,6 +184,9 @@ class ConsumptionV1:
         approval = self._read("approval", approval_id)
         if approval.get("review_id") != review_id or approval.get("review_hash") != review.get("review_hash"):
             raise TrainingError("STALE_APPROVAL_RECEIPT", "approval does not bind the current review hash")
+        latest = self._latest_decision(review_id, str(review["review_hash"]))
+        if latest is None or latest.get("approval_id") != approval_id:
+            raise TrainingError("STALE_APPROVAL_RECEIPT", "only the latest human decision may authorize publication")
         if approval.get("decision") != "approved":
             raise TrainingError("HUMAN_APPROVAL_REQUIRED", "asset cannot publish without approved human receipt")
         published_at = str(value.get("published_at", ""))
@@ -206,6 +224,7 @@ class ConsumptionV1:
             raise TrainingError("INVALID_CONSUMPTION_DOMAIN", "domain must be bazi, qimen, or fengshui")
         if mode not in _ALLOWED_MODES:
             raise TrainingError("INVALID_CONSUMPTION_MODE", "mode must be SHADOW or ACTIVE")
+        _parse_time(consumed_at, field="consumed_at")
         if not scenario.strip() or not topic.strip():
             return self._audit_and_return(
                 query_id=query_id,
@@ -220,7 +239,6 @@ class ConsumptionV1:
                 failures=[],
                 reason="scenario_or_topic_missing",
             )
-        _parse_time(consumed_at, field="consumed_at")
         matches = [
             item for item in self._list("asset")
             if item.get("consumption_eligible") is True
@@ -229,7 +247,13 @@ class ConsumptionV1:
             and item.get("topic") == topic
             and item.get("outcome_class") in _RETRIEVABLE
         ]
-        matches.sort(key=lambda item: (str(item.get("published_at", "")), str(item.get("asset_id", ""))), reverse=True)
+        matches.sort(
+            key=lambda item: (
+                _parse_time(item.get("published_at"), field="published_at"),
+                str(item.get("asset_id", "")),
+            ),
+            reverse=True,
+        )
         positives = [item for item in matches if item.get("outcome_class") in _POSITIVE][:3]
         boundaries = [item for item in matches if item.get("outcome_class") in _BOUNDARY][:2]
         failures = [item for item in matches if item.get("outcome_class") in _FAILURE][:2]
@@ -294,6 +318,11 @@ class ConsumptionV1:
             "positive_cases": positives,
             "boundary_cases": boundaries,
             "failure_cases": failures,
+            "usage_policy": {
+                "positive_cases": "reference_only_not_ground_truth",
+                "boundary_cases": "boundary_learning_only",
+                "failure_cases": "risk_warning_only_do_not_imitate",
+            },
             "positive_limit": 3,
             "failure_limit": 2,
             "cross_domain_allowed": False,
