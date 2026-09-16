@@ -15,7 +15,7 @@ Consumption V1 解决 REVIEW/人工批准后的结构化训练资产如何进入
 - outcome 支持 `VERIFIED_HIT / PARTIAL_HIT / FAILURE / UNVERIFIED / CONTAMINATED / INPUT_ERROR`。
 - 人工决定通过不可变 approval receipt 绑定精确 `review_hash`。
 - 发布时只认同一 `review_hash` 的**最新**人工决定。
-- 同一 REVIEW 只允许生成一个已发布 Consumption 资产，禁止用不同 `published_at` 重复占用召回配额。
+- 同一 REVIEW 使用确定性 `asset_id`，原子创建保证即使并发请求也只能成功发布一次。
 - 如果发布后最新人工决定变成 `rejected`，该资产立即失去检索资格；重新 approved 后仍以最新人工决定为准。
 - 如果任一 `source_case_id` 已产生 `CONSENT_WITHDRAWN` tombstone，REVIEW、发布和后续检索均 fail closed；已发布资产保留审计记录但不再返回。
 - `UNVERIFIED / CONTAMINATED / INPUT_ERROR` 可归档，但永远不进入检索上下文。
@@ -62,7 +62,15 @@ mingli-consumption --store <off-git-store> --repository-root <repo> status
 - `retrieve_training_context`
 - `get_consumption_status`
 
-前三个写工具仍要求明确人工流程；自动训练不得调用 `decide_consumption_review` 或 `publish_consumption_asset`。检索工具默认 `mode=SHADOW`，即使服务已部署也不会自动影响上层实盘答案。
+OAuth 权限固定分离：
+
+- `stage_consumption_review_asset`：`training:write`
+- `decide_consumption_review` / `publish_consumption_asset`：独立 `training:approve`
+- `retrieve_training_context` / `get_consumption_status`：`training:read`
+
+因此现有自动小时训练即使持有 `training:write`，也不能自行批准或发布 Consumption 资产。非 OAuth 本地测试同样使用独立 `MINGLI_CONSUMPTION_APPROVAL_TOKEN`，不得复用采集 token。
+
+所有会产生新记录或审计的 Consumption 工具均标记为非幂等，避免 MCP 客户端自动重试导致重复记录。
 
 ## 与现有链路关系
 
