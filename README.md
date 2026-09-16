@@ -243,7 +243,7 @@ python -m mingli.cli validation benchmark
 
 `mingli.rule_promotion` 把小时训练报告接入一条 fail-closed 路径：结构化报告 → 内容去重候选 → 来源哈希与人工来源审查 → 候选回归 → 独立人工批准 → 不可变规则版本 → Runtime 加载 → Phase 4.1 真人试点。自动化任务只能提交候选，不能自行通过来源门、批准或发布。
 
-常驻接入使用 `mingli-integrated-service`。它在原 Runtime MCP 中增加 OAuth 保护的 `submit_hourly_training_report`，每次自动执行摄取、去重、来源状态检查与合同回归，并停在人工批准门；部署与三个小时任务的实际接线见 `docs/deployment/hourly-training-collector.md`。
+常驻接入使用 `mingli-integrated-service`。它在原 Runtime MCP 中增加 OAuth 保护的 `submit_hourly_training_report`，以及 Consumption 的 `stage_consumption_review_asset`、`decide_consumption_review`、`publish_consumption_asset`、`retrieve_training_context` 和 `get_consumption_status`；每次自动执行摄取、去重、来源状态检查与合同回归，并停在人工批准门。写入 staging 仅需 `training:write`，人工决定和发布必须为独立的 `training:approve`，读取仅需 `training:read`；非 OAuth 本地测试也必须配置与采集 token 不同的 `MINGLI_CONSUMPTION_APPROVAL_TOKEN`，否则决定和发布 fail closed。部署与三个小时任务的实际接线见 `docs/deployment/hourly-training-collector.md`。
 
 训练 store 必须位于 Git 仓库外。`report-ingest` 既接受纯 JSON，也能从小时任务输出的 `HOURLY_TRAINING_REPORT_JSON` 代码块提取结构化记录。完整字段、命令顺序和 Runtime 配置见 `docs/hourly-rule-promotion.md`。
 
