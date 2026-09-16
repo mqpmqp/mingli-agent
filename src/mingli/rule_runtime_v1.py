@@ -4,17 +4,23 @@ import os
 from pathlib import Path
 from typing import Mapping
 
+from .consumption_v1 import ConsumptionV1
 from .phase4_1 import Phase41Pilot
 from .rule_promotion import RulePromotionPipeline, apply_runtime_release
 from .service import analyze_mingli_payload, get_service_capabilities
 from .training import TrainingError, TrainingStore
 
 
-RULE_RUNTIME_VERSION = "mingli-rule-aware-runtime@1.0"
+RULE_RUNTIME_VERSION = "mingli-rule-aware-runtime@1.1"
 
 
 class RuleAwareRuntime:
-    """Additive Runtime adapter; the frozen Phase 23 and service contracts stay unchanged."""
+    """Additive Runtime adapter; frozen service contracts stay unchanged.
+
+    Published rule releases remain mandatory for rule application. Consumption V1
+    is additive and fail-closed: only explicitly human-approved, published training
+    assets can be retrieved, and retrieval is exact-match by domain/scenario/topic.
+    """
 
     def __init__(
         self,
@@ -27,6 +33,7 @@ class RuleAwareRuntime:
         store = TrainingStore(store_root, repository_root=repository_root, synthetic=synthetic)
         self.store = store
         self.phase4_1 = Phase41Pilot(store)
+        self.consumption = ConsumptionV1(store)
         self.release = RulePromotionPipeline(store).load_release(version)
 
     def analyze(self, payload: object) -> dict[str, object]:
@@ -36,6 +43,33 @@ class RuleAwareRuntime:
         if domain not in {"bazi", "qimen", "fengshui"}:
             raise ValueError("domain must be bazi, qimen, or fengshui")
         return apply_runtime_release(result, self.release, domain=domain)
+
+    def retrieve_training_context(
+        self,
+        *,
+        domain: str,
+        scenario: str,
+        topic: str,
+        query_id: str,
+        consumed_at: str,
+        mode: str | None = None,
+    ) -> dict[str, object]:
+        """Retrieve a bounded, audited historical context pack.
+
+        SHADOW is the default even when the caller omits mode. ACTIVE must be an
+        explicit deployment choice; this method itself never changes model weights,
+        rule releases, or Phase 4.1 accuracy state.
+        """
+
+        selected_mode = mode or os.environ.get("MINGLI_CONSUMPTION_MODE", "SHADOW").strip() or "SHADOW"
+        return self.consumption.retrieve(
+            domain=domain,
+            scenario=scenario,
+            topic=topic,
+            query_id=query_id,
+            consumed_at=consumed_at,
+            mode=selected_mode,
+        )
 
     def capabilities(self) -> dict[str, object]:
         base = get_service_capabilities()
@@ -52,6 +86,7 @@ class RuleAwareRuntime:
                 if key not in {"rule_set_version", "rule_manifest_hash"}
             },
         }
+        base["consumption_v1"] = self.consumption.status()
         return base
 
     def phase4_1_binding(self) -> dict[str, object]:
@@ -66,7 +101,7 @@ class RuleAwareRuntime:
     ) -> dict[str, object]:
         """Bind a pre-freeze Phase 4.1 prediction to the loaded release.
 
-        The V2 prediction contract stores the exact rule version.  A conflicting
+        The V2 prediction contract stores the exact rule version. A conflicting
         caller-provided version is rejected so a case cannot be silently moved
         between rule cohorts after the prediction was produced.
         """
