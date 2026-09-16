@@ -11,7 +11,7 @@ from .training import TrainingError, TrainingStore
 from .validation_privacy import scan_for_pii
 
 
-CONSUMPTION_VERSION = "mingli-consumption-v1@1.2"
+CONSUMPTION_VERSION = "mingli-consumption-v1@1.3"
 _ALLOWED_DOMAINS = frozenset({"bazi", "qimen", "fengshui"})
 _ALLOWED_OUTCOMES = frozenset({
     "VERIFIED_HIT", "PARTIAL_HIT", "FAILURE", "UNVERIFIED", "CONTAMINATED", "INPUT_ERROR"
@@ -103,20 +103,28 @@ class ConsumptionV1:
                 records.append(value)
         return records
 
-    def _latest_decision(self, review_id: str, review_hash: str) -> dict[str, object] | None:
-        matching = [
-            item for item in self._list("approval")
-            if item.get("review_id") == review_id and item.get("review_hash") == review_hash
-        ]
-        if not matching:
-            return None
-        return sorted(
-            matching,
-            key=lambda item: (
+    def _latest_decision_index(self) -> dict[tuple[str, str], dict[str, object]]:
+        latest: dict[tuple[str, str], dict[str, object]] = {}
+        for item in self._list("approval"):
+            key = (str(item.get("review_id", "")), str(item.get("review_hash", "")))
+            current = latest.get(key)
+            item_key = (
                 _parse_time(item.get("decided_at"), field="decided_at"),
                 str(item.get("approval_id", "")),
-            ),
-        )[-1]
+            )
+            if current is None:
+                latest[key] = item
+                continue
+            current_key = (
+                _parse_time(current.get("decided_at"), field="decided_at"),
+                str(current.get("approval_id", "")),
+            )
+            if item_key > current_key:
+                latest[key] = item
+        return latest
+
+    def _latest_decision(self, review_id: str, review_hash: str) -> dict[str, object] | None:
+        return self._latest_decision_index().get((review_id, review_hash))
 
     def _source_case_withdrawn(self, case_id: str) -> bool:
         return (self.root / "tombstones" / _record_name(case_id)).is_file()
@@ -129,12 +137,18 @@ class ConsumptionV1:
             if self._source_case_withdrawn(str(case_id))
         )
 
-    def _asset_authorized_now(self, asset: Mapping[str, object]) -> bool:
+    def _asset_authorized_now(
+        self,
+        asset: Mapping[str, object],
+        *,
+        latest_decisions: Mapping[tuple[str, str], Mapping[str, object]] | None = None,
+    ) -> bool:
         if asset.get("consumption_eligible") is not True:
             return False
         review_id = str(asset.get("review_id", ""))
         review_hash = str(asset.get("review_hash", ""))
-        latest = self._latest_decision(review_id, review_hash)
+        decision_index = latest_decisions if latest_decisions is not None else self._latest_decision_index()
+        latest = decision_index.get((review_id, review_hash))
         if latest is None or latest.get("decision") != "approved":
             return False
         return not self._withdrawn_source_ids(asset.get("source_case_ids", []))
@@ -148,6 +162,12 @@ class ConsumptionV1:
             }
         )
         return "consumption-asset:" + identity_hash.split(":", 1)[1]
+
+    def _review_already_published(self, review_id: str, review_hash: str) -> bool:
+        return any(
+            item.get("review_id") == review_id and item.get("review_hash") == review_hash
+            for item in self._list("asset")
+        )
 
     def stage_review_asset(self, value: Mapping[str, object]) -> dict[str, object]:
         domain = str(value.get("domain", ""))
@@ -215,9 +235,10 @@ class ConsumptionV1:
         approval_id = str(value.get("approval_id", ""))
         review = self._read("review", review_id)
         approval = self._read("approval", approval_id)
-        if approval.get("review_id") != review_id or approval.get("review_hash") != review.get("review_hash"):
+        review_hash = str(review["review_hash"])
+        if approval.get("review_id") != review_id or approval.get("review_hash") != review_hash:
             raise TrainingError("STALE_APPROVAL_RECEIPT", "批准回执未绑定当前 REVIEW 哈希")
-        latest = self._latest_decision(review_id, str(review["review_hash"]))
+        latest = self._latest_decision(review_id, review_hash)
         if latest is None or latest.get("approval_id") != approval_id:
             raise TrainingError("STALE_APPROVAL_RECEIPT", "只有当前最新人工决定可以授权发布")
         if approval.get("decision") != "approved":
@@ -225,11 +246,13 @@ class ConsumptionV1:
         withdrawn = self._withdrawn_source_ids(review.get("source_case_ids", []))
         if withdrawn:
             raise TrainingError("SOURCE_CASE_WITHDRAWN", "来源案例已撤回同意，禁止发布 Consumption 资产")
+        if self._review_already_published(review_id, review_hash):
+            raise TrainingError("ASSET_ALREADY_PUBLISHED", "同一 REVIEW 只能发布一个 Consumption 资产")
         published_at = str(value.get("published_at", ""))
         _parse_time(published_at, field="published_at")
         body = {
             "review_id": review_id,
-            "review_hash": review["review_hash"],
+            "review_hash": review_hash,
             "approval_id": approval_id,
             "domain": review["domain"],
             "scenario": review["scenario"],
@@ -243,7 +266,7 @@ class ConsumptionV1:
             "consumption_eligible": review["outcome_class"] in _RETRIEVABLE,
         }
         asset_hash = digest({"record_type": "ConsumptionAsset", "payload": body})
-        asset_id = self._asset_id_for_review(review_id, str(review["review_hash"]))
+        asset_id = self._asset_id_for_review(review_id, review_hash)
         try:
             return self._write_once(
                 "asset",
@@ -287,9 +310,10 @@ class ConsumptionV1:
                 failures=[],
                 reason="scenario_or_topic_missing",
             )
+        latest_decisions = self._latest_decision_index()
         matches = [
             item for item in self._list("asset")
-            if self._asset_authorized_now(item)
+            if self._asset_authorized_now(item, latest_decisions=latest_decisions)
             and item.get("domain") == domain
             and item.get("scenario") == scenario
             and item.get("topic") == topic
@@ -382,7 +406,11 @@ class ConsumptionV1:
         reviews = self._list("review")
         approvals = self._list("approval")
         assets = self._list("asset")
-        retrievable = [item for item in assets if self._asset_authorized_now(item)]
+        latest_decisions = self._latest_decision_index()
+        retrievable = [
+            item for item in assets
+            if self._asset_authorized_now(item, latest_decisions=latest_decisions)
+        ]
         revoked = [
             item for item in assets
             if item.get("consumption_eligible") is True and item not in retrievable
