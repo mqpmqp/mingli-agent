@@ -115,6 +115,7 @@ class ConsumptionV1:
             current = latest.get(key)
             item_key = (
                 _parse_time(item.get("decided_at"), field="decided_at"),
+                item.get("decision") == "rejected",
                 str(item.get("approval_id", "")),
             )
             if current is None:
@@ -122,6 +123,7 @@ class ConsumptionV1:
                 continue
             current_key = (
                 _parse_time(current.get("decided_at"), field="decided_at"),
+                current.get("decision") == "rejected",
                 str(current.get("approval_id", "")),
             )
             if item_key > current_key:

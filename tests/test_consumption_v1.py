@@ -208,6 +208,33 @@ def test_later_rejection_revokes_already_published_asset_from_retrieval() -> Non
         temp.cleanup()
 
 
+def test_same_time_rejection_revokes_already_published_asset_from_retrieval() -> None:
+    temp, manager, _root = _manager()
+    try:
+        review = _stage(manager, outcome="VERIFIED_HIT")
+        _approve_publish(manager, review)
+        manager.decide_review(
+            {
+                "review_id": review["review_id"],
+                "decision": "rejected",
+                "reviewer_id": REVIEWER,
+                "review_note": "同一秒内的拒绝必须保守地撤销批准。",
+                "decided_at": NOW,
+            }
+        )
+        context = manager.retrieve(
+            domain="bazi",
+            scenario="career_exam",
+            topic="civil_service_exam",
+            query_id="query-same-time-rejection",
+            consumed_at=LATER,
+        )
+        assert context["status"] == "NO_HISTORICAL_CONTEXT"
+        assert manager.status()["retrievable_assets"] == 0
+    finally:
+        temp.cleanup()
+
+
 def test_withdrawn_source_case_revokes_already_published_asset() -> None:
     temp, manager, root = _manager()
     try:
