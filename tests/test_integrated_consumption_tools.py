@@ -12,6 +12,7 @@ from mingli.training_collector import TrainingReportCollector
 
 NOW = "2026-09-16T08:30:00+00:00"
 TOKEN = "integrated-consumption-test-token-at-least-32-chars"
+APPROVAL_TOKEN = "integrated-consumption-approval-token-at-least-32-chars"
 REVIEWER = "reviewer:" + "a" * 64
 MCP_HEADERS = {
     "accept": "application/json, text/event-stream",
@@ -25,11 +26,11 @@ def _request(
     params: dict[str, object],
     call_id: int,
     *,
-    authorized: bool = False,
+    token: str | None = None,
 ):
     headers = dict(MCP_HEADERS)
-    if authorized:
-        headers["authorization"] = f"Bearer {TOKEN}"
+    if token:
+        headers["authorization"] = f"Bearer {token}"
     return client.post(
         "/mcp",
         headers=headers,
@@ -43,14 +44,14 @@ def _call(
     arguments: dict[str, object],
     call_id: int,
     *,
-    authorized: bool = True,
+    token: str | None = TOKEN,
 ):
     return _request(
         client,
         "tools/call",
         {"name": name, "arguments": arguments},
         call_id,
-        authorized=authorized,
+        token=token,
     )
 
 
@@ -61,7 +62,11 @@ def test_existing_integrated_service_exposes_consumption_tools_in_shadow_mode() 
         repo.mkdir()
         store = TrainingStore(root / "training", repository_root=repo)
         collector = TrainingReportCollector(store)
-        app = create_app(collector=collector, bearer_token=TOKEN)
+        app = create_app(
+            collector=collector,
+            bearer_token=TOKEN,
+            approval_token=APPROVAL_TOKEN,
+        )
 
         with TestClient(app, base_url="http://127.0.0.1:8000") as client:
             _request(
@@ -89,13 +94,7 @@ def test_existing_integrated_service_exposes_consumption_tools_in_shadow_mode() 
                 "get_consumption_status",
             }
 
-            denied = _call(
-                client,
-                "get_consumption_status",
-                {},
-                3,
-                authorized=False,
-            )
+            denied = _call(client, "get_consumption_status", {}, 3, token=None)
             assert denied.json()["result"]["isError"] is True
 
             staged = _call(
@@ -116,6 +115,24 @@ def test_existing_integrated_service_exposes_consumption_tools_in_shadow_mode() 
                 },
                 4,
             ).json()["result"]["structuredContent"]
+
+            automated_approval = _call(
+                client,
+                "decide_consumption_review",
+                {
+                    "decision": {
+                        "review_id": staged["review_id"],
+                        "decision": "approved",
+                        "reviewer_id": REVIEWER,
+                        "review_note": "自动凭证不应具有人工批准权限。",
+                        "decided_at": NOW,
+                    }
+                },
+                5,
+                token=TOKEN,
+            )
+            assert automated_approval.json()["result"]["isError"] is True
+
             approval = _call(
                 client,
                 "decide_consumption_review",
@@ -128,7 +145,8 @@ def test_existing_integrated_service_exposes_consumption_tools_in_shadow_mode() 
                         "decided_at": NOW,
                     }
                 },
-                5,
+                6,
+                token=APPROVAL_TOKEN,
             ).json()["result"]["structuredContent"]
             published = _call(
                 client,
@@ -140,7 +158,8 @@ def test_existing_integrated_service_exposes_consumption_tools_in_shadow_mode() 
                         "published_at": NOW,
                     }
                 },
-                6,
+                7,
+                token=APPROVAL_TOKEN,
             )
             assert published.json()["result"]["isError"] is False
 
@@ -154,7 +173,7 @@ def test_existing_integrated_service_exposes_consumption_tools_in_shadow_mode() 
                     "query_id": "query-integrated-1",
                     "consumed_at": NOW,
                 },
-                7,
+                8,
             ).json()["result"]["structuredContent"]
             assert context["mode"] == "SHADOW"
             assert context["status"] == "CONTEXT_AVAILABLE"
@@ -165,7 +184,7 @@ def test_existing_integrated_service_exposes_consumption_tools_in_shadow_mode() 
                 client,
                 "get_consumption_status",
                 {},
-                8,
+                9,
             ).json()["result"]["structuredContent"]
             assert status["mode_default"] == "SHADOW"
             assert status["retrievable_assets"] == 1
