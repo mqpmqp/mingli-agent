@@ -12,7 +12,7 @@ from .training import TrainingError, TrainingStore
 def _read_json(path: str) -> dict[str, object]:
     value = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise ValueError("input JSON must be an object")
+        raise ValueError("输入 JSON 必须是对象")
     return value
 
 

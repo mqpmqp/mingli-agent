@@ -2,11 +2,14 @@
 
 ## 实际链路
 
-`mingli-integrated-service` 在原有只读 Runtime/紫微工具之外增加三个受认证工具：
+`mingli-integrated-service` 在原有只读 Runtime/紫微工具之外提供三类训练工具：
 
 - `submit_hourly_training_report`：写入小时训练报告，自动去重并运行来源门和合同回归；
 - `get_rule_promotion_status`：读取私有训练库、活动规则版本与 Phase 4.1 状态；
 - `list_rule_review_queue`：列出需要人工决定的候选和精确门禁收据。
+- `stage_consumption_review_asset`：将去标识的 Consumption 资产写入 `REVIEW`；
+- `decide_consumption_review` / `publish_consumption_asset`：由人工分别决定和发布 Consumption 资产；
+- `retrieve_training_context` / `get_consumption_status`：按精确标签检索 SHADOW 上下文和读取状态。
 
 采集器只接受以下固定绑定：
 
@@ -33,8 +36,9 @@ MINGLI_OAUTH_RESOURCE_URL=https://YOUR_MINGLI_HOST
 - Runtime 调用：`runtime:read`
 - 写入小时报告：`runtime:read training:write`
 - 查看训练状态/人工队列：`runtime:read training:read`
+- 人工决定或发布 Consumption 资产：`runtime:read training:approve`
 
-服务使用 JWKS 校验 RS256/ES256 签名，同时验证 `iss`、`aud`、`exp`、`iat`、`sub` 和 scope。ChatGPT 会从 `/.well-known/oauth-protected-resource` 发现身份提供商；插件连接后完成一次用户登录授权。`MINGLI_TRAINING_COLLECTOR_TOKEN` 仅供本地 HTTP/MCP Inspector 测试，ChatGPT 不支持把自定义 API Key 作为替代认证。
+服务使用 JWKS 校验 RS256/ES256 签名，同时验证 `iss`、`aud`、`exp`、`iat`、`sub` 和 scope。ChatGPT 会从 `/.well-known/oauth-protected-resource` 发现身份提供商；插件连接后完成一次用户登录授权。`MINGLI_TRAINING_COLLECTOR_TOKEN` 仅供本地 HTTP/MCP Inspector 测试，ChatGPT 不支持把自定义 API Key 作为替代认证。非 OAuth 本地测试如需人工 Consumption 决定，必须另设 `MINGLI_CONSUMPTION_APPROVAL_TOKEN`；它不得与采集 token 相同，否则决定和发布工具 fail closed。
 
 ## 容器启动
 
@@ -72,14 +76,14 @@ mingli training source-register \
 
 ## ChatGPT 与三个小时任务接线
 
-部署后在 ChatGPT 插件设置中刷新 `MingLi Agent Runtime`，工具列表必须出现 `submit_hourly_training_report`。先用合成报告验证收到 `status=accepted`，再给三个现有任务追加同一条执行要求：
+部署后在 ChatGPT 插件设置中刷新 `MingLi Agent Runtime`，工具列表必须出现 `submit_hourly_training_report`、五个 Consumption 工具和原有 Runtime 工具。先用合成报告验证收到 `status=accepted`，再给三个现有任务追加同一条执行要求：
 
 ```text
 生成 HOURLY_TRAINING_REPORT_JSON 后，必须调用 MingLi Agent Runtime 的
 submit_hourly_training_report，参数 report 必须是该 JSON 对象本身。
 只有工具返回 status=accepted 才能标记 COLLECTOR_WRITE=OK；调用失败时标记
 COLLECTOR_WRITE=FAILED 并保留原 JSON，禁止声称已接入规则库、Runtime 或 Phase 4.1。
-不得调用或模拟人工批准与规则发布。
+不得调用或模拟人工批准、Consumption 发布与规则发布；自动任务的 `training:write` 不具有 `training:approve`。
 ```
 
 任务更新后，分别运行一次八字、奇门、风水合成冒烟。随后通过 `get_rule_promotion_status` 核对 `hourly_reports` 增量，通过 `list_rule_review_queue` 核对三个 automation/domain 绑定及门禁状态。没有这两项证据，不得宣布自动链接完成。
@@ -110,7 +114,7 @@ mingli training rules-publish --input release.json \
 - 直接身份信息在落盘前由隐私扫描拒绝；小时任务只允许去标识化报告。
 - 训练库保存报告、候选、门禁、批准和发布收据，不保存 HTTP 请求体日志。
 - 训练库属于受控、仓库外、持久卷；备份和恢复必须保持整个目录的一致快照。
-- V1 不提供远程删除或批准工具，避免自动任务或提示注入破坏审计链。发现误收敏感信息时立即停服务，隔离整个 store 快照，由管理员离线定位依赖记录并执行删除；删除后重新跑完整性和回归。
+- V1 不提供远程删除、规则批准或规则发布工具。Consumption 的远程决定/发布工具只接受独立 `training:approve`，并保留不可变审批和发布收据；自动任务的 `training:write` 无法调用它们。发现误收敏感信息时立即停服务，隔离整个 store 快照，由管理员离线定位依赖记录并执行删除；删除后重新跑完整性和回归。
 - 本服务仅限开发与真人试点，不是商业生产发布；Phase 4.1 仍以 10 个前瞻真人案例为目标，当前准确率不能由工程测试推导。
 
 ## Phase 4.1 真人案例写入

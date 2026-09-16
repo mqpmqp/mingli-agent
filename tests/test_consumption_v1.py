@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 import tempfile
 
@@ -23,7 +25,14 @@ def _manager() -> tuple[tempfile.TemporaryDirectory[str], ConsumptionV1, Path]:
     return temp, ConsumptionV1(store), store.root
 
 
-def _stage(manager: ConsumptionV1, *, outcome: str, index: int = 1, domain: str = "bazi") -> dict[str, object]:
+def _stage(
+    manager: ConsumptionV1,
+    *,
+    outcome: str,
+    index: int = 1,
+    domain: str = "bazi",
+    source_case_id: str | None = None,
+) -> dict[str, object]:
     return manager.stage_review_asset(
         {
             "domain": domain,
@@ -31,7 +40,7 @@ def _stage(manager: ConsumptionV1, *, outcome: str, index: int = 1, domain: str 
             "topic": "civil_service_exam",
             "outcome_class": outcome,
             "content": f"结构化训练资产 {outcome} {index}",
-            "source_case_ids": [f"case-ref-{outcome.lower()}-{index}"],
+            "source_case_ids": [source_case_id or f"case-ref-{outcome.lower()}-{index}"],
             "source_prediction_ids": [f"prediction-ref-{index}"],
             "error_types": ["wrong_timing"] if outcome == "FAILURE" else [],
             "created_at": NOW,
@@ -39,22 +48,53 @@ def _stage(manager: ConsumptionV1, *, outcome: str, index: int = 1, domain: str 
     )
 
 
-def _approve_publish(manager: ConsumptionV1, review: dict[str, object], *, published_at: str = NOW) -> dict[str, object]:
-    approval = manager.decide_review(
+def _approve(
+    manager: ConsumptionV1,
+    review: dict[str, object],
+    *,
+    decided_at: str = NOW,
+) -> dict[str, object]:
+    return manager.decide_review(
         {
             "review_id": review["review_id"],
             "decision": "approved",
             "reviewer_id": REVIEWER,
             "review_note": "人工复核通过，仅供受控检索。",
-            "decided_at": NOW,
+            "decided_at": decided_at,
         }
     )
+
+
+def _approve_publish(
+    manager: ConsumptionV1,
+    review: dict[str, object],
+    *,
+    published_at: str = NOW,
+) -> dict[str, object]:
+    approval = _approve(manager, review)
     return manager.publish_approved_asset(
         {
             "review_id": review["review_id"],
             "approval_id": approval["approval_id"],
             "published_at": published_at,
         }
+    )
+
+
+def _write_withdrawal_tombstone(root: Path, case_id: str) -> None:
+    filename = hashlib.sha256(case_id.encode("utf-8")).hexdigest() + ".json"
+    directory = root / "tombstones"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / filename).write_text(
+        json.dumps(
+            {
+                "case_ref_hash": hashlib.sha256(case_id.encode("utf-8")).hexdigest(),
+                "action": "CONSENT_WITHDRAWN",
+                "withdrawn_at": LATER,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
     )
 
 
@@ -102,19 +142,11 @@ def test_rejected_review_cannot_publish() -> None:
         temp.cleanup()
 
 
-def test_later_rejection_invalidates_older_approval() -> None:
+def test_later_rejection_invalidates_older_approval_before_publish() -> None:
     temp, manager, _root = _manager()
     try:
         review = _stage(manager, outcome="VERIFIED_HIT")
-        approved = manager.decide_review(
-            {
-                "review_id": review["review_id"],
-                "decision": "approved",
-                "reviewer_id": REVIEWER,
-                "review_note": "初审通过。",
-                "decided_at": NOW,
-            }
-        )
+        approved = _approve(manager, review)
         manager.decide_review(
             {
                 "review_id": review["review_id"],
@@ -132,6 +164,138 @@ def test_later_rejection_invalidates_older_approval() -> None:
                     "published_at": LATER,
                 }
             )
+    finally:
+        temp.cleanup()
+
+
+def test_later_rejection_revokes_already_published_asset_from_retrieval() -> None:
+    temp, manager, _root = _manager()
+    try:
+        review = _stage(manager, outcome="VERIFIED_HIT")
+        _approve_publish(manager, review)
+        before = manager.retrieve(
+            domain="bazi",
+            scenario="career_exam",
+            topic="civil_service_exam",
+            query_id="query-before-rejection",
+            consumed_at=NOW,
+        )
+        assert before["status"] == "CONTEXT_AVAILABLE"
+
+        manager.decide_review(
+            {
+                "review_id": review["review_id"],
+                "decision": "rejected",
+                "reviewer_id": REVIEWER,
+                "review_note": "发布后复核撤销。",
+                "decided_at": LATER,
+            }
+        )
+        after = manager.retrieve(
+            domain="bazi",
+            scenario="career_exam",
+            topic="civil_service_exam",
+            query_id="query-after-rejection",
+            consumed_at=LATER,
+        )
+        assert after["status"] == "NO_HISTORICAL_CONTEXT"
+        assert after["positive_cases"] == []
+        status = manager.status()
+        assert status["published_assets"] == 1
+        assert status["retrievable_assets"] == 0
+        assert status["revoked_or_withdrawn_assets"] == 1
+    finally:
+        temp.cleanup()
+
+
+def test_same_time_rejection_revokes_already_published_asset_from_retrieval() -> None:
+    temp, manager, _root = _manager()
+    try:
+        review = _stage(manager, outcome="VERIFIED_HIT")
+        _approve_publish(manager, review)
+        manager.decide_review(
+            {
+                "review_id": review["review_id"],
+                "decision": "rejected",
+                "reviewer_id": REVIEWER,
+                "review_note": "同一秒内的拒绝必须保守地撤销批准。",
+                "decided_at": NOW,
+            }
+        )
+        context = manager.retrieve(
+            domain="bazi",
+            scenario="career_exam",
+            topic="civil_service_exam",
+            query_id="query-same-time-rejection",
+            consumed_at=LATER,
+        )
+        assert context["status"] == "NO_HISTORICAL_CONTEXT"
+        assert manager.status()["retrievable_assets"] == 0
+    finally:
+        temp.cleanup()
+
+
+def test_withdrawn_source_case_revokes_already_published_asset() -> None:
+    temp, manager, root = _manager()
+    try:
+        case_id = "case-ref-withdrawn-1"
+        review = _stage(
+            manager,
+            outcome="FAILURE",
+            source_case_id=case_id,
+        )
+        _approve_publish(manager, review)
+        _write_withdrawal_tombstone(root, case_id)
+        context = manager.retrieve(
+            domain="bazi",
+            scenario="career_exam",
+            topic="civil_service_exam",
+            query_id="query-after-withdrawal",
+            consumed_at=LATER,
+        )
+        assert context["status"] == "NO_HISTORICAL_CONTEXT"
+        assert context["failure_cases"] == []
+        assert manager.status()["revoked_or_withdrawn_assets"] == 1
+    finally:
+        temp.cleanup()
+
+
+def test_withdrawn_source_case_cannot_enter_review() -> None:
+    temp, manager, root = _manager()
+    try:
+        case_id = "case-ref-withdrawn-2"
+        _write_withdrawal_tombstone(root, case_id)
+        with pytest.raises(TrainingError, match="SOURCE_CASE_WITHDRAWN"):
+            _stage(
+                manager,
+                outcome="VERIFIED_HIT",
+                source_case_id=case_id,
+            )
+    finally:
+        temp.cleanup()
+
+
+def test_same_review_cannot_be_published_twice() -> None:
+    temp, manager, _root = _manager()
+    try:
+        review = _stage(manager, outcome="VERIFIED_HIT")
+        approval = _approve(manager, review)
+        manager.publish_approved_asset(
+            {
+                "review_id": review["review_id"],
+                "approval_id": approval["approval_id"],
+                "published_at": NOW,
+            }
+        )
+        with pytest.raises(TrainingError, match="ASSET_ALREADY_PUBLISHED"):
+            manager.publish_approved_asset(
+                {
+                    "review_id": review["review_id"],
+                    "approval_id": approval["approval_id"],
+                    "published_at": LATER,
+                }
+            )
+        assert manager.status()["published_assets"] == 1
     finally:
         temp.cleanup()
 

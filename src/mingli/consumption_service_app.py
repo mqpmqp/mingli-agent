@@ -6,10 +6,10 @@ from pathlib import Path
 from threading import RLock
 from typing import Callable
 
-from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import TokenVerifier
 from mcp.server.auth.settings import AuthSettings
+from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from starlette.applications import Starlette
 
@@ -18,8 +18,9 @@ from .oauth_resource import OIDCJWTVerifier
 from .training import TrainingError, TrainingStore
 
 
-CONSUMPTION_SERVICE_VERSION = "mingli-consumption-service@1.0"
+CONSUMPTION_SERVICE_VERSION = "mingli-consumption-service@1.1"
 TOKEN_ENV = "MINGLI_TRAINING_COLLECTOR_TOKEN"
+APPROVAL_TOKEN_ENV = "MINGLI_CONSUMPTION_APPROVAL_TOKEN"
 OAUTH_ISSUER_ENV = "MINGLI_OAUTH_ISSUER"
 OAUTH_JWKS_URL_ENV = "MINGLI_OAUTH_JWKS_URL"
 OAUTH_RESOURCE_URL_ENV = "MINGLI_OAUTH_RESOURCE_URL"
@@ -37,7 +38,7 @@ def default_consumption_manager() -> ConsumptionV1:
     if not store_value:
         raise TrainingError(
             "CONSUMPTION_NOT_CONFIGURED",
-            "MINGLI_TRAINING_STORE must point to the controlled off-Git training store",
+            "MINGLI_TRAINING_STORE 必须指向受控的仓库外训练目录",
         )
     repository_root = _repository_root()
     config = (str(Path(store_value).expanduser().resolve()), str(repository_root))
@@ -52,8 +53,7 @@ def default_consumption_manager() -> ConsumptionV1:
 
 
 def _authorized(authorization: str | None, token: str | None) -> bool:
-    configured = token if token is not None else os.environ.get(TOKEN_ENV)
-    return bool(configured and authorization and hmac.compare_digest(authorization, f"Bearer {configured}"))
+    return bool(token and authorization and hmac.compare_digest(authorization, f"Bearer {token}"))
 
 
 def _request_authorization(ctx: Context) -> str | None:
@@ -76,9 +76,36 @@ def _require_auth(
         access_token = get_access_token()
         ok = access_token is not None and required_scope in access_token.scopes
     else:
-        ok = _authorized(_request_authorization(ctx), bearer_token)
+        configured = bearer_token or os.environ.get(TOKEN_ENV, "").strip()
+        ok = _authorized(_request_authorization(ctx), configured)
     if not ok:
-        raise TrainingError("CONSUMPTION_AUTH_REQUIRED", f"authorization with {required_scope} is required")
+        raise TrainingError("CONSUMPTION_AUTH_REQUIRED", f"需要有效的 {required_scope} 授权")
+
+
+def _require_approval_auth(
+    ctx: Context,
+    *,
+    bearer_token: str | None,
+    approval_token: str | None,
+    oauth_enabled: bool,
+) -> None:
+    if oauth_enabled:
+        access_token = get_access_token()
+        ok = access_token is not None and "training:approve" in access_token.scopes
+    else:
+        configured = approval_token or os.environ.get(APPROVAL_TOKEN_ENV, "").strip()
+        collector_token = bearer_token or os.environ.get(TOKEN_ENV, "").strip()
+        ok = bool(
+            configured
+            and collector_token
+            and not hmac.compare_digest(configured, collector_token)
+            and _authorized(_request_authorization(ctx), configured)
+        )
+    if not ok:
+        raise TrainingError(
+            "HUMAN_APPROVAL_AUTH_REQUIRED",
+            "人工批准和发布必须使用独立 training:approve 授权",
+        )
 
 
 def _oauth_from_environment() -> tuple[TokenVerifier, AuthSettings] | None:
@@ -89,7 +116,7 @@ def _oauth_from_environment() -> tuple[TokenVerifier, AuthSettings] | None:
     if not any(configured):
         return None
     if not all(configured):
-        raise RuntimeError("MingLi OAuth requires issuer, JWKS URL, and resource URL together")
+        raise RuntimeError("MingLi OAuth 必须同时配置 issuer、JWKS URL 和 resource URL")
     verifier = OIDCJWTVerifier(issuer=issuer, audience=resource_url, jwks_url=jwks_url)
     settings = AuthSettings(
         issuer_url=issuer,
@@ -115,14 +142,17 @@ def create_mcp(
     *,
     manager: ConsumptionV1 | None = None,
     bearer_token: str | None = None,
+    approval_token: str | None = None,
     token_verifier: TokenVerifier | None = None,
     auth_settings: AuthSettings | None = None,
     host: str = "127.0.0.1",
     port: int = 8010,
 ) -> FastMCP:
-    provider: Callable[[], ConsumptionV1] = (lambda: manager) if manager is not None else default_consumption_manager
+    provider: Callable[[], ConsumptionV1] = (
+        (lambda: manager) if manager is not None else default_consumption_manager
+    )
     if (token_verifier is None) != (auth_settings is None):
-        raise ValueError("token_verifier and auth_settings must be configured together")
+        raise ValueError("token_verifier 与 auth_settings 必须同时配置")
     if token_verifier is None:
         oauth = _oauth_from_environment()
         if oauth is not None:
@@ -131,8 +161,8 @@ def create_mcp(
     server = FastMCP(
         "MingLi Consumption V1",
         instructions=(
-            "Human-reviewed training assets only. Never approve on behalf of the user. "
-            "Retrieval is exact domain/scenario/topic, bounded, audited, and SHADOW by default."
+            "只消费人工审核训练资产。不得代表用户批准。"
+            "检索严格按 domain/scenario/topic，有限额、有审计，默认 SHADOW。"
         ),
         host=host,
         port=port,
@@ -148,11 +178,21 @@ def create_mcp(
         return provider().stage_review_asset(asset)
 
     def decide_consumption_review(decision: dict[str, object], ctx: Context) -> dict[str, object]:
-        _require_auth(ctx, bearer_token=bearer_token, oauth_enabled=oauth_enabled, required_scope="training:write")
+        _require_approval_auth(
+            ctx,
+            bearer_token=bearer_token,
+            approval_token=approval_token,
+            oauth_enabled=oauth_enabled,
+        )
         return provider().decide_review(decision)
 
     def publish_consumption_asset(publication: dict[str, object], ctx: Context) -> dict[str, object]:
-        _require_auth(ctx, bearer_token=bearer_token, oauth_enabled=oauth_enabled, required_scope="training:write")
+        _require_approval_auth(
+            ctx,
+            bearer_token=bearer_token,
+            approval_token=approval_token,
+            oauth_enabled=oauth_enabled,
+        )
         return provider().publish_approved_asset(publication)
 
     def retrieve_training_context(
@@ -179,34 +219,35 @@ def create_mcp(
         return provider().status()
 
     write_meta = {"securitySchemes": [{"type": "oauth2", "scopes": ["runtime:read", "training:write"]}]} if oauth_enabled else None
+    approve_meta = {"securitySchemes": [{"type": "oauth2", "scopes": ["runtime:read", "training:approve"]}]} if oauth_enabled else None
     read_meta = {"securitySchemes": [{"type": "oauth2", "scopes": ["runtime:read", "training:read"]}]} if oauth_enabled else None
     server.tool(
         name="stage_consumption_review_asset",
-        description="Stage a structured asset in REVIEW. This does not approve or publish it.",
+        description="把结构化训练资产放入 REVIEW；不会自动批准或发布。",
         annotations=_annotations("Stage Consumption REVIEW asset", read_only=False, idempotent=False),
         meta=write_meta,
     )(stage_consumption_review_asset)
     server.tool(
         name="decide_consumption_review",
-        description="Record an explicit human approved/rejected decision. Invoke only after the user has explicitly decided.",
+        description="记录明确人工 approved/rejected 决定；必须使用独立 training:approve 授权。",
         annotations=_annotations("Decide Consumption review", read_only=False, idempotent=False),
-        meta=write_meta,
+        meta=approve_meta,
     )(decide_consumption_review)
     server.tool(
         name="publish_consumption_asset",
-        description="Publish only when the exact REVIEW hash has a latest approved human receipt.",
+        description="仅发布当前最新人工决定仍为 approved 的 REVIEW；必须使用独立 training:approve 授权。",
         annotations=_annotations("Publish approved Consumption asset", read_only=False, idempotent=False),
-        meta=write_meta,
+        meta=approve_meta,
     )(publish_consumption_asset)
     server.tool(
         name="retrieve_training_context",
-        description="Retrieve an audited bounded same-domain/scenario/topic context pack; defaults to SHADOW.",
+        description="按 domain/scenario/topic 精确检索并写审计；默认 SHADOW。",
         annotations=_annotations("Retrieve training context", read_only=False, idempotent=False),
         meta=read_meta,
     )(retrieve_training_context)
     server.tool(
         name="get_consumption_status",
-        description="Read Consumption V1 asset and retrieval policy status.",
+        description="读取 Consumption V1 当前状态。",
         annotations=_annotations("Get Consumption status", read_only=True, idempotent=True),
         meta=read_meta,
     )(get_consumption_status)
@@ -226,6 +267,7 @@ def main() -> None:
 
 
 __all__ = [
+    "APPROVAL_TOKEN_ENV",
     "CONSUMPTION_SERVICE_VERSION",
     "create_app",
     "create_mcp",
