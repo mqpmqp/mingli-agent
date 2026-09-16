@@ -170,3 +170,62 @@ def test_consumption_mcp_exposes_gated_review_publish_and_retrieval() -> None:
         assert len(context["failure_cases"]) == 1
         assert context["failure_cases"][0]["content"] == "把考试动作扩大成最终录用。"
         assert context["usage_policy"]["failure_cases"] == "risk_warning_only_do_not_imitate"
+
+
+def test_reused_collector_token_cannot_approve() -> None:
+    with tempfile.TemporaryDirectory() as value:
+        root = Path(value)
+        repo = root / "repo"
+        repo.mkdir()
+        manager = ConsumptionV1(TrainingStore(root / "training", repository_root=repo))
+        app = create_app(manager=manager, bearer_token=TOKEN, approval_token=TOKEN)
+        with TestClient(app, base_url="http://127.0.0.1:8010") as client:
+            client.post(
+                "/mcp",
+                headers=MCP_HEADERS,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-06-18",
+                        "capabilities": {},
+                        "clientInfo": {"name": "reused-token-test", "version": "1.0"},
+                    },
+                },
+            )
+            staged = _call(
+                client,
+                "stage_consumption_review_asset",
+                {
+                    "asset": {
+                        "domain": "bazi",
+                        "scenario": "career_exam",
+                        "topic": "civil_service_exam",
+                        "outcome_class": "VERIFIED_HIT",
+                        "content": "凭证隔离测试资产。",
+                        "source_case_ids": ["case-ref-token-separation-2"],
+                        "source_prediction_ids": ["prediction-ref-token-separation-2"],
+                        "error_types": [],
+                        "created_at": NOW,
+                    }
+                },
+                2,
+                token=TOKEN,
+            ).json()["result"]["structuredContent"]
+            decision = _call(
+                client,
+                "decide_consumption_review",
+                {
+                    "decision": {
+                        "review_id": staged["review_id"],
+                        "decision": "approved",
+                        "reviewer_id": REVIEWER,
+                        "review_note": "复用采集 token 必须拒绝。",
+                        "decided_at": NOW,
+                    }
+                },
+                3,
+                token=TOKEN,
+            )
+            assert decision.json()["result"]["isError"] is True

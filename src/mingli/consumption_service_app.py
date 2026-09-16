@@ -85,6 +85,7 @@ def _require_auth(
 def _require_approval_auth(
     ctx: Context,
     *,
+    bearer_token: str | None,
     approval_token: str | None,
     oauth_enabled: bool,
 ) -> None:
@@ -93,7 +94,13 @@ def _require_approval_auth(
         ok = access_token is not None and "training:approve" in access_token.scopes
     else:
         configured = approval_token or os.environ.get(APPROVAL_TOKEN_ENV, "").strip()
-        ok = _authorized(_request_authorization(ctx), configured)
+        collector_token = bearer_token or os.environ.get(TOKEN_ENV, "").strip()
+        ok = bool(
+            configured
+            and collector_token
+            and not hmac.compare_digest(configured, collector_token)
+            and _authorized(_request_authorization(ctx), configured)
+        )
     if not ok:
         raise TrainingError(
             "HUMAN_APPROVAL_AUTH_REQUIRED",
@@ -171,11 +178,21 @@ def create_mcp(
         return provider().stage_review_asset(asset)
 
     def decide_consumption_review(decision: dict[str, object], ctx: Context) -> dict[str, object]:
-        _require_approval_auth(ctx, approval_token=approval_token, oauth_enabled=oauth_enabled)
+        _require_approval_auth(
+            ctx,
+            bearer_token=bearer_token,
+            approval_token=approval_token,
+            oauth_enabled=oauth_enabled,
+        )
         return provider().decide_review(decision)
 
     def publish_consumption_asset(publication: dict[str, object], ctx: Context) -> dict[str, object]:
-        _require_approval_auth(ctx, approval_token=approval_token, oauth_enabled=oauth_enabled)
+        _require_approval_auth(
+            ctx,
+            bearer_token=bearer_token,
+            approval_token=approval_token,
+            oauth_enabled=oauth_enabled,
+        )
         return provider().publish_approved_asset(publication)
 
     def retrieve_training_context(
