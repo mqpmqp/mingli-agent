@@ -11,7 +11,7 @@ from .training import TrainingError, TrainingStore
 from .validation_privacy import scan_for_pii
 
 
-CONSUMPTION_VERSION = "mingli-consumption-v1@1.0"
+CONSUMPTION_VERSION = "mingli-consumption-v1@1.1"
 _ALLOWED_DOMAINS = frozenset({"bazi", "qimen", "fengshui"})
 _ALLOWED_OUTCOMES = frozenset({
     "VERIFIED_HIT", "PARTIAL_HIT", "FAILURE", "UNVERIFIED", "CONTAMINATED", "INPUT_ERROR"
@@ -25,19 +25,19 @@ _ALLOWED_MODES = frozenset({"SHADOW", "ACTIVE"})
 
 def _record_name(identifier: str) -> str:
     if not isinstance(identifier, str) or not identifier or len(identifier) > 256:
-        raise TrainingError("INVALID_RECORD_ID", "record id must be a non-empty string of at most 256 characters")
+        raise TrainingError("INVALID_RECORD_ID", "记录 ID 必须是非空字符串且长度不超过 256 个字符")
     return hashlib.sha256(identifier.encode("utf-8")).hexdigest() + ".json"
 
 
 def _parse_time(value: object, *, field: str) -> datetime:
     if not isinstance(value, str) or not value.strip():
-        raise TrainingError("INVALID_TIMESTAMP", f"{field} must be a timezone-aware ISO-8601 timestamp")
+        raise TrainingError("INVALID_TIMESTAMP", f"{field} 必须是带时区的 ISO-8601 时间")
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise TrainingError("INVALID_TIMESTAMP", f"{field} must be ISO-8601") from exc
+        raise TrainingError("INVALID_TIMESTAMP", f"{field} 必须使用 ISO-8601 格式") from exc
     if parsed.tzinfo is None:
-        raise TrainingError("INVALID_TIMESTAMP", f"{field} must include a timezone")
+        raise TrainingError("INVALID_TIMESTAMP", f"{field} 必须包含时区")
     return parsed
 
 
@@ -46,11 +46,10 @@ def _plain(value: Mapping[str, object]) -> dict[str, object]:
 
 
 class ConsumptionV1:
-    """Human-approved training-asset publication, retrieval, and audit.
+    """人工批准训练资产的发布、检索与审计。
 
-    The store remains off-Git through TrainingStore. REVIEW records are immutable;
-    approvals bind an exact review hash; published assets are retrievable only when
-    the latest human decision for that exact hash is approved.
+    REVIEW 与 approval 均绑定精确哈希。发布后的资产只有在当前最新人工决定仍为
+    approved、来源案例未撤回、且 domain/scenario/topic 精确匹配时才可被检索。
     """
 
     def __init__(self, store: TrainingStore) -> None:
@@ -69,23 +68,23 @@ class ConsumptionV1:
         payload = _plain(value)
         findings = scan_for_pii(payload)
         if findings:
-            raise TrainingError("PII_DETECTED", "consumption record contains forbidden PII", field_path=findings[0].field_path)
+            raise TrainingError("PII_DETECTED", "Consumption 记录包含禁止保存的直接身份信息", field_path=findings[0].field_path)
         target = self._path(kind, identifier)
         target.parent.mkdir(parents=True, exist_ok=True)
         try:
             with target.open("x", encoding="utf-8", newline="\n") as handle:
                 handle.write(canonical_json(payload) + "\n")
         except FileExistsError as exc:
-            raise TrainingError("DUPLICATE_RECORD", f"{kind} record already exists") from exc
+            raise TrainingError("DUPLICATE_RECORD", f"{kind} 记录已存在") from exc
         return payload
 
     def _read(self, kind: str, identifier: str) -> dict[str, object]:
         target = self._path(kind, identifier)
         if not target.is_file():
-            raise TrainingError("RECORD_NOT_FOUND", f"{kind} record was not found")
+            raise TrainingError("RECORD_NOT_FOUND", f"未找到 {kind} 记录")
         value = json.loads(target.read_text(encoding="utf-8"))
         if not isinstance(value, dict):
-            raise TrainingError("SCHEMA_INCOMPATIBLE", f"{kind} record must be an object")
+            raise TrainingError("SCHEMA_INCOMPATIBLE", f"{kind} 记录必须是 JSON 对象")
         return value
 
     def _list(self, kind: str) -> list[dict[str, object]]:
@@ -119,6 +118,27 @@ class ConsumptionV1:
             ),
         )[-1]
 
+    def _source_case_withdrawn(self, case_id: str) -> bool:
+        return (self.root / "tombstones" / _record_name(case_id)).is_file()
+
+    def _withdrawn_source_ids(self, source_case_ids: object) -> list[str]:
+        if not isinstance(source_case_ids, Sequence) or isinstance(source_case_ids, (str, bytes)):
+            return []
+        return sorted(
+            str(case_id) for case_id in source_case_ids
+            if self._source_case_withdrawn(str(case_id))
+        )
+
+    def _asset_authorized_now(self, asset: Mapping[str, object]) -> bool:
+        if asset.get("consumption_eligible") is not True:
+            return False
+        review_id = str(asset.get("review_id", ""))
+        review_hash = str(asset.get("review_hash", ""))
+        latest = self._latest_decision(review_id, review_hash)
+        if latest is None or latest.get("decision") != "approved":
+            return False
+        return not self._withdrawn_source_ids(asset.get("source_case_ids", []))
+
     def stage_review_asset(self, value: Mapping[str, object]) -> dict[str, object]:
         domain = str(value.get("domain", ""))
         outcome = str(value.get("outcome_class", ""))
@@ -127,15 +147,18 @@ class ConsumptionV1:
         content = str(value.get("content", "")).strip()
         source_case_ids = value.get("source_case_ids", [])
         if domain not in _ALLOWED_DOMAINS:
-            raise TrainingError("INVALID_CONSUMPTION_DOMAIN", "domain must be bazi, qimen, or fengshui")
+            raise TrainingError("INVALID_CONSUMPTION_DOMAIN", "domain 只能是 bazi、qimen 或 fengshui")
         if outcome not in _ALLOWED_OUTCOMES:
-            raise TrainingError("INVALID_OUTCOME_CLASS", "outcome_class is not supported")
+            raise TrainingError("INVALID_OUTCOME_CLASS", "outcome_class 不在支持范围内")
         if not scenario or not topic:
-            raise TrainingError("MISSING_RETRIEVAL_TAGS", "scenario and topic are required before review")
+            raise TrainingError("MISSING_RETRIEVAL_TAGS", "进入 REVIEW 前必须提供 scenario 和 topic")
         if not content:
-            raise TrainingError("EMPTY_TRAINING_ASSET", "content must not be empty")
+            raise TrainingError("EMPTY_TRAINING_ASSET", "训练资产 content 不能为空")
         if not isinstance(source_case_ids, Sequence) or isinstance(source_case_ids, (str, bytes)) or not source_case_ids:
-            raise TrainingError("MISSING_SOURCE_CASES", "source_case_ids must be a non-empty array")
+            raise TrainingError("MISSING_SOURCE_CASES", "source_case_ids 必须是非空数组")
+        withdrawn = self._withdrawn_source_ids(source_case_ids)
+        if withdrawn:
+            raise TrainingError("SOURCE_CASE_WITHDRAWN", "来源案例已撤回同意，不能进入 Consumption REVIEW")
         created_at = str(value.get("created_at", ""))
         _parse_time(created_at, field="created_at")
         seed = {
@@ -159,10 +182,10 @@ class ConsumptionV1:
         review = self._read("review", review_id)
         decision = str(value.get("decision", ""))
         if decision not in {"approved", "rejected"}:
-            raise TrainingError("INVALID_APPROVAL_DECISION", "decision must be approved or rejected")
+            raise TrainingError("INVALID_APPROVAL_DECISION", "decision 只能是 approved 或 rejected")
         reviewer_id = str(value.get("reviewer_id", ""))
         if not reviewer_id:
-            raise TrainingError("HUMAN_APPROVAL_REQUIRED", "reviewer_id is required")
+            raise TrainingError("HUMAN_APPROVAL_REQUIRED", "必须提供 reviewer_id")
         decided_at = str(value.get("decided_at", ""))
         _parse_time(decided_at, field="decided_at")
         seed = {
@@ -183,12 +206,21 @@ class ConsumptionV1:
         review = self._read("review", review_id)
         approval = self._read("approval", approval_id)
         if approval.get("review_id") != review_id or approval.get("review_hash") != review.get("review_hash"):
-            raise TrainingError("STALE_APPROVAL_RECEIPT", "approval does not bind the current review hash")
+            raise TrainingError("STALE_APPROVAL_RECEIPT", "批准回执未绑定当前 REVIEW 哈希")
         latest = self._latest_decision(review_id, str(review["review_hash"]))
         if latest is None or latest.get("approval_id") != approval_id:
-            raise TrainingError("STALE_APPROVAL_RECEIPT", "only the latest human decision may authorize publication")
+            raise TrainingError("STALE_APPROVAL_RECEIPT", "只有当前最新人工决定可以授权发布")
         if approval.get("decision") != "approved":
-            raise TrainingError("HUMAN_APPROVAL_REQUIRED", "asset cannot publish without approved human receipt")
+            raise TrainingError("HUMAN_APPROVAL_REQUIRED", "只有人工 approved 的 REVIEW 才能发布")
+        withdrawn = self._withdrawn_source_ids(review.get("source_case_ids", []))
+        if withdrawn:
+            raise TrainingError("SOURCE_CASE_WITHDRAWN", "来源案例已撤回同意，禁止发布 Consumption 资产")
+        duplicates = [
+            item for item in self._list("asset")
+            if item.get("review_id") == review_id and item.get("review_hash") == review.get("review_hash")
+        ]
+        if duplicates:
+            raise TrainingError("ASSET_ALREADY_PUBLISHED", "同一 REVIEW 只能发布一个 Consumption 资产")
         published_at = str(value.get("published_at", ""))
         _parse_time(published_at, field="published_at")
         body = {
@@ -221,9 +253,9 @@ class ConsumptionV1:
         mode: str = "SHADOW",
     ) -> dict[str, object]:
         if domain not in _ALLOWED_DOMAINS:
-            raise TrainingError("INVALID_CONSUMPTION_DOMAIN", "domain must be bazi, qimen, or fengshui")
+            raise TrainingError("INVALID_CONSUMPTION_DOMAIN", "domain 只能是 bazi、qimen 或 fengshui")
         if mode not in _ALLOWED_MODES:
-            raise TrainingError("INVALID_CONSUMPTION_MODE", "mode must be SHADOW or ACTIVE")
+            raise TrainingError("INVALID_CONSUMPTION_MODE", "mode 只能是 SHADOW 或 ACTIVE")
         _parse_time(consumed_at, field="consumed_at")
         if not scenario.strip() or not topic.strip():
             return self._audit_and_return(
@@ -241,7 +273,7 @@ class ConsumptionV1:
             )
         matches = [
             item for item in self._list("asset")
-            if item.get("consumption_eligible") is True
+            if self._asset_authorized_now(item)
             and item.get("domain") == domain
             and item.get("scenario") == scenario
             and item.get("topic") == topic
@@ -304,7 +336,7 @@ class ConsumptionV1:
         audit = {"audit_id": "consumption-audit:" + audit_hash.split(":", 1)[1], **body}
         findings = scan_for_pii(audit)
         if findings:
-            raise TrainingError("PII_DETECTED", "consumption audit contains forbidden PII", field_path=findings[0].field_path)
+            raise TrainingError("PII_DETECTED", "Consumption 审计记录包含禁止保存的直接身份信息", field_path=findings[0].field_path)
         self.root.mkdir(parents=True, exist_ok=True)
         with (self.root / "consumption_audit.jsonl").open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(canonical_json(audit) + "\n")
@@ -334,12 +366,18 @@ class ConsumptionV1:
         reviews = self._list("review")
         approvals = self._list("approval")
         assets = self._list("asset")
+        retrievable = [item for item in assets if self._asset_authorized_now(item)]
+        revoked = [
+            item for item in assets
+            if item.get("consumption_eligible") is True and item not in retrievable
+        ]
         return {
             "schema_version": CONSUMPTION_VERSION,
             "reviews": len(reviews),
             "approvals": len(approvals),
             "published_assets": len(assets),
-            "retrievable_assets": sum(item.get("consumption_eligible") is True for item in assets),
+            "retrievable_assets": len(retrievable),
+            "revoked_or_withdrawn_assets": len(revoked),
             "mode_default": "SHADOW",
             "positive_limit": 3,
             "failure_limit": 2,
