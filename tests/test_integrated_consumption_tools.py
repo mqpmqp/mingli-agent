@@ -188,3 +188,62 @@ def test_existing_integrated_service_exposes_consumption_tools_in_shadow_mode() 
             ).json()["result"]["structuredContent"]
             assert status["mode_default"] == "SHADOW"
             assert status["retrievable_assets"] == 1
+
+
+def test_reused_collector_token_cannot_approve_or_publish() -> None:
+    with tempfile.TemporaryDirectory() as value:
+        root = Path(value)
+        repo = root / "repo"
+        repo.mkdir()
+        store = TrainingStore(root / "training", repository_root=repo)
+        app = create_app(
+            collector=TrainingReportCollector(store),
+            bearer_token=TOKEN,
+            approval_token=TOKEN,
+        )
+
+        with TestClient(app, base_url="http://127.0.0.1:8000") as client:
+            _request(
+                client,
+                "initialize",
+                {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "reused-token-test", "version": "1.0"},
+                },
+                1,
+            )
+            staged = _call(
+                client,
+                "stage_consumption_review_asset",
+                {
+                    "asset": {
+                        "domain": "bazi",
+                        "scenario": "career_exam",
+                        "topic": "civil_service_exam",
+                        "outcome_class": "VERIFIED_HIT",
+                        "content": "凭证隔离测试资产。",
+                        "source_case_ids": ["case-ref-token-separation-1"],
+                        "source_prediction_ids": ["prediction-ref-token-separation-1"],
+                        "error_types": [],
+                        "created_at": NOW,
+                    }
+                },
+                2,
+            ).json()["result"]["structuredContent"]
+            decision = _call(
+                client,
+                "decide_consumption_review",
+                {
+                    "decision": {
+                        "review_id": staged["review_id"],
+                        "decision": "approved",
+                        "reviewer_id": REVIEWER,
+                        "review_note": "复用采集 token 必须拒绝。",
+                        "decided_at": NOW,
+                    }
+                },
+                3,
+                token=TOKEN,
+            )
+            assert decision.json()["result"]["isError"] is True

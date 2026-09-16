@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Integrated Runtime plus Consumption V1 tools on the existing service endpoint."""
 
+import hmac
 import os
 from collections.abc import Callable
 
@@ -82,8 +83,14 @@ def create_mcp(
                 return
         else:
             configured = approval_token or os.environ.get(APPROVAL_TOKEN_ENV, "").strip()
-            if configured and base.collector_authorized(
-                base._mcp_authorization(ctx), bearer_token=configured
+            collector_token = bearer_token or os.environ.get(base.COLLECTOR_TOKEN_ENV, "").strip()
+            if (
+                configured
+                and collector_token
+                and not hmac.compare_digest(configured, collector_token)
+                and base.collector_authorized(
+                    base._mcp_authorization(ctx), bearer_token=configured
+                )
             ):
                 return
         raise TrainingError(
