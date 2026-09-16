@@ -103,9 +103,14 @@ class ConsumptionV1:
                 records.append(value)
         return records
 
-    def _latest_decision_index(self) -> dict[tuple[str, str], dict[str, object]]:
+    def _latest_decision_index(
+        self,
+        approvals: Sequence[Mapping[str, object]] | None = None,
+    ) -> dict[tuple[str, str], dict[str, object]]:
         latest: dict[tuple[str, str], dict[str, object]] = {}
-        for item in self._list("approval"):
+        records = approvals if approvals is not None else self._list("approval")
+        for raw_item in records:
+            item = dict(raw_item)
             key = (str(item.get("review_id", "")), str(item.get("review_hash", "")))
             current = latest.get(key)
             item_key = (
@@ -406,7 +411,7 @@ class ConsumptionV1:
         reviews = self._list("review")
         approvals = self._list("approval")
         assets = self._list("asset")
-        latest_decisions = self._latest_decision_index()
+        latest_decisions = self._latest_decision_index(approvals)
         retrievable = [
             item for item in assets
             if self._asset_authorized_now(item, latest_decisions=latest_decisions)
