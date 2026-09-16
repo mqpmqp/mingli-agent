@@ -1,0 +1,350 @@
+from __future__ import annotations
+
+from datetime import datetime
+import hashlib
+import json
+from pathlib import Path
+from typing import Mapping, Sequence
+
+from .contracts import canonical_json, digest
+from .training import TrainingError, TrainingStore
+from .validation_privacy import scan_for_pii
+
+
+CONSUMPTION_VERSION = "mingli-consumption-v1@1.0"
+_ALLOWED_DOMAINS = frozenset({"bazi", "qimen", "fengshui"})
+_ALLOWED_OUTCOMES = frozenset({
+    "VERIFIED_HIT", "PARTIAL_HIT", "FAILURE", "UNVERIFIED", "CONTAMINATED", "INPUT_ERROR"
+})
+_POSITIVE = frozenset({"VERIFIED_HIT"})
+_BOUNDARY = frozenset({"PARTIAL_HIT"})
+_FAILURE = frozenset({"FAILURE"})
+_RETRIEVABLE = _POSITIVE | _BOUNDARY | _FAILURE
+_ALLOWED_MODES = frozenset({"SHADOW", "ACTIVE"})
+
+
+def _record_name(identifier: str) -> str:
+    if not isinstance(identifier, str) or not identifier or len(identifier) > 256:
+        raise TrainingError("INVALID_RECORD_ID", "record id must be a non-empty string of at most 256 characters")
+    return hashlib.sha256(identifier.encode("utf-8")).hexdigest() + ".json"
+
+
+def _parse_time(value: object, *, field: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise TrainingError("INVALID_TIMESTAMP", f"{field} must be a timezone-aware ISO-8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise TrainingError("INVALID_TIMESTAMP", f"{field} must be ISO-8601") from exc
+    if parsed.tzinfo is None:
+        raise TrainingError("INVALID_TIMESTAMP", f"{field} must include a timezone")
+    return parsed
+
+
+def _plain(value: Mapping[str, object]) -> dict[str, object]:
+    return json.loads(canonical_json(value))
+
+
+class ConsumptionV1:
+    """Human-approved training-asset publication, retrieval, and audit.
+
+    The store remains off-Git through TrainingStore. REVIEW records are immutable;
+    approvals bind an exact review hash; published assets are retrievable only when
+    the latest human decision for that exact hash is approved.
+    """
+
+    def __init__(self, store: TrainingStore) -> None:
+        self.training_store = store
+        self.root = store.root
+
+    def _path(self, kind: str, identifier: str) -> Path:
+        directories = {
+            "review": "consumption_review_assets",
+            "approval": "consumption_approvals",
+            "asset": "consumption_assets",
+        }
+        return self.root / directories[kind] / _record_name(identifier)
+
+    def _write_once(self, kind: str, identifier: str, value: Mapping[str, object]) -> dict[str, object]:
+        payload = _plain(value)
+        findings = scan_for_pii(payload)
+        if findings:
+            raise TrainingError("PII_DETECTED", "consumption record contains forbidden PII", field_path=findings[0].field_path)
+        target = self._path(kind, identifier)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with target.open("x", encoding="utf-8", newline="\n") as handle:
+                handle.write(canonical_json(payload) + "\n")
+        except FileExistsError as exc:
+            raise TrainingError("DUPLICATE_RECORD", f"{kind} record already exists") from exc
+        return payload
+
+    def _read(self, kind: str, identifier: str) -> dict[str, object]:
+        target = self._path(kind, identifier)
+        if not target.is_file():
+            raise TrainingError("RECORD_NOT_FOUND", f"{kind} record was not found")
+        value = json.loads(target.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise TrainingError("SCHEMA_INCOMPATIBLE", f"{kind} record must be an object")
+        return value
+
+    def _list(self, kind: str) -> list[dict[str, object]]:
+        directories = {
+            "review": "consumption_review_assets",
+            "approval": "consumption_approvals",
+            "asset": "consumption_assets",
+        }
+        directory = self.root / directories[kind]
+        if not directory.is_dir():
+            return []
+        records: list[dict[str, object]] = []
+        for path in sorted(directory.glob("*.json")):
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                records.append(value)
+        return records
+
+    def _latest_decision(self, review_id: str, review_hash: str) -> dict[str, object] | None:
+        matching = [
+            item for item in self._list("approval")
+            if item.get("review_id") == review_id and item.get("review_hash") == review_hash
+        ]
+        if not matching:
+            return None
+        return sorted(
+            matching,
+            key=lambda item: (
+                _parse_time(item.get("decided_at"), field="decided_at"),
+                str(item.get("approval_id", "")),
+            ),
+        )[-1]
+
+    def stage_review_asset(self, value: Mapping[str, object]) -> dict[str, object]:
+        domain = str(value.get("domain", ""))
+        outcome = str(value.get("outcome_class", ""))
+        scenario = str(value.get("scenario", "")).strip()
+        topic = str(value.get("topic", "")).strip()
+        content = str(value.get("content", "")).strip()
+        source_case_ids = value.get("source_case_ids", [])
+        if domain not in _ALLOWED_DOMAINS:
+            raise TrainingError("INVALID_CONSUMPTION_DOMAIN", "domain must be bazi, qimen, or fengshui")
+        if outcome not in _ALLOWED_OUTCOMES:
+            raise TrainingError("INVALID_OUTCOME_CLASS", "outcome_class is not supported")
+        if not scenario or not topic:
+            raise TrainingError("MISSING_RETRIEVAL_TAGS", "scenario and topic are required before review")
+        if not content:
+            raise TrainingError("EMPTY_TRAINING_ASSET", "content must not be empty")
+        if not isinstance(source_case_ids, Sequence) or isinstance(source_case_ids, (str, bytes)) or not source_case_ids:
+            raise TrainingError("MISSING_SOURCE_CASES", "source_case_ids must be a non-empty array")
+        created_at = str(value.get("created_at", ""))
+        _parse_time(created_at, field="created_at")
+        seed = {
+            "domain": domain,
+            "scenario": scenario,
+            "topic": topic,
+            "outcome_class": outcome,
+            "content": content,
+            "source_case_ids": sorted({str(item) for item in source_case_ids}),
+            "source_prediction_ids": sorted({str(item) for item in value.get("source_prediction_ids", [])}) if isinstance(value.get("source_prediction_ids", []), list) else [],
+            "error_types": sorted({str(item) for item in value.get("error_types", [])}) if isinstance(value.get("error_types", []), list) else [],
+            "created_at": created_at,
+            "review_state": "REVIEW",
+        }
+        review_hash = digest({"record_type": "ConsumptionReviewAsset", "payload": seed})
+        review_id = "consumption-review:" + review_hash.split(":", 1)[1]
+        return self._write_once("review", review_id, {"review_id": review_id, "review_hash": review_hash, **seed})
+
+    def decide_review(self, value: Mapping[str, object]) -> dict[str, object]:
+        review_id = str(value.get("review_id", ""))
+        review = self._read("review", review_id)
+        decision = str(value.get("decision", ""))
+        if decision not in {"approved", "rejected"}:
+            raise TrainingError("INVALID_APPROVAL_DECISION", "decision must be approved or rejected")
+        reviewer_id = str(value.get("reviewer_id", ""))
+        if not reviewer_id:
+            raise TrainingError("HUMAN_APPROVAL_REQUIRED", "reviewer_id is required")
+        decided_at = str(value.get("decided_at", ""))
+        _parse_time(decided_at, field="decided_at")
+        seed = {
+            "review_id": review_id,
+            "review_hash": review["review_hash"],
+            "decision": decision,
+            "reviewer_id": reviewer_id,
+            "review_note": value.get("review_note"),
+            "decided_at": decided_at,
+        }
+        approval_hash = digest({"record_type": "ConsumptionApproval", "payload": seed})
+        approval_id = "consumption-approval:" + approval_hash.split(":", 1)[1]
+        return self._write_once("approval", approval_id, {"approval_id": approval_id, **seed})
+
+    def publish_approved_asset(self, value: Mapping[str, object]) -> dict[str, object]:
+        review_id = str(value.get("review_id", ""))
+        approval_id = str(value.get("approval_id", ""))
+        review = self._read("review", review_id)
+        approval = self._read("approval", approval_id)
+        if approval.get("review_id") != review_id or approval.get("review_hash") != review.get("review_hash"):
+            raise TrainingError("STALE_APPROVAL_RECEIPT", "approval does not bind the current review hash")
+        latest = self._latest_decision(review_id, str(review["review_hash"]))
+        if latest is None or latest.get("approval_id") != approval_id:
+            raise TrainingError("STALE_APPROVAL_RECEIPT", "only the latest human decision may authorize publication")
+        if approval.get("decision") != "approved":
+            raise TrainingError("HUMAN_APPROVAL_REQUIRED", "asset cannot publish without approved human receipt")
+        published_at = str(value.get("published_at", ""))
+        _parse_time(published_at, field="published_at")
+        body = {
+            "review_id": review_id,
+            "review_hash": review["review_hash"],
+            "approval_id": approval_id,
+            "domain": review["domain"],
+            "scenario": review["scenario"],
+            "topic": review["topic"],
+            "outcome_class": review["outcome_class"],
+            "content": review["content"],
+            "source_case_ids": review["source_case_ids"],
+            "source_prediction_ids": review.get("source_prediction_ids", []),
+            "error_types": review.get("error_types", []),
+            "published_at": published_at,
+            "consumption_eligible": review["outcome_class"] in _RETRIEVABLE,
+        }
+        asset_hash = digest({"record_type": "ConsumptionAsset", "payload": body})
+        asset_id = "consumption-asset:" + asset_hash.split(":", 1)[1]
+        return self._write_once("asset", asset_id, {"asset_id": asset_id, "asset_hash": asset_hash, **body})
+
+    def retrieve(
+        self,
+        *,
+        domain: str,
+        scenario: str,
+        topic: str,
+        query_id: str,
+        consumed_at: str,
+        mode: str = "SHADOW",
+    ) -> dict[str, object]:
+        if domain not in _ALLOWED_DOMAINS:
+            raise TrainingError("INVALID_CONSUMPTION_DOMAIN", "domain must be bazi, qimen, or fengshui")
+        if mode not in _ALLOWED_MODES:
+            raise TrainingError("INVALID_CONSUMPTION_MODE", "mode must be SHADOW or ACTIVE")
+        _parse_time(consumed_at, field="consumed_at")
+        if not scenario.strip() or not topic.strip():
+            return self._audit_and_return(
+                query_id=query_id,
+                consumed_at=consumed_at,
+                domain=domain,
+                scenario=scenario,
+                topic=topic,
+                mode=mode,
+                status="NO_HISTORICAL_CONTEXT",
+                positives=[],
+                boundaries=[],
+                failures=[],
+                reason="scenario_or_topic_missing",
+            )
+        matches = [
+            item for item in self._list("asset")
+            if item.get("consumption_eligible") is True
+            and item.get("domain") == domain
+            and item.get("scenario") == scenario
+            and item.get("topic") == topic
+            and item.get("outcome_class") in _RETRIEVABLE
+        ]
+        matches.sort(
+            key=lambda item: (
+                _parse_time(item.get("published_at"), field="published_at"),
+                str(item.get("asset_id", "")),
+            ),
+            reverse=True,
+        )
+        positives = [item for item in matches if item.get("outcome_class") in _POSITIVE][:3]
+        boundaries = [item for item in matches if item.get("outcome_class") in _BOUNDARY][:2]
+        failures = [item for item in matches if item.get("outcome_class") in _FAILURE][:2]
+        status = "CONTEXT_AVAILABLE" if positives or boundaries or failures else "NO_HISTORICAL_CONTEXT"
+        reason = None if status == "CONTEXT_AVAILABLE" else "no_same_domain_scenario_topic_assets"
+        return self._audit_and_return(
+            query_id=query_id,
+            consumed_at=consumed_at,
+            domain=domain,
+            scenario=scenario,
+            topic=topic,
+            mode=mode,
+            status=status,
+            positives=positives,
+            boundaries=boundaries,
+            failures=failures,
+            reason=reason,
+        )
+
+    def _audit_and_return(
+        self,
+        *,
+        query_id: str,
+        consumed_at: str,
+        domain: str,
+        scenario: str,
+        topic: str,
+        mode: str,
+        status: str,
+        positives: list[dict[str, object]],
+        boundaries: list[dict[str, object]],
+        failures: list[dict[str, object]],
+        reason: str | None,
+    ) -> dict[str, object]:
+        selected = [str(item["asset_id"]) for item in [*positives, *boundaries, *failures]]
+        body = {
+            "query_id": query_id,
+            "domain": domain,
+            "scenario": scenario,
+            "topic": topic,
+            "mode": mode,
+            "status": status,
+            "selected_asset_ids": selected,
+            "consumed_at": consumed_at,
+            "reason": reason,
+        }
+        audit_hash = digest({"record_type": "ConsumptionAudit", "payload": body})
+        audit = {"audit_id": "consumption-audit:" + audit_hash.split(":", 1)[1], **body}
+        findings = scan_for_pii(audit)
+        if findings:
+            raise TrainingError("PII_DETECTED", "consumption audit contains forbidden PII", field_path=findings[0].field_path)
+        self.root.mkdir(parents=True, exist_ok=True)
+        with (self.root / "consumption_audit.jsonl").open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(canonical_json(audit) + "\n")
+        return {
+            "schema_version": CONSUMPTION_VERSION,
+            "status": status,
+            "mode": mode,
+            "domain": domain,
+            "scenario": scenario,
+            "topic": topic,
+            "positive_cases": positives,
+            "boundary_cases": boundaries,
+            "failure_cases": failures,
+            "usage_policy": {
+                "positive_cases": "reference_only_not_ground_truth",
+                "boundary_cases": "boundary_learning_only",
+                "failure_cases": "risk_warning_only_do_not_imitate",
+            },
+            "positive_limit": 3,
+            "failure_limit": 2,
+            "cross_domain_allowed": False,
+            "audit_id": audit["audit_id"],
+            "reason": reason,
+        }
+
+    def status(self) -> dict[str, object]:
+        reviews = self._list("review")
+        approvals = self._list("approval")
+        assets = self._list("asset")
+        return {
+            "schema_version": CONSUMPTION_VERSION,
+            "reviews": len(reviews),
+            "approvals": len(approvals),
+            "published_assets": len(assets),
+            "retrievable_assets": sum(item.get("consumption_eligible") is True for item in assets),
+            "mode_default": "SHADOW",
+            "positive_limit": 3,
+            "failure_limit": 2,
+            "cross_domain_allowed": False,
+        }
+
+
+__all__ = ["CONSUMPTION_VERSION", "ConsumptionV1"]

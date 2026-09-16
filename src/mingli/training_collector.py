@@ -4,12 +4,13 @@ from datetime import datetime, timezone
 from threading import RLock
 from typing import Mapping
 
+from .consumption_v1 import ConsumptionV1
 from .phase4_1 import Phase41Pilot
 from .rule_promotion import RulePromotionPipeline
 from .training import TrainingError, TrainingStore
 
 
-TRAINING_COLLECTOR_VERSION = "mingli-hourly-training-collector@1.0"
+TRAINING_COLLECTOR_VERSION = "mingli-hourly-training-collector@1.1"
 AUTOMATION_DOMAINS = {
     "bazi-dual-teacher-hourly-training": "bazi",
     "qimen-hourly-training": "qimen",
@@ -22,17 +23,18 @@ def _utc_now() -> str:
 
 
 class TrainingReportCollector:
-    """Ingest hourly reports and run every non-human promotion gate.
+    """Ingest reports, run non-human gates, and expose reviewed asset consumption.
 
-    The collector deliberately stops before approval and release publication.  A
-    single service process serializes writes because candidate records are merged
-    additively when multiple automations submit at the same time.
+    The collector deliberately stops before human approval and rule release. Consumption
+    V1 has separate explicit review/approval/publish operations and never promotes assets
+    automatically. A single service process serializes writes.
     """
 
     def __init__(self, store: TrainingStore) -> None:
         self.store = store
         self.pipeline = RulePromotionPipeline(store)
         self.phase4_1 = Phase41Pilot(store)
+        self.consumption = ConsumptionV1(store)
         self._write_lock = RLock()
 
     def collect(
@@ -110,6 +112,7 @@ class TrainingReportCollector:
         with self._write_lock:
             pipeline_status = self.pipeline.status()
             queue = self.pipeline.review_queue()
+            consumption_status = self.consumption.status()
         states: dict[str, int] = {}
         for item in queue["candidates"]:
             state = str(item["promotion_state"])
@@ -121,6 +124,7 @@ class TrainingReportCollector:
             "single_process_writer_required": True,
             "pipeline": pipeline_status,
             "phase4_1": self.phase4_1.status(),
+            "consumption_v1": consumption_status,
             "review_queue_counts": states,
             "automatic_steps": [
                 "report_ingest",
@@ -128,7 +132,14 @@ class TrainingReportCollector:
                 "source_gate_evaluation",
                 "contract_regression",
             ],
-            "manual_steps": ["source_review", "candidate_approval", "rule_publish"],
+            "manual_steps": [
+                "source_review",
+                "candidate_approval",
+                "rule_publish",
+                "consumption_asset_review",
+                "consumption_asset_approval",
+                "consumption_asset_publish",
+            ],
         }
 
     def review_queue(self) -> dict[str, object]:
