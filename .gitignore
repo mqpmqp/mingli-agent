@@ -8,6 +8,8 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+.cache/
+artifacts/
 web/pwa/node_modules/
 web/pwa/dist/
 web/pwa/public/runtime/

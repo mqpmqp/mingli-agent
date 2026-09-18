@@ -1,0 +1,21 @@
+{
+  "name": "MingLi Agent Core Runtime",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "http-service",
+      "command": "PORT=8000 MINGLI_HOST=127.0.0.1 MINGLI_ALLOWED_HOSTS=127.0.0.1:8000,localhost:8000 .venv/bin/mingli-service",
+      "description": "MingLi Runtime JSON/MCP service on http://127.0.0.1:8000 (GET /healthz, POST /v1/mingli/analyze, POST /mcp)."
+    },
+    {
+      "name": "pwa-preview",
+      "command": "cd web/pwa && npm run preview",
+      "description": "Offline mobile Bazi PWA static preview on http://127.0.0.1:4173 (built during install)."
+    }
+  ],
+  "ports": [
+    { "name": "http-service", "port": 8000 },
+    { "name": "pwa-preview", "port": 4173 }
+  ]
+}
